@@ -127,14 +127,16 @@ html, body { background: #ffffff; color: var(--ink); }
 .theme-score #slot-lever::before {            /* 공(손잡이) */
   content: ''; position: absolute; left: 50%; top: -32px; transform: translateX(-50%);
   width: 42px; height: 42px; border-radius: 50%; background: #fff; border: 5px solid #000;
+  transition: transform .42s cubic-bezier(.34, 1.56, .5, 1), background .15s;
 }
 .theme-score #slot-lever::after {             /* 받침(피벗) */
   content: ''; position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%);
   width: 34px; height: 16px; border-radius: 5px; background: #000;
 }
 .theme-score #slot-lever:hover::before { background: #f0f0f0; }
-/* 앞으로(아래로) 당기는 모션 — 바닥 피벗 기준으로 손잡이가 화면 앞쪽으로 넘어온다 */
-.theme-score #slot-lever.pulled { transform: rotateX(58deg); }
+/* 앞으로(아래로) 당기되 오른쪽으로 넘어오는 모션 + 당길 때 공이 살짝 커짐 */
+.theme-score #slot-lever.pulled { transform: rotateX(52deg) rotateZ(22deg); }
+.theme-score #slot-lever.pulled::before { transform: translateX(-50%) scale(1.22); }
 /* 소개 화면: 도감 그리드 숨김, 시작 버튼은 모두 소개된 뒤 노출 */
 .theme-score #dex-grid { display: none; }
 .theme-score #slot-start { visibility: hidden; }
