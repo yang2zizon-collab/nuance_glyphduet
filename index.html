@@ -25,11 +25,18 @@
       <button class="btn icon big" data-action="start" aria-label="게임 시작" title="게임 시작 · Start">▶</button>
     </section>
 
-    <!-- 2. 도감 — 캐릭터를 한 칸씩 탭해서 가운데에 크게 본다(텍스트 없음) -->
+    <!-- 2. 캐릭터 소개 — 슬롯머신. 레버를 내릴 때마다 다음 캐릭터가 차례로 소개된다 -->
     <section id="screen-select" class="screen">
-      <canvas id="dex-stage" width="128" height="128"></canvas>
+      <div id="slot-machine">
+        <div id="slot-stack">
+          <div id="slot-window"><canvas id="dex-stage" width="128" height="128"></canvas></div>
+          <div id="slot-name"></div>
+          <div id="slot-count">0 / 4</div>
+        </div>
+        <button id="slot-lever" data-action="slot-pull" aria-label="레버 당기기" title="레버를 당겨 캐릭터 소개 · Pull"></button>
+      </div>
       <div id="dex-grid"></div>
-      <button class="btn icon" data-action="to-setup" aria-label="대화 시작" title="대화 시작 · Talk">▶</button>
+      <button class="btn icon" id="slot-start" data-action="to-setup" aria-label="대화 시작" title="대화 시작 · Talk">▶</button>
     </section>
 
     <!-- 4. 대화(플레이) -->

@@ -139,6 +139,70 @@ const dexStage = $('#dex-stage');
 const dexGrid = $('#dex-grid');
 let dexView = 0;
 
+// ===== 슬롯머신 캐릭터 소개(스코어 테마) =====
+// 창 하나에서 릴이 돌고, 레버를 내릴 때마다 다음 캐릭터가 정해진 순서로 차례로 소개된다.
+const SLOT_ORDER = [0, 1, 2, 3];   // 소개 순서(토마토→심해어→새→생쥐)
+let slotIndex = 0;                  // 다음 소개할 순번(0..N)
+let slotSpinning = false;
+let slotSpinStart = 0;
+let slotSwapAt = 0;
+let slotTarget = 0;
+let slotDisplay = -1;               // 창에 보이는 캐릭터(-1=빈 창)
+
+function resetSlot() {
+  slotIndex = 0; slotSpinning = false; slotDisplay = -1;
+  const nm = $('#slot-name'); if (nm) nm.textContent = '';
+  const cnt = $('#slot-count'); if (cnt) cnt.textContent = `0 / ${N}`;
+  const st = $('#slot-start'); if (st) st.classList.remove('ready');
+}
+
+function pullSlot() {
+  if (!SCORE || slotSpinning || slotIndex >= N) return;
+  slotTarget = (SLOT_ORDER[slotIndex] != null) ? SLOT_ORDER[slotIndex] : slotIndex;
+  slotSpinning = true;
+  slotSpinStart = performance.now();
+  slotSwapAt = 0;
+  if (slotDisplay < 0) slotDisplay = 0;
+  uiClick(0.4);
+  const lever = $('#slot-lever');
+  if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 360); }
+}
+
+// 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신, 다 끝나면 시작 버튼 노출.
+function onSlotLanded() {
+  const nm = $('#slot-name'); if (nm) nm.textContent = characterName(slotDisplay);
+  const cnt = $('#slot-count'); if (cnt) cnt.textContent = `${slotIndex} / ${N}`;
+  uiClick(0.7);
+  speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');   // 짧은 인사
+  if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
+}
+
+function drawSlotWindow(t) {
+  if (!dexStage) return;
+  const c = dexStage.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, dexStage.width, dexStage.height);
+  const S = dexStage.width;
+  const now = performance.now();
+  if (slotSpinning) {
+    const p = Math.min(1, (now - slotSpinStart) / 1100);
+    const interval = 55 + p * p * 300;                 // 점점 느려지는 릴
+    if (now - slotSwapAt >= interval) { slotDisplay = (slotDisplay + 1) % N; slotSwapAt = now; }
+    if (p >= 1) { slotSpinning = false; slotDisplay = slotTarget; slotIndex++; onSlotLanded(); }
+    // 막 바뀐 칸은 위에서 떨어지듯 — 릴이 내려오는 느낌
+    const since = now - slotSwapAt;
+    const yoff = (slotSpinning && since < 90) ? -(1 - since / 90) * S * 0.35 : 0;
+    silhouetteDraw(c, slotDisplay, 0, yoff, S, t, false, 'neutral', false);
+  } else if (slotDisplay >= 0) {
+    silhouetteDraw(c, slotDisplay, 0, Math.sin(t * 2) * 5, S, t, false, 'neutral', false);
+  } else {
+    c.fillStyle = '#000';
+    c.font = `${Math.round(S * 0.5)}px Datatype, Galmuri11, monospace`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('?', S / 2, S / 2);
+  }
+}
+
 // 숨겨진 입력기 (한글 IME 대응)
 const hidden = document.createElement('textarea');
 hidden.setAttribute('autocomplete', 'off');
@@ -161,6 +225,7 @@ function show(name) {
     stopScreenWav();   // 이전 화면의 배경 WAV(있다면) 페이드 아웃
   }
   if (name === 'play') startPlay();
+  if (SCORE && name === 'select') resetSlot();   // 소개 슬롯 초기화
   startScreenAudio(name);
 }
 
@@ -248,13 +313,8 @@ function loop(now) {
   } else if (state.screen === 'select') {
     if (MINIMAL || SCORE) drawMinimalBg(W, H); else drawBackground(t, W, H);
     if (SCORE) {
-      // 도감: 가운데 큰 미리보기만 애니메이션으로 그린다(좌우 캐릭터·이름 없음)
-      if (dexStage) {
-        const c = dexStage.getContext('2d');
-        c.imageSmoothingEnabled = false;
-        c.clearRect(0, 0, dexStage.width, dexStage.height);
-        silhouetteDraw(c, dexView, 0, Math.sin(t * 2) * 5, dexStage.width, t, false, 'neutral', false);
-      }
+      // 슬롯머신 창 — 릴 회전/착지 애니메이션
+      drawSlotWindow(t);
     } else {
       drawDuo(t, W, H, false);
       pickCanvases.forEach((cv, p) => {
@@ -1586,6 +1646,7 @@ document.body.addEventListener('click', (e) => {
   // 플레이할 두 캐릭터를 이때 무작위로 배정한다(인게임 좌/우 열에서 교체 가능).
   else if (act === 'to-setup') { uiClick(0.75); if (SCORE) randomMatch(); show('play'); }
   else if (act === 'to-select') { uiClick(0.4); show('select'); }
+  else if (act === 'slot-pull') { pullSlot(); }
   else if (act === 'play') { uiClick(0.75); show('play'); }
   else if (act === 'replay-score') { startEndingScore(); }
   else if (act === 'restart') { stopEndingScore(); show('title'); }
