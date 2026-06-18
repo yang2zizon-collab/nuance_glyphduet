@@ -140,18 +140,22 @@ const dexGrid = $('#dex-grid');
 let dexView = 0;
 
 // ===== 슬롯머신 캐릭터 소개(스코어 테마) =====
-// 창 하나에서 릴이 돌고, 레버를 내릴 때마다 다음 캐릭터가 정해진 순서로 차례로 소개된다.
-const SLOT_ORDER = [0, 1, 2, 3];   // 소개 순서(토마토→심해어→새→생쥐)
-let slotIndex = 0;                  // 다음 소개할 순번(0..N)
+// 창 하나에서 세로 릴이 돌고(가속→감속), 레버를 내릴 때마다 다음 캐릭터가 정해진 순서로
+// 부드럽게 멈춰 소개된다. 이웃 칸은 위·아래로 살짝 비치고, 착지 때 살짝 튀어오른다.
+const SLOT_ORDER = [0, 1, 2, 3];    // 소개 순서(토마토→심해어→새→생쥐)
+let slotIndex = 0;                   // 다음 소개할 순번(0..N)
 let slotSpinning = false;
-let slotSpinStart = 0;
-let slotSwapAt = 0;
 let slotTarget = 0;
-let slotDisplay = -1;               // 창에 보이는 캐릭터(-1=빈 창)
+let slotDisplay = -1;                // 마지막으로 착지한 캐릭터(-1=시작 전)
+let slotScroll = 0;                  // 릴 스크롤(칸 높이=캔버스 폭 단위)
+let slotScrollFrom = 0, slotScrollTo = 0;
+let slotSpinStart = 0, slotSpinDur = 1500;
+let slotLandAt = -1;                 // 착지 시각(바운스)
+let slotTickIdx = -1;                // 스핀 틱 사운드용
 
 function resetSlot() {
-  slotIndex = 0; slotSpinning = false; slotDisplay = -1;
-  const nm = $('#slot-name'); if (nm) nm.textContent = '';
+  slotIndex = 0; slotSpinning = false; slotDisplay = -1; slotScroll = 0; slotLandAt = -1;
+  const nm = $('#slot-name'); if (nm) { nm.textContent = ''; nm.classList.remove('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `0 / ${N}`;
   const st = $('#slot-start'); if (st) st.classList.remove('ready');
 }
@@ -159,21 +163,28 @@ function resetSlot() {
 function pullSlot() {
   if (!SCORE || slotSpinning || slotIndex >= N) return;
   slotTarget = (SLOT_ORDER[slotIndex] != null) ? SLOT_ORDER[slotIndex] : slotIndex;
-  slotSpinning = true;
+  const CH = dexStage ? dexStage.width : 128;
+  const span = N * CH;
+  const cur = ((slotScroll % span) + span) % span;
+  let delta = (slotTarget * CH - cur); delta = ((delta % span) + span) % span;
+  slotScrollFrom = slotScroll;
+  slotScrollTo = slotScroll + 3 * span + delta;   // 3바퀴 돌고 target에 착지
   slotSpinStart = performance.now();
-  slotSwapAt = 0;
-  if (slotDisplay < 0) slotDisplay = 0;
-  uiClick(0.4);
+  slotSpinDur = 1500;
+  slotSpinning = true; slotTickIdx = -1;
+  const nm = $('#slot-name'); if (nm) nm.classList.remove('show');
+  uiClick(0.45);
   const lever = $('#slot-lever');
-  if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 360); }
+  if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 430); }
 }
 
 // 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신, 다 끝나면 시작 버튼 노출.
 function onSlotLanded() {
-  const nm = $('#slot-name'); if (nm) nm.textContent = characterName(slotDisplay);
+  const nm = $('#slot-name'); if (nm) { nm.textContent = characterName(slotDisplay); nm.classList.add('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `${slotIndex} / ${N}`;
-  uiClick(0.7);
-  speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');   // 짧은 인사
+  const win = $('#slot-window'); if (win) { win.classList.remove('land'); void win.offsetWidth; win.classList.add('land'); }
+  uiClick(0.85);   // 착지 딩
+  speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');
   if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
 }
 
@@ -181,25 +192,47 @@ function drawSlotWindow(t) {
   if (!dexStage) return;
   const c = dexStage.getContext('2d');
   c.imageSmoothingEnabled = false;
-  c.clearRect(0, 0, dexStage.width, dexStage.height);
-  const S = dexStage.width;
+  const S = dexStage.width, CH = S;
+  c.clearRect(0, 0, S, S);
   const now = performance.now();
+
   if (slotSpinning) {
-    const p = Math.min(1, (now - slotSpinStart) / 1100);
-    const interval = 55 + p * p * 300;                 // 점점 느려지는 릴
-    if (now - slotSwapAt >= interval) { slotDisplay = (slotDisplay + 1) % N; slotSwapAt = now; }
-    if (p >= 1) { slotSpinning = false; slotDisplay = slotTarget; slotIndex++; onSlotLanded(); }
-    // 막 바뀐 칸은 위에서 떨어지듯 — 릴이 내려오는 느낌
-    const since = now - slotSwapAt;
-    const yoff = (slotSpinning && since < 90) ? -(1 - since / 90) * S * 0.35 : 0;
-    silhouetteDraw(c, slotDisplay, 0, yoff, S, t, false, 'neutral', false);
-  } else if (slotDisplay >= 0) {
-    silhouetteDraw(c, slotDisplay, 0, Math.sin(t * 2) * 5, S, t, false, 'neutral', false);
-  } else {
+    const p = Math.min(1, (now - slotSpinStart) / slotSpinDur);
+    const e = 1 - Math.pow(1 - p, 3);                       // easeOutCubic
+    slotScroll = slotScrollFrom + (slotScrollTo - slotScrollFrom) * e;
+    if (p >= 1) { slotScroll = slotScrollTo; slotSpinning = false; slotDisplay = slotTarget; slotIndex++; slotLandAt = now; onSlotLanded(); }
+  }
+
+  if (slotDisplay < 0 && !slotSpinning) {                    // 시작 전 — 물음표
     c.fillStyle = '#000';
-    c.font = `${Math.round(S * 0.5)}px Datatype, Galmuri11, monospace`;
+    c.font = `${Math.round(S * 0.46)}px Datatype, Galmuri11, monospace`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText('?', S / 2, S / 2);
+    return;
+  }
+
+  // 세로 릴 — 가운데 칸 + 위/아래 이웃이 스크롤(가운데서 멀수록 흐리게)
+  const base = Math.floor(slotScroll / CH);
+  const frac = slotScroll / CH - base;
+  let bounce = 1;
+  if (!slotSpinning && slotLandAt > 0) {
+    const bp = (now - slotLandAt) / 280;
+    if (bp < 1) bounce = 1 + Math.sin(bp * Math.PI) * 0.12;  // 착지 살짝 튀어오름
+  }
+  for (let k = -1; k <= 2; k++) {
+    const idx = (((base + k) % N) + N) % N;
+    const y = (k - frac) * CH;
+    const dist = Math.abs(y) / S;
+    if (dist > 1.05) continue;
+    const alpha = Math.max(0.12, 1 - dist * 0.95);
+    const sz = S * ((k === 0 && !slotSpinning) ? bounce : 1);
+    c.save(); c.globalAlpha = alpha;
+    silhouetteDraw(c, idx, (S - sz) / 2, y + (S - sz) / 2, sz, t, false, 'neutral', false);
+    c.restore();
+  }
+  if (slotSpinning) {                                        // 릴 틱 사운드(가운데 칸 바뀔 때)
+    const centerIdx = ((Math.round(slotScroll / CH) % N) + N) % N;
+    if (centerIdx !== slotTickIdx) { slotTickIdx = centerIdx; uiClick(0.22); }
   }
 }
 
