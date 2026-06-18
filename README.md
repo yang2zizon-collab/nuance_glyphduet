@@ -16,7 +16,8 @@ macOS/Linux에는 Python3가 기본 설치되어 있습니다. 이 폴더에서 
 python3 serve.py 8777
 ```
 
-그다음 브라우저에서 **http://localhost:8777/** 접속.
+그다음 브라우저에서 **http://localhost:8777/** 접속 → **스코어 버전**이 바로 열립니다.
+(이 저장소는 스코어 버전만 담겨 있어 `index.html`이 곧 스코어 버전 = 루트 `/` 가 스코어 버전입니다.)
 
 (포트는 바꿔도 됩니다: `python3 serve.py 9000` → http://localhost:9000/)
 
