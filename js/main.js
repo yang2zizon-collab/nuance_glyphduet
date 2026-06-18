@@ -470,6 +470,82 @@ function drawGiftIcon(cv) {
   R(15, 10, 2, 17, '#fff');
 }
 
+// 방향별 선물 — GIFTS[주는이][받는이] = { name, kind }. (인덱스: 0토마토 1심해어 2새 3쥐)
+const GIFTS = {
+  0: { 1: { name: '모자', kind: 'hat' },        2: { name: '둥지', kind: 'nest' },   3: { name: '액자', kind: 'frame' } },
+  1: { 0: { name: '잠수안경', kind: 'goggles' }, 2: { name: '물방울', kind: 'drop' }, 3: { name: '돌미역', kind: 'seaweed' } },
+  2: { 0: { name: '무지개', kind: 'rainbow' },   1: { name: '구름', kind: 'cloud' },  3: { name: '치즈', kind: 'cheese' } },
+  3: { 0: { name: '용과', kind: 'dragonfruit' }, 1: { name: '바질', kind: 'basil' },  2: { name: '반지', kind: 'ring' } },
+};
+function giftFor(giver, recipient) {
+  return (GIFTS[giver] && GIFTS[giver][recipient]) || null;
+}
+
+// 선물 품목 아이콘(검정 잉크, 32그리드) — 위 GIFTS의 kind별로 그린다.
+function drawItem(cv, kind) {
+  const g = cv.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, cv.width, cv.height);
+  const u = cv.width / 32; const PI = Math.PI;
+  g.strokeStyle = '#000'; g.lineJoin = 'round'; g.lineCap = 'round';
+  const px = (x, y, w, h, c) => { g.fillStyle = c || '#000'; g.fillRect(Math.round(x * u), Math.round(y * u), Math.round(w * u), Math.round(h * u)); };
+  const disc = (x, y, r, c) => { g.fillStyle = c || '#000'; g.beginPath(); g.arc(x * u, y * u, r * u, 0, 7); g.fill(); };
+  const ell = (x, y, rx, ry, c) => { g.fillStyle = c || '#000'; g.beginPath(); g.ellipse(x * u, y * u, rx * u, ry * u, 0, 0, 7); g.fill(); };
+  const ring = (x, y, r, lw) => { g.save(); g.lineWidth = lw * u; g.beginPath(); g.arc(x * u, y * u, r * u, 0, 7); g.stroke(); g.restore(); };
+  const line = (x1, y1, x2, y2, lw) => { g.save(); g.lineWidth = (lw || 1.6) * u; g.beginPath(); g.moveTo(x1 * u, y1 * u); g.lineTo(x2 * u, y2 * u); g.stroke(); g.restore(); };
+  const poly = (pts, c) => { g.fillStyle = c || '#000'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0] * u, p[1] * u) : g.moveTo(p[0] * u, p[1] * u)); g.closePath(); g.fill(); };
+  const arc = (x, y, r, a0, a1, lw) => { g.save(); g.lineWidth = (lw || 1.6) * u; g.beginPath(); g.arc(x * u, y * u, r * u, a0, a1); g.stroke(); g.restore(); };
+  switch (kind) {
+    case 'dragonfruit':
+      ell(16, 18, 7, 9, '#000');
+      [[14, 16], [18, 15], [16, 20], [13, 22], [19, 22]].forEach(([x, y]) => disc(x, y, 0.7, '#fff'));
+      poly([[16, 9], [12, 2], [19, 7]], '#000'); poly([[21, 11], [27, 5], [22, 14]], '#000'); poly([[11, 11], [5, 6], [11, 14]], '#000');
+      break;
+    case 'frame':
+      px(6, 8, 20, 17, '#000'); px(8, 10, 16, 13, '#fff');
+      disc(13, 15, 1.1, '#000'); disc(19, 15, 1.1, '#000'); px(13, 19, 6, 1.4, '#000');
+      break;
+    case 'ring':
+      ring(16, 21, 6, 2);
+      poly([[16, 3], [21, 11], [16, 17], [11, 11]], '#000');
+      break;
+    case 'cheese':
+      poly([[5, 22], [27, 22], [27, 9]], '#000');
+      disc(20, 18, 1.5, '#fff'); disc(23, 14, 1.2, '#fff'); disc(16, 19, 1.2, '#fff');
+      break;
+    case 'cloud':
+      disc(11, 19, 4.5, '#000'); disc(21, 19, 5, '#000'); disc(16, 15, 6, '#000'); px(8, 18, 17, 5, '#000');
+      break;
+    case 'drop':
+      disc(16, 21, 6, '#000'); poly([[10.2, 20], [21.8, 20], [16, 5]], '#000');
+      break;
+    case 'goggles':
+      ring(11, 17, 4, 2); ring(21, 17, 4, 2); line(15, 17, 17, 17, 2);
+      line(7, 16, 3, 13, 1.6); line(25, 16, 29, 13, 1.6);
+      break;
+    case 'hat':
+      ell(16, 18, 7, 6, '#000'); px(5, 21, 22, 2, '#000');
+      [[16, 5], [12, 8], [20, 8], [13, 12], [19, 12]].forEach(([x, y]) => line(16, 12, x, y, 1.6));
+      break;
+    case 'seaweed':
+      [10, 16, 22].forEach((x, k) => { g.save(); g.lineWidth = 1.8 * u; g.beginPath(); for (let y = 6; y <= 27; y++) { const xx = (x + Math.sin((y / 3) + k) * 2.2) * u; if (y === 6) g.moveTo(xx, y * u); else g.lineTo(xx, y * u); } g.stroke(); g.restore(); });
+      break;
+    case 'basil':
+      line(16, 28, 16, 13, 1.8);
+      ell(11, 11, 4, 6, '#000'); ell(21, 11, 4, 6, '#000');
+      break;
+    case 'nest':
+      g.fillStyle = '#000'; g.beginPath(); g.ellipse(16 * u, 18 * u, 10 * u, 7 * u, 0, 0, PI); g.closePath(); g.fill();
+      g.strokeStyle = '#fff'; line(9, 20, 23, 20, 1.2); line(11, 23, 21, 23, 1.2); g.strokeStyle = '#000';
+      disc(12, 17, 1.7, '#000'); disc(16, 16, 1.9, '#000'); disc(20, 17, 1.7, '#000');
+      break;
+    case 'rainbow':
+      arc(16, 24, 11, PI, 2 * PI, 2); arc(16, 24, 8, PI, 2 * PI, 2); arc(16, 24, 5, PI, 2 * PI, 2);
+      break;
+    default: drawGiftIcon(cv);
+  }
+}
+
 let giftDragFrom = null;   // 지금 드래그 중인 선물을 "준" 캐릭터 인덱스
 
 // 캐릭터 열에 드래그&드롭을 위임으로 건다(썸네일/선물은 buildPickColumns에서 매번 생성).
@@ -516,28 +592,71 @@ function setupGift() {
     let giver = giftDragFrom;
     if (giver == null) { const d = e.dataTransfer.getData('text/plain'); giver = (d === '') ? null : +d; }
     if (giver != null && recip === giver) return;   // 자기 자신 무시
-    giveGift(recip, giver);
+    giveSpecificGift(recip, giver);
   });
 }
 
-// 받은 캐릭터에 선물(리버브)을 켜거나, 다시 받으면 끈다 — 토글. fromIdx = 준 캐릭터.
-function giveGift(idx, fromIdx = null) {
-  const on = !giftedChars.has(idx);
-  if (on) giftedChars.add(idx); else giftedChars.delete(idx);
-  setGift(characterVoice(idx), on);
+const received = new Map();   // 받는이 idx -> [{ kind, name, from }]
+
+// 준 캐릭터(giver)가 받는 캐릭터(recip)에게 정해진 선물을 준다 → 받는 캐릭터에 리버브.
+function giveSpecificGift(recip, giver) {
+  if (giver == null) return;
+  const item = giftFor(giver, recip);
+  if (!item) return;
+  const list = received.get(recip) || [];
+  list.push({ ...item, from: giver });
+  received.set(recip, list);
+  giftedChars.add(recip);
+  setGift(characterVoice(recip), true);   // 효과: 일단 리버브 ON
   highlightGifts();
-  uiClick(on ? 0.7 : 0.3);
+  updateGiftBadge(recip, item);
+  showGiftPopup(recip, giver, item);
+  uiClick(0.7);
   // 받은 즉시 그 목소리로 짧게 울려 리버브를 들려준다.
-  if (on) speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.16, ch: 'o' }], characterVoice(idx), 'happy');
+  speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.16, ch: 'o' }], characterVoice(recip), 'happy');
 }
 
 function highlightGifts() {
   pickThumbs[0].forEach((b, i) => b.classList.toggle('gifted', giftedChars.has(i)));
 }
 
+// 받은 캐릭터 썸네일 모서리에 "가장 최근 받은 선물" 아이콘 배지.
+function updateGiftBadge(recip, item) {
+  const b = pickThumbs[0][recip]; if (!b) return;
+  let cv = b.querySelector('.gift-badge');
+  if (!cv) { cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; cv.className = 'gift-badge'; b.appendChild(cv); }
+  drawItem(cv, item.kind);
+  const list = received.get(recip) || [];
+  b.title = characterName(recip) + ' — 받은 선물: ' + list.map((x) => x.name).join(', ');
+}
+
+// 선물을 받는 순간 "A → B : 품목" 카드를 받는 캐릭터 옆에 잠깐 띄운다.
+function showGiftPopup(recip, giver, item) {
+  const b = pickThumbs[0][recip]; if (!b) return;
+  // 같은 캐릭터의 이전 팝업은 치워 겹치지 않게.
+  document.querySelectorAll(`.gift-popup[data-recip="${recip}"]`).forEach((el) => el.remove());
+  const r = b.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.className = 'gift-popup';
+  pop.dataset.recip = recip;
+  const cv = document.createElement('canvas'); cv.width = 48; cv.height = 48; drawItem(cv, item.kind);
+  pop.appendChild(cv);
+  const label = document.createElement('div');
+  label.className = 'gift-popup-label';
+  label.textContent = `${characterName(giver)} → ${characterName(recip)} · ${item.name}`;
+  pop.appendChild(label);
+  document.body.appendChild(pop);
+  pop.style.left = `${r.right + 12}px`;
+  pop.style.top = `${r.top + r.height / 2}px`;
+  requestAnimationFrame(() => pop.classList.add('show'));
+  setTimeout(() => { pop.classList.remove('show'); setTimeout(() => pop.remove(), 400); }, 1600);
+}
+
 function resetGifts() {
   giftedChars.clear();
+  received.clear();
   clearGifts();
+  document.querySelectorAll('.gift-badge, .gift-popup').forEach((el) => el.remove());
   if (pickThumbs[0]) highlightGifts();
 }
 
