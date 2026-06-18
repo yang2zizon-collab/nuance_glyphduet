@@ -45,6 +45,17 @@ function garbleForMood(m) { return m === 'happy' ? 0.2 : m === 'confused' ? 0.85
 const GRID_CELL = 40;        // 한 칸의 대략 픽셀 크기(목표). 실제 칸 수는 패널 크기로 계산.
 let gridCells = [];          // 칸 DOM 요소들
 let emptyCells = [];         // 아직 안 채워진 칸 인덱스들
+let fillableTotal = 0;       // 채울 수 있는 칸 수(스코어 테마=하트 안쪽 칸만)
+
+// (col,row)가 하트 모양 안인지. 칸 좌표를 [-1,1]로 정규화해 하트 음함수에 대입.
+//  (x²+Y²−1)³ − x²Y³ ≤ 0  (위가 둥근 두 잎, 아래가 뾰족한 정상 하트)
+function inHeart(col, row, cols, rows) {
+  const x = (((col + 0.5) / cols) * 2 - 1) * 1.1;    // 가로 스케일
+  const yy = ((row + 0.5) / rows) * 2 - 1;           // 위 -1 … 아래 +1
+  const Y = -yy * 1.42 + 0.02;                        // 위 잎+골을 더 또렷이 … 아래 뾰족 끝
+  const v = Math.pow(x * x + Y * Y - 1, 3) - x * x * Y * Y * Y;
+  return v <= 0;
+}
 
 function buildGrid() {
   const conv = $('#conversation');
@@ -64,8 +75,12 @@ function buildGrid() {
     c.className = 'gcell';
     conv.appendChild(c);
     gridCells.push(c);
-    emptyCells.push(i);
+    // 스코어 테마: 하트 안쪽 칸만 채울 수 있게 한다(밖은 늘 빈칸 → 글자가 하트로 모인다).
+    const col = i % cols, row = Math.floor(i / cols);
+    if (!SCORE || inHeart(col, row, cols, rows)) emptyCells.push(i);
+    else c.classList.add('void');
   }
+  fillableTotal = emptyCells.length;
 }
 
 // 글자 하나를 비어있는 칸 중 랜덤한 위치에 채운다.
@@ -82,7 +97,7 @@ function placeGlyph(ch, color) {
 
 // 스코어 그리드가 얼마나 찼는지 0..1 (대화 진행도 = 그리드 채움)
 function fillProgress() {
-  const total = gridCells.length || 1;
+  const total = fillableTotal || gridCells.length || 1;
   return Math.min(1, (total - emptyCells.length) / total);
 }
 // 그리드가 꽉 찼는가 → 대화 종료 신호
