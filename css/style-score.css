@@ -152,7 +152,7 @@ html, body { background: #ffffff; color: var(--ink); }
   border: 2px solid #000;
   padding: 0;
 }
-.theme-score .gcell { color: #000 !important; }
+.theme-score .gcell { color: #000 !important; font-size: clamp(8px, 1vw, 14px); }
 
 /* 소통 게이지 — 기능 제거됨(숨김) */
 #connection { display: none !important; }

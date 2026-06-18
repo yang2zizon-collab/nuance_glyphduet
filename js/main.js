@@ -47,12 +47,15 @@ let gridCells = [];          // 칸 DOM 요소들
 let emptyCells = [];         // 아직 안 채워진 칸 인덱스들
 let fillableTotal = 0;       // 채울 수 있는 칸 수(스코어 테마=하트 안쪽 칸만)
 
-// (col,row)가 하트 모양 안인지. 칸 좌표를 [-1,1]로 정규화해 하트 음함수에 대입.
-//  (x²+Y²−1)³ − x²Y³ ≤ 0  (위가 둥근 두 잎, 아래가 뾰족한 정상 하트)
+// (col,row)가 하트 모양 안인지. 박스에 꽉 늘리지 않고 "세로로 선 하트" 비율을 유지해
+// 가운데에 그린다(가로는 박스의 일부만 차지 → 좌우 여백). 하트 음함수:
+//  (x²+Y²−1)³ − x²Y³ ≤ 0  (위 두 잎 + 가운데 골, 아래 뾰족 끝)
 function inHeart(col, row, cols, rows) {
-  const x = (((col + 0.5) / cols) * 2 - 1) * 1.1;    // 가로 스케일
-  const yy = ((row + 0.5) / rows) * 2 - 1;           // 위 -1 … 아래 +1
-  const Y = -yy * 1.42 + 0.02;                        // 위 잎+골을 더 또렷이 … 아래 뾰족 끝
+  const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+  const fx = (col - cx) / (cols / 2);   // 가로: -1(왼) … +1(오)
+  const fy = (row - cy) / (rows / 2);   // 세로: -1(위) … +1(아래)
+  const x = fx * 2.0;                    // 가로 폭 ↓ → 박스의 ~50%만(안 늘어나 납작 X)
+  const Y = -fy * 1.37 + 0.035;          // 세로: 위 잎+골(~1.4) … 아래 뾰족 끝(~-1.33)
   const v = Math.pow(x * x + Y * Y - 1, 3) - x * x * Y * Y * Y;
   return v <= 0;
 }
@@ -63,8 +66,9 @@ function buildGrid() {
   conv.innerHTML = '';
   conv.classList.add('grid');
   const w = conv.clientWidth || 600, h = conv.clientHeight || 400;
-  const cols = Math.max(1, Math.floor(w / GRID_CELL));
-  const rows = Math.max(1, Math.floor(h / GRID_CELL));
+  const cellPx = SCORE ? 24 : GRID_CELL;   // 스코어: 칸을 잘게 → 하트가 매끄럽게(글자도 작게)
+  const cols = Math.max(1, Math.floor(w / cellPx));
+  const rows = Math.max(1, Math.floor(h / cellPx));
   conv.style.setProperty('--cols', cols);
   conv.style.setProperty('--rows', rows);
   gridCells = [];
