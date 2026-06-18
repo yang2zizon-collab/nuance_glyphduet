@@ -47,17 +47,30 @@ let gridCells = [];          // 칸 DOM 요소들
 let emptyCells = [];         // 아직 안 채워진 칸 인덱스들
 let fillableTotal = 0;       // 채울 수 있는 칸 수(스코어 테마=하트 안쪽 칸만)
 
-// (col,row)가 하트 모양 안인지. 박스에 꽉 늘리지 않고 "세로로 선 하트" 비율을 유지해
-// 가운데에 그린다(가로는 박스의 일부만 차지 → 좌우 여백). 하트 음함수:
-//  (x²+Y²−1)³ − x²Y³ ≤ 0  (위 두 잎 + 가운데 골, 아래 뾰족 끝)
-function inHeart(col, row, cols, rows) {
-  const cx = (cols - 1) / 2, cy = (rows - 1) / 2;
-  const fx = (col - cx) / (cols / 2);   // 가로: -1(왼) … +1(오)
-  const fy = (row - cy) / (rows / 2);   // 세로: -1(위) … +1(아래)
-  const x = fx * 2.0;                    // 가로 폭 ↓ → 박스의 ~50%만(안 늘어나 납작 X)
-  const Y = -fy * 1.37 + 0.035;          // 세로: 위 잎+골(~1.4) … 아래 뾰족 끝(~-1.33)
-  const v = Math.pow(x * x + Y * Y - 1, 3) - x * x * Y * Y * Y;
-  return v <= 0;
+// (col,row)가 나무 모양 안인지. 위는 3단으로 점점 넓어지는 잎(침엽수 캐노피),
+// 아래는 가운데 기둥. 칸을 넉넉히 채우도록 캐노피를 크게 잡는다.
+function inTree(col, row, cols, rows) {
+  const cx = (cols - 1) / 2;
+  const fx = (col - cx) / (cols / 2);          // 가로 -1(왼) … +1(오)
+  const fy = row / Math.max(1, rows - 1);      // 세로 0(위) … 1(아래)
+  const ax = Math.abs(fx);
+  // 잎(캐노피): 위 0 ~ 0.80 구간. 3단으로 겹쳐 점점 넓어지는 삼각형들.
+  if (fy <= 0.80) {
+    const tiers = [
+      { top: 0.00, bot: 0.34, hw: 0.42 },      // 위 단(좁음)
+      { top: 0.24, bot: 0.58, hw: 0.68 },      // 가운데 단
+      { top: 0.48, bot: 0.80, hw: 0.96 },      // 아래 단(가장 넓음)
+    ];
+    for (const t of tiers) {
+      if (fy >= t.top && fy <= t.bot) {
+        const hw = t.hw * ((fy - t.top) / (t.bot - t.top));   // 각 단: 위 뾰족 → 아래 넓게
+        if (ax <= hw) return true;
+      }
+    }
+    return false;
+  }
+  // 기둥(trunk): 아래 가운데.
+  return ax <= 0.14;
 }
 
 function buildGrid() {
@@ -79,9 +92,9 @@ function buildGrid() {
     c.className = 'gcell';
     conv.appendChild(c);
     gridCells.push(c);
-    // 스코어 테마: 하트 안쪽 칸만 채울 수 있게 한다(밖은 늘 빈칸 → 글자가 하트로 모인다).
+    // 스코어 테마: 나무 안쪽 칸만 채울 수 있게 한다(밖은 늘 빈칸 → 글자가 나무로 모인다).
     const col = i % cols, row = Math.floor(i / cols);
-    if (!SCORE || inHeart(col, row, cols, rows)) emptyCells.push(i);
+    if (!SCORE || inTree(col, row, cols, rows)) emptyCells.push(i);
     else c.classList.add('void');
   }
   fillableTotal = emptyCells.length;

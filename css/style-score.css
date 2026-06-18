@@ -87,9 +87,9 @@ html, body { background: #ffffff; color: var(--ink); }
 /* 캐릭터 열 · 스코어칸 · 입력칸을 하나의 중앙 폭(--play-w)에 맞춰 가로세로로 정렬한다.
    스코어칸과 입력칸은 좌우 모서리를 공유하고, 캐릭터 열은 그 바깥에 같은 높이로 붙는다. */
 .theme-score {
-  --play-top: 9vh;
+  --play-top: 7vh;
   --play-w: min(900px, 64vw);
-  --play-h: 56vh;
+  --play-h: 66vh;
   --play-gap: clamp(12px, 1.8vw, 24px);
 }
 
