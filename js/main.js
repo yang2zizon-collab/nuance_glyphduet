@@ -79,9 +79,8 @@ function buildGrid() {
   conv.innerHTML = '';
   conv.classList.add('grid');
   const w = conv.clientWidth || 600, h = conv.clientHeight || 400;
-  const cellPx = SCORE ? 24 : GRID_CELL;   // 스코어: 칸을 잘게 → 하트가 매끄럽게(글자도 작게)
-  const cols = Math.max(1, Math.floor(w / cellPx));
-  const rows = Math.max(1, Math.floor(h / cellPx));
+  const cols = Math.max(1, Math.floor(w / GRID_CELL));
+  const rows = Math.max(1, Math.floor(h / GRID_CELL));
   conv.style.setProperty('--cols', cols);
   conv.style.setProperty('--rows', rows);
   gridCells = [];
@@ -92,10 +91,7 @@ function buildGrid() {
     c.className = 'gcell';
     conv.appendChild(c);
     gridCells.push(c);
-    // 스코어 테마: 나무 안쪽 칸만 채울 수 있게 한다(밖은 늘 빈칸 → 글자가 나무로 모인다).
-    const col = i % cols, row = Math.floor(i / cols);
-    if (!SCORE || inTree(col, row, cols, rows)) emptyCells.push(i);
-    else c.classList.add('void');
+    emptyCells.push(i);   // 일단 화면을 가득 채운다(모양 제한 없음 — inTree/inHeart는 보관만)
   }
   fillableTotal = emptyCells.length;
 }
