@@ -630,7 +630,14 @@ function updateGiftBadge(recip, item) {
   b.title = characterName(recip) + ' — 받은 선물: ' + list.map((x) => x.name).join(', ');
 }
 
-// 선물을 받는 순간 "A → B : 품목" 카드를 받는 캐릭터 옆에 잠깐 띄운다.
+// 받침 유무로 목적격 조사(을/를) 선택. 한글이 아니면 기본 '를'.
+function objParticle(word) {
+  const c = word.charCodeAt(word.length - 1);
+  if (c < 0xAC00 || c > 0xD7A3) return '를';
+  return ((c - 0xAC00) % 28) !== 0 ? '을' : '를';
+}
+
+// 선물을 받는 순간 "○○ 님이 ○○ 님에게 △△ 선물했습니다" 카드를 받는 캐릭터 옆에 잠깐 띄운다.
 function showGiftPopup(recip, giver, item) {
   const b = pickThumbs[0][recip]; if (!b) return;
   // 같은 캐릭터의 이전 팝업은 치워 겹치지 않게.
@@ -643,7 +650,7 @@ function showGiftPopup(recip, giver, item) {
   pop.appendChild(cv);
   const label = document.createElement('div');
   label.className = 'gift-popup-label';
-  label.textContent = `${characterName(giver)} → ${characterName(recip)} · ${item.name}`;
+  label.textContent = `${characterName(giver)} 님이 ${characterName(recip)} 님에게 ${item.name}${objParticle(item.name)} 선물했습니다`;
   pop.appendChild(label);
   document.body.appendChild(pop);
   pop.style.left = `${r.right + 12}px`;
