@@ -84,7 +84,7 @@ html, body { background: #ffffff; color: var(--ink); }
 .dex-cell.active { border-color: #000; box-shadow: 0 0 0 2px #000; }
 
 /* ===== 슬롯머신 캐릭터 소개 (고퀄) ===== */
-.theme-score #slot-machine { display: flex; align-items: flex-end; gap: clamp(18px, 2.6vw, 42px); }
+.theme-score #slot-machine { display: flex; align-items: flex-end; gap: clamp(18px, 2.6vw, 42px); perspective: 700px; }
 .theme-score #slot-stack { display: flex; flex-direction: column; align-items: center; gap: 9px; }
 /* 텍스트 요소(명판·이름·카운트)는 숨긴다 — 캐릭터는 실루엣으로만 소개 */
 .theme-score #slot-title, .theme-score #slot-name, .theme-score #slot-count { display: none; }
@@ -133,7 +133,8 @@ html, body { background: #ffffff; color: var(--ink); }
   width: 34px; height: 16px; border-radius: 5px; background: #000;
 }
 .theme-score #slot-lever:hover::before { background: #f0f0f0; }
-.theme-score #slot-lever.pulled { transform: rotate(27deg); }
+/* 앞으로(아래로) 당기는 모션 — 바닥 피벗 기준으로 손잡이가 화면 앞쪽으로 넘어온다 */
+.theme-score #slot-lever.pulled { transform: rotateX(58deg); }
 /* 소개 화면: 도감 그리드 숨김, 시작 버튼은 모두 소개된 뒤 노출 */
 .theme-score #dex-grid { display: none; }
 .theme-score #slot-start { visibility: hidden; }

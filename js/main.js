@@ -203,7 +203,13 @@ function drawSlotWindow(t) {
     if (p >= 1) { slotScroll = slotScrollTo; slotSpinning = false; slotDisplay = slotTarget; slotIndex++; slotLandAt = now; onSlotLanded(); }
   }
 
-  if (slotDisplay < 0 && !slotSpinning) return;              // 시작 전 — 빈 창(텍스트 없음)
+  if (slotDisplay < 0 && !slotSpinning) {                    // 시작 전 — 물음표
+    c.fillStyle = '#000';
+    c.font = `${Math.round(S * 0.46)}px Datatype, Galmuri11, monospace`;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('?', S / 2, S / 2);
+    return;
+  }
 
   // 세로 릴 — 가운데 칸 + 위/아래 이웃이 스크롤(가운데서 멀수록 흐리게)
   const base = Math.floor(slotScroll / CH);
