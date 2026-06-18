@@ -407,11 +407,30 @@ function buildPickColumns() {
       if (SCORE) silhouetteDraw(c, i, 0, 0, 64, i * 1.3, false, 'neutral', false);
       else drawCharacter(c, i, 0, 0, 64, i * 1.3);
       b.appendChild(cv);
-      col.appendChild(b);
       pickThumbs[player].push(b);
+      if (SCORE) {
+        // 캐릭터 옆에 "자기 선물" — 다른 캐릭터에게 끌어다 주면 그 캐릭터에 리버브.
+        const row = document.createElement('div');
+        row.className = 'pick-row';
+        const gift = document.createElement('div');
+        gift.className = 'char-gift';
+        gift.draggable = true;
+        gift.dataset.giver = i;
+        gift.title = characterName(i) + '의 선물 — 다른 캐릭터에게 끌어다 놓기';
+        const gcv = document.createElement('canvas');
+        gcv.width = 48; gcv.height = 48;
+        drawGiftIcon(gcv);
+        gift.appendChild(gcv);
+        row.appendChild(b);
+        row.appendChild(gift);
+        col.appendChild(row);
+      } else {
+        col.appendChild(b);
+      }
     }
   });
   highlightPicks();
+  if (SCORE) highlightGifts();
 }
 function highlightPicks() {
   if (SCORE) {
@@ -451,30 +470,32 @@ function drawGiftIcon(cv) {
   R(15, 10, 2, 17, '#fff');
 }
 
+let giftDragFrom = null;   // 지금 드래그 중인 선물을 "준" 캐릭터 인덱스
+
+// 캐릭터 열에 드래그&드롭을 위임으로 건다(썸네일/선물은 buildPickColumns에서 매번 생성).
 function setupGift() {
-  const icon = $('#gift-icon');
-  if (!icon) return;
-  let cv = icon.querySelector('canvas');
-  if (!cv) { cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; icon.appendChild(cv); }
-  drawGiftIcon(cv);
-
-  // 드래그 시작 — 선물을 집어 든다.
-  icon.addEventListener('dragstart', (e) => {
-    e.dataTransfer.setData('text/plain', 'gift');
-    e.dataTransfer.effectAllowed = 'copy';
-    icon.classList.add('dragging');
-  });
-  icon.addEventListener('dragend', () => {
-    icon.classList.remove('dragging');
-    document.querySelectorAll('.pick-thumb.drag-over').forEach((b) => b.classList.remove('drag-over'));
-  });
-
-  // 왼쪽 캐릭터 열을 드롭 타깃으로 — 썸네일 위에 놓으면 그 캐릭터가 선물을 받는다.
   const col = pickCols[0];
   if (!col) return;
+  // 선물(.char-gift) 집어 들기 — 어느 캐릭터가 주는지 기록.
+  col.addEventListener('dragstart', (e) => {
+    const g = e.target.closest('.char-gift');
+    if (!g) return;
+    giftDragFrom = +g.dataset.giver;
+    e.dataTransfer.setData('text/plain', String(giftDragFrom));
+    e.dataTransfer.effectAllowed = 'copy';
+    g.classList.add('dragging');
+  });
+  col.addEventListener('dragend', (e) => {
+    const g = e.target.closest('.char-gift');
+    if (g) g.classList.remove('dragging');
+    giftDragFrom = null;
+    col.querySelectorAll('.pick-thumb.drag-over').forEach((x) => x.classList.remove('drag-over'));
+  });
+  // 다른 캐릭터(.pick-thumb) 위에 놓으면 그 캐릭터가 선물을 받는다(자기 자신은 제외).
   col.addEventListener('dragover', (e) => {
     const b = e.target.closest('.pick-thumb');
     if (!b) return;
+    if (giftDragFrom != null && +b.dataset.idx === giftDragFrom) return;   // 자기 자신에겐 못 줌
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     if (!b.classList.contains('drag-over')) {
@@ -491,12 +512,16 @@ function setupGift() {
     if (!b) return;
     e.preventDefault();
     b.classList.remove('drag-over');
-    giveGift(+b.dataset.idx);
+    const recip = +b.dataset.idx;
+    let giver = giftDragFrom;
+    if (giver == null) { const d = e.dataTransfer.getData('text/plain'); giver = (d === '') ? null : +d; }
+    if (giver != null && recip === giver) return;   // 자기 자신 무시
+    giveGift(recip, giver);
   });
 }
 
-// 캐릭터에 선물을 주거나(리버브 ON) 다시 주면 회수(OFF) — 토글.
-function giveGift(idx) {
+// 받은 캐릭터에 선물(리버브)을 켜거나, 다시 받으면 끈다 — 토글. fromIdx = 준 캐릭터.
+function giveGift(idx, fromIdx = null) {
   const on = !giftedChars.has(idx);
   if (on) giftedChars.add(idx); else giftedChars.delete(idx);
   setGift(characterVoice(idx), on);

@@ -123,13 +123,26 @@ html, body { background: #ffffff; color: var(--ink); }
   top: var(--play-top);
   bottom: auto;
   height: var(--play-h);
-  width: clamp(48px, 5vw, 64px);
+  width: clamp(86px, 9.5vw, 110px);   /* [썸네일 + 선물] 한 줄 폭 */
   gap: clamp(5px, 0.9vh, 10px);
   overflow: visible;
   justify-content: space-between;
 }
-/* 정사각 비율 유지 — 캐릭터 수가 줄어도 늘어나 찌그러지지 않게(열 높이에 균등 분배) */
-.theme-score .pick-col .pick-thumb { flex: 0 0 auto; width: 100%; height: auto; aspect-ratio: 1 / 1; min-height: 0; }
+/* 캐릭터 한 줄 = [썸네일][자기 선물] */
+.theme-score .pick-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+/* 정사각 비율 유지(찌그러짐 방지) */
+.theme-score .pick-row .pick-thumb { flex: 0 0 auto; width: clamp(44px, 5vw, 60px); height: auto; aspect-ratio: 1 / 1; min-height: 0; }
+/* 캐릭터별 선물 — 다른 캐릭터에게 드래그 */
+.theme-score .char-gift {
+  flex: 0 0 auto; width: clamp(24px, 2.8vw, 34px); aspect-ratio: 1 / 1;
+  display: grid; place-items: center;
+  border: 1px solid #000; background: #fff;
+  cursor: grab; user-select: none;
+}
+.theme-score .char-gift:hover { background: #f2f2f2; }
+.theme-score .char-gift:active { cursor: grabbing; }
+.theme-score .char-gift.dragging { opacity: 0.35; }
+.theme-score .char-gift canvas { width: 84%; height: 84%; image-rendering: pixelated; display: block; }
 /* 사용자 1/2 구분 없이 — 왼쪽 한 열(8개)만 둔다. 오른쪽 열은 숨긴다. */
 .theme-score .pick-col.p1 { left: auto; right: calc(50% + var(--play-w) / 2 + var(--play-gap)); }
 .theme-score .pick-col.p2 { display: none; }
@@ -171,25 +184,6 @@ html, body { background: #ffffff; color: var(--ink); }
   font-size: 12px; line-height: 1; color: #000; background: #fff;
   border: 1px solid #000; padding: 1px 2px;
 }
-
-/* 선물 트레이 — 왼쪽 위. 캐릭터 위로 끌어다 놓으면 리버브가 걸린다. */
-.theme-score #gift-tray {
-  position: absolute; left: 2.5vw; top: var(--play-top);
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  z-index: 7;
-}
-.theme-score #gift-icon {
-  width: clamp(48px, 5.5vw, 72px); height: clamp(48px, 5.5vw, 72px);
-  display: grid; place-items: center;
-  border: 2px solid #000; background: #fff;
-  cursor: grab; user-select: none;
-  transition: transform .08s ease;
-}
-.theme-score #gift-icon:hover { transform: translateY(-2px); }
-.theme-score #gift-icon:active { cursor: grabbing; }
-.theme-score #gift-icon.dragging { opacity: 0.35; }
-.theme-score #gift-icon canvas { width: 78%; height: 78%; image-rendering: pixelated; display: block; }
-.theme-score #gift-label { font-size: 11px; letter-spacing: 1px; color: #777; }
 
 /* 이펙트 랙 UI — 흰 배경 검정 잉크 */
 #fx-panel { background: #fff; border-color: #000; box-shadow: 4px 4px 0 #000; }
