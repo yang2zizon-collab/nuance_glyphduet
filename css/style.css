@@ -1,0 +1,279 @@
+:root {
+  --bg: #0d0b1a;
+  --bg2: #16122b;
+  --ink: #f4f1ff;
+  --muted: #9a93c4;
+  --p1: #ff5d8f;   /* 플레이어 1 색 */
+  --p2: #4fd1c5;   /* 플레이어 2 색 */
+  --accent: #ffd166;
+  --panel: rgba(22, 18, 43, 0.82);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  /* 영문/숫자·기호는 Datatype, 한글은 갈무리11로 폴백 */
+  font-family: 'Datatype', 'Galmuri11', monospace;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+#stage {
+  position: relative;
+  width: 100vw; height: 100vh;
+}
+
+#scene {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* ===== 화면 전환 ===== */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 6vh 4vw;
+  text-align: center;
+}
+.screen.active { display: flex; }
+
+.title-logo {
+  font-size: clamp(40px, 9vw, 110px);
+  letter-spacing: 4px;
+  color: var(--accent);
+  text-shadow: 4px 4px 0 var(--p1), 8px 8px 0 var(--p2);
+}
+.subtitle { color: var(--muted); font-size: clamp(12px, 2vw, 20px); letter-spacing: 2px; }
+.screen-title { font-size: clamp(24px, 4vw, 44px); color: var(--accent); }
+.screen-desc { color: var(--muted); font-size: clamp(11px, 1.6vw, 16px); max-width: 640px; line-height: 1.8; }
+.hint { color: var(--muted); font-size: clamp(10px, 1.4vw, 14px); }
+
+/* ===== 버튼 ===== */
+.btn {
+  font-family: inherit;
+  background: var(--panel);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  padding: 14px 22px;
+  font-size: clamp(13px, 1.8vw, 20px);
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #000;
+  transition: transform .05s, box-shadow .05s;
+}
+.btn:hover { color: var(--accent); border-color: var(--accent); }
+.btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 #000; }
+.btn.big { padding: 18px 34px; font-size: clamp(16px, 2.4vw, 26px); }
+.btn.sm { padding: 8px 14px; font-size: 18px; }
+.row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+
+/* ===== 캐릭터 선택 ===== */
+.player-picks { display: flex; align-items: center; gap: clamp(20px, 6vw, 80px); }
+.vs { font-size: clamp(28px, 6vw, 60px); color: var(--accent); }
+.pick { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.pick-canvas { width: 160px; height: 160px; image-rendering: pixelated; background: rgba(0,0,0,.25); border: 3px solid #000; }
+.pick-label { font-size: clamp(13px, 1.8vw, 20px); padding: 4px 12px; }
+.pick-label.p1 { color: var(--p1); }
+.pick-label.p2 { color: var(--p2); }
+.pick-name { font-size: clamp(15px, 2.4vw, 26px); color: var(--accent); min-height: 1.4em; }
+.pick-controls { display: flex; gap: 12px; }
+
+/* ===== 언어 설정 ===== */
+.player-setup { display: flex; gap: clamp(24px, 6vw, 90px); flex-wrap: wrap; justify-content: center; }
+.setup-col { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 260px; }
+.comp-readout { font-size: clamp(14px, 2vw, 22px); color: var(--accent); min-height: 1.4em; }
+.slider { width: 240px; height: 28px; -webkit-appearance: none; appearance: none; background: #2a2350; border: 3px solid #000; cursor: pointer; }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; background: var(--accent); border: 3px solid #000; cursor: pointer; }
+.slider::-moz-range-thumb { width: 22px; height: 28px; background: var(--accent); border: 3px solid #000; cursor: pointer; }
+.slider-ends { display: flex; justify-content: space-between; width: 240px; color: var(--muted); font-size: 12px; }
+
+/* ===== 대화 화면 ===== */
+#screen-play { justify-content: flex-end; gap: 14px; }
+
+/* ===== 중앙 스코어 패널 — 대화가 외계 기호로 쌓여간다 ===== */
+#score-panel {
+  position: absolute;
+  top: 7vh; left: 50%; transform: translateX(-50%);
+  width: min(620px, 56vw);
+  height: 36vh;
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0 #000;
+  z-index: 4;
+}
+#score-title {
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: clamp(14px, 2vw, 22px);
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  padding: 8px 0 6px;
+  border-bottom: 2px solid rgba(255,255,255,0.12);
+}
+#conversation {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 14px;
+  scrollbar-width: thin;
+  line-height: 1.9;
+  word-break: break-word;
+}
+.glyphrun {
+  font-size: clamp(16px, 2.4vw, 26px);
+  letter-spacing: 2px;
+}
+
+/* ===== 스코어 그리드 — 사각형 공간을 칸으로 나눈다. 글자가 랜덤 칸에 채워진다 ===== */
+#conversation.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 12), 1fr);
+  grid-template-rows: repeat(var(--rows, 8), 1fr);
+  overflow: hidden;
+  padding: 0;
+  line-height: 1;
+}
+.gcell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(14px, 2vw, 24px);
+  line-height: 1;
+  user-select: none;
+  transition: color .15s;
+}
+.gcell.filled { animation: pop .14s ease-out; }
+.bubble {
+  max-width: 78%;
+  padding: 12px 16px;
+  border: 3px solid #000;
+  font-size: clamp(15px, 2.2vw, 24px);
+  line-height: 1.7;
+  word-break: break-word;
+  box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+  animation: pop .12s ease-out;
+}
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.bubble.p0 { align-self: flex-start; background: var(--p1); color: #1a0410; }
+.bubble.p1 { align-self: flex-end; background: var(--p2); color: #032420; }
+.bubble .who { display: block; font-size: .6em; opacity: .7; margin-bottom: 4px; }
+.bubble.alien { letter-spacing: 3px; }
+
+#input-bar {
+  display: flex; align-items: center; gap: 12px;
+  width: min(860px, 92vw);
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  padding: 12px 16px;
+  box-shadow: 4px 4px 0 #000;
+}
+#input-line { flex: 1; text-align: left; font-size: clamp(16px, 2.4vw, 26px); min-height: 1.5em; letter-spacing: 1px; }
+#input-line.alien { letter-spacing: 3px; }
+#caret { animation: blink .9s steps(1) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }
+#input-mode-tag { padding: 4px 10px; border: 2px solid var(--muted); color: var(--muted); font-size: 13px; }
+.play-hint { position: absolute; bottom: 1vh; }
+
+/* ===== 이펙트 랙 UI — Delay·Distortion·Reverb·Flanger (각 ON/OFF + 정도) ===== */
+#fx-panel {
+  position: absolute;
+  left: 1.5vw; bottom: 1.4vh;
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--panel);
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0 #000;
+  padding: 8px 12px;
+  font-size: clamp(10px, 1.2vw, 13px);
+  z-index: 7;
+}
+.fx-title { color: var(--muted); letter-spacing: 2px; margin-bottom: 2px; }
+.fx-row { display: flex; align-items: center; gap: 8px; }
+.fx-row.disabled .fx-knob, .fx-row.disabled .fx-val { opacity: .35; }
+.fx-btn {
+  font-family: inherit;
+  width: 92px; text-align: center;
+  background: transparent; color: var(--muted);
+  border: 2px solid var(--muted); padding: 3px 0; cursor: pointer;
+  letter-spacing: 1px; font-size: inherit;
+}
+.fx-btn.on { background: var(--accent); color: #000; border-color: var(--accent); }
+.fx-knob { width: clamp(80px, 12vw, 150px); height: 18px; cursor: pointer; accent-color: var(--accent); }
+.fx-val { min-width: 3em; text-align: right; color: var(--accent); }
+
+/* ===== 게임 중 캐릭터 선택 열 (좌=P1, 우=P2) ===== */
+.pick-col {
+  position: absolute; top: 10vh; bottom: 16vh;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 4px;
+  overflow-y: auto; scrollbar-width: thin;
+  z-index: 6;
+  transition: opacity .25s ease, filter .25s ease, transform .25s ease;
+}
+.pick-col.p1 { left: 1vw; }
+.pick-col.p2 { right: 1vw; }
+/* 차례 표시: 활성 열은 또렷하게, 비활성 열은 흐리게 */
+.pick-col.turn-on  { opacity: 1; filter: none; }
+.pick-col.turn-off { opacity: .28; filter: grayscale(.7); transform: scale(.92); }
+.pick-col.turn-off .pick-thumb { cursor: default; }
+.pick-thumb {
+  flex: 0 0 auto;
+  width: clamp(42px, 5vw, 60px); height: clamp(42px, 5vw, 60px);
+  padding: 2px; cursor: pointer;
+  background: rgba(0,0,0,0.25);
+  border: 3px solid transparent;
+  image-rendering: pixelated;
+  transition: transform .06s;
+}
+.pick-thumb canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+.pick-thumb:hover { transform: scale(1.08); }
+.pick-col.p1 .pick-thumb.active { border-color: var(--p1); box-shadow: 0 0 0 2px var(--p1); }
+.pick-col.p2 .pick-thumb.active { border-color: var(--p2); box-shadow: 0 0 0 2px var(--p2); }
+
+.p1-tint #input-bar { border-color: var(--p1); }
+.p2-tint #input-bar { border-color: var(--p2); }
+
+/* ===== 소통 게이지 — 기능 제거됨(숨김) ===== */
+#connection { display: none !important; }
+#connection.legacy {
+  position: absolute;
+  top: 1.4vh; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel);
+  border: 3px solid #000;
+  padding: 8px 16px;
+  font-size: clamp(11px, 1.5vw, 16px);
+  z-index: 5;
+}
+#conn-label { color: var(--muted); }
+#conn-bar { width: clamp(160px, 30vw, 320px); height: 16px; background: #2a2350; border: 2px solid #000; overflow: hidden; }
+#conn-fill { height: 100%; width: 50%; background: var(--accent); transition: width .4s ease, background .4s ease; }
+#conn-state { min-width: 5em; text-align: center; color: var(--accent); }
+#conn-count { color: var(--muted); }
+
+/* ===== 엔딩 ===== */
+#ending-title { font-size: clamp(28px, 6vw, 64px); text-shadow: 3px 3px 0 var(--p1), 6px 6px 0 var(--p2); }
+#ending-meter { width: min(420px, 80vw); height: 22px; background: #2a2350; border: 3px solid #000; overflow: hidden; }
+#ending-fill { height: 100%; width: 50%; background: var(--accent); }
+#ending-desc { max-width: 560px; }
+/* 엔딩: 악보가 가운데를 채우고 맨 밑에서 캐릭터가 춤춘다.
+   → 글/게이지는 위쪽 띠에 모으고, 버튼은 화면 맨 아래에 고정해 악보와 안 겹치게. */
+#screen-ending {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 3vh 4vw 0;
+}
+#screen-ending #ending-title { font-size: clamp(20px, 4vw, 42px); text-shadow: 2px 2px 0 var(--p1), 4px 4px 0 var(--p2); }
+#screen-ending #ending-desc { font-size: clamp(10px, 1.4vw, 14px); max-width: 600px; line-height: 1.5; }
+#screen-ending #ending-meter { height: 16px; }
+#screen-ending #ending-stat { font-size: clamp(9px, 1.2vw, 13px); }
+#screen-ending .row { position: absolute; left: 50%; bottom: 4vh; transform: translateX(-50%); margin: 0; }

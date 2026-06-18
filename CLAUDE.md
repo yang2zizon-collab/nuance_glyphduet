@@ -1,0 +1,57 @@
+# CLAUDE.md — "뉘앙스" 글리프 듀엣 (Score 버전)
+
+이 파일은 Claude Code가 이 프로젝트를 이어서 작업할 때 읽는 맥락 문서다.
+다른 컴퓨터로 폴더를 옮겨도 이 파일이 함께 가므로, 새 환경에서도 바로 이어서 작업할 수 있다.
+
+## 프로젝트 개요
+- **2인 타이핑 대화 게임 / 공연용 오디오비주얼 작품.** 주제는 "소통".
+- 픽셀 캐릭터들이 각자의 외계 글리프 언어로 말하고, 두 사람이 한 키보드로 번갈아 친다.
+- 대화가 끝나면 그 대화가 하나의 "그래픽 스코어"이자 연주(엔딩)로 재생된다.
+- 이 폴더는 **그래픽 스코어(흰 배경·검정 잉크) 버전만** 담은 독립 실행본이다.
+  (원래는 dark/CRT/score 3개 테마가 있었고, 이건 score만 추린 클린 빌드다.)
+
+## 실행 / 확인
+- 빌드 과정 없음. 정적 사이트(HTML+CSS+ESM). **반드시 로컬 서버로** 연다(`file://` 직접 열기는 ESM 차단으로 실패).
+  - `python3 serve.py 8777` → http://localhost:8777/
+- 폰트(Datatype, Galmuri)는 CDN 로드 → **인터넷 필요**. 첫 화면 ▶ 클릭해야 오디오가 켜진다(자동재생 정책).
+- **변경 검증은 헤드리스 puppeteer 스크린샷으로** 한다(인앱 미리보기는 Desktop 파일 접근 제한이 있어 우회).
+  - 크롬 인자: `--autoplay-policy=no-user-gesture-required --mute-audio --force-color-profile=srgb`, viewport 1600×900 @2x
+  - 진입 흐름: `[data-action="start"]` 클릭(1번째=오디오 깨우기) → 다시 클릭 → `[data-action="to-setup"]` → 플레이.
+
+## 파일 구조
+```
+index.html              진입점. <body class="theme-score">
+css/style.css           공통 기본 스타일
+css/style-score.css     스코어 테마 스타일(.theme-score 한정)
+js/main.js              메인 로직(상태·렌더 루프·입력·엔딩). 나머지 js를 import
+js/sprites.js           캐릭터 4종 + 미니 실루엣
+js/audio.js             사운드 엔진(타이핑·발화·엔딩 악보/합주·선물 리버브)
+js/glyphs.js            외계 글리프 8개 체계(SYSTEMS)
+js/language.js          표시용 글자 변환(renderDisplay/toAlien)
+js/background.js        배경
+serve.py                로컬 서버
+```
+
+## 핵심 개념 / 규칙
+- **테마 플래그**(main.js): `SCORE = body.classList.contains('theme-score')`, `MINIMAL = ...'theme-crt'`.
+  이 빌드는 SCORE만 쓰지만 코드엔 다른 분기가 남아 있다. **새 동작은 `if (SCORE)` / `.theme-score`로 가두는 컨벤션 유지.**
+- **캐릭터(sprites.js)**: 4종 — 핑크토마토(0)·심해어(1)·새(2)·생쥐(3).
+  각 캐릭터는 `voice` 필드로 **원래 소리·글리프 인덱스**를 가진다(0,1,2,**7**). `characterVoice(i)`가 그 값을 반환.
+  - **스프라이트·색·이름** = 배열 인덱스(0~3) 사용.
+  - **소리·글리프**(타이핑·발화·말풍선·엔딩 보이스/글자) = `characterVoice(pick)` 사용.
+  - glyphs.js의 SYSTEMS, audio.js의 VOICES는 8개이며 modulo 인덱싱이라 0~7 안전.
+- **캐릭터 선택 UI**: 왼쪽 한 열(현재 4개). 썸네일 클릭 = **지금 차례인 화자**의 캐릭터를 바꾼다. 정사각 비율 유지.
+- **선물(드래그&드롭 이펙트)**: 왼쪽 위 `#gift-icon`을 캐릭터 썸네일에 드롭 → `setGift(characterVoice(idx))`로
+  그 캐릭터의 **라이브 소리(타이핑+발화)를 리버브 버스로** 보냄. 다시 드롭하면 토글 해제. ♫ 배지 표시.
+  - audio.js: `giftedVoices` Set + `giftBus()` + `destFor(voiceId)`. 확장 시 같은 패턴으로 딜레이/피치 추가 가능.
+  - 아직 **엔딩 악보/합주에는 미반영**(라이브 소리에만). 드래그는 마우스(HTML5 DnD) 기준 — 터치는 미지원.
+- **엔딩(2단계)**:
+  1. **순차 듀엣** — `buildScore()` → `playScore()`. 두 사람이 친 순서/리듬 그대로 한 줄 악보로.
+  2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
+     `playEnsemble(..., {loop:false})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
+  - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
+- **미학**: 흰 바탕 검정 잉크, 픽셀 실루엣, 크세나키스풍 직선 글리산도 그래픽 스코어.
+
+## 작업 컨벤션
+- 주석·UI 문구는 한국어. 코드 스타일은 주변 코드에 맞춘다.
+- 변경 후엔 위 헤드리스 플로우로 스크린샷 찍어 시각/콘솔 에러를 확인한다.

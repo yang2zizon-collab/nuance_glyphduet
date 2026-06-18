@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>"뉘앙스" 글리프 듀엣 — 그래픽 스코어</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@100..900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/quiple/galmuri/dist/galmuri.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style-score.css" />
+</head>
+<body class="theme-score">
+  <div id="stage">
+    <!-- 픽셀 캐릭터는 캔버스에 그린다. 그래픽 스코어 테마에선 배경 없이 흰 화면. -->
+    <canvas id="scene"></canvas>
+
+    <!-- ===== 화면들 (DOM 오버레이) ===== -->
+
+    <!-- 1. 타이틀 -->
+    <section id="screen-title" class="screen active">
+      <p class="subtitle">"Nuance" Glyph Duet</p>
+      <button class="btn icon big" data-action="start" aria-label="게임 시작" title="게임 시작 · Start">▶</button>
+    </section>
+
+    <!-- 2. 도감 — 캐릭터를 한 칸씩 탭해서 가운데에 크게 본다(텍스트 없음) -->
+    <section id="screen-select" class="screen">
+      <canvas id="dex-stage" width="128" height="128"></canvas>
+      <div id="dex-grid"></div>
+      <button class="btn icon" data-action="to-setup" aria-label="대화 시작" title="대화 시작 · Talk">▶</button>
+    </section>
+
+    <!-- 4. 대화(플레이) -->
+    <section id="screen-play" class="screen">
+      <div id="connection">
+        <span id="conn-label">소통 · Rapport</span>
+        <div id="conn-bar"><div id="conn-fill"></div></div>
+        <span id="conn-state">…</span>
+        <span id="conn-count">0/0</span>
+      </div>
+      <!-- 좌/우 캐릭터 선택 열 (클릭해서 게임 중 교체) -->
+      <div id="pick-col-0" class="pick-col p1"></div>
+      <div id="pick-col-1" class="pick-col p2"></div>
+      <!-- 선물 — 캐릭터 위로 드래그&드롭하면 그 캐릭터 소리에 리버브가 걸린다 -->
+      <div id="gift-tray">
+        <div id="gift-icon" draggable="true" title="선물 · Gift — 캐릭터에 끌어다 놓기"></div>
+        <span id="gift-label">선물 · gift</span>
+      </div>
+      <!-- 중앙 스코어 패널 — 대화가 검은 기호로 흰 화면에 그려진다 -->
+      <div id="score-panel">
+        <div id="score-title"></div>
+        <div id="conversation"></div>
+      </div>
+      <div id="input-bar">
+        <div id="input-line"><span id="input-text"></span><span id="caret">▌</span></div>
+      </div>
+    </section>
+
+    <!-- 5. 엔딩 -->
+    <section id="screen-ending" class="screen">
+      <h2 id="ending-title" class="screen-title">…</h2>
+      <p id="ending-desc" class="screen-desc"></p>
+      <div id="ending-meter"><div id="ending-fill"></div></div>
+      <p id="ending-stat" class="hint"></p>
+      <div class="row">
+        <button class="btn icon" data-action="replay-score" aria-label="악보 다시 듣기" title="악보 다시 듣기 · Replay">↺</button>
+        <button class="btn icon big" data-action="restart" aria-label="다시 하기" title="다시 하기 · Play Again">↻</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

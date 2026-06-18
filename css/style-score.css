@@ -1,0 +1,207 @@
+/* ===========================================================
+   그래픽 스코어 테마 — 흰 배경 · 검정 잉크.
+   전위 음악의 그래픽 악보처럼: 대화가 검은 기호로 흰 화면에 그려진다.
+   style.css 뒤에 로드해 색/변수를 덮어쓴다. (index-score.html 전용)
+   =========================================================== */
+
+:root {
+  --bg:  #ffffff;
+  --bg2: #f4f4f4;
+  --ink:    #111111;
+  --muted:  #777777;
+  --p1: #000000;
+  --p2: #000000;
+  --accent: #000000;
+  --panel: rgba(255, 255, 255, 0.9);
+}
+
+html, body { background: #ffffff; color: var(--ink); }
+#stage { background: #ffffff; }
+
+/* 캔버스 배경은 투명(페이지 흰색이 비친다). 캐릭터는 검정 실루엣으로 통째.
+   #scene은 악보(흰 배경+검은 선)와 공유하므로 필터를 걸지 않고, 캐릭터는 코드에서
+   검정 실루엣으로 그린다. 별도 캐릭터 캔버스는 brightness(0)으로 통짜 검정 실루엣. */
+#scene { background: transparent; }
+.pick-canvas { background: #ffffff; border-color: #000; filter: brightness(0); }
+.pick-thumb canvas { filter: brightness(0); }
+
+/* 글자 — 검정, 장식 없음 */
+.title-logo, .screen-title, #ending-title {
+  color: #000; text-shadow: none;
+}
+.subtitle, .screen-desc, .hint, .slider-ends { color: #555; }
+.pick-label.p1, .pick-label.p2, .pick-name, .vs, .comp-readout { color: #000; }
+
+/* 버튼 — 검정 외곽선, 호버 시 반전 */
+.btn {
+  background: #fff; color: #000; border-color: #000;
+  box-shadow: none; text-shadow: none;
+}
+.btn:hover { background: #000; color: #fff; border-color: #000; }
+.btn:active { box-shadow: none; }
+
+/* 기호 버튼 — 텍스트 없이 ▶ ↻ ↺ ⇄ 같은 글리프만, 정사각 */
+.btn.icon {
+  padding: 0;
+  width: 64px; height: 64px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 26px; line-height: 1;
+  border: none;            /* 동그라미 둘레 제거 — 기호만 남긴다 */
+  border-radius: 50%;
+  background: transparent;
+}
+/* 둘레가 없으니 호버 시 검은 원으로 채우지 않고, 글리프만 살짝 강조 */
+.btn.icon:hover { background: transparent; color: #000; transform: scale(1.12); }
+.btn.icon:active { background: transparent; transform: scale(1.0); }
+.btn.icon.big { width: 92px; height: 92px; font-size: 38px; }
+/* ▶ 삼각형은 광학적으로 살짝 오른쪽이 비어 보여 보정 */
+.btn.icon[data-action="start"], .btn.icon[data-action="to-setup"] { padding-left: 4px; }
+
+/* ===== 도감 — 가운데 큰 미리보기 + 캐릭터 그리드(텍스트 없음) ===== */
+#dex-stage {
+  width: clamp(140px, 24vmin, 240px);
+  height: clamp(140px, 24vmin, 240px);
+  image-rendering: pixelated;
+  filter: brightness(0);   /* 검정 실루엣으로 통째 */
+}
+#dex-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(8px, 1vw, 14px);
+}
+.dex-cell {
+  width: clamp(54px, 6.5vw, 80px);
+  height: clamp(54px, 6.5vw, 80px);
+  padding: 4px;
+  background: #fff;
+  border: 3px solid #ccc;
+  cursor: pointer;
+  image-rendering: pixelated;
+  transition: transform .08s, border-color .1s;
+}
+.dex-cell canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; filter: brightness(0); }
+.dex-cell:hover { transform: scale(1.06); border-color: #000; }
+.dex-cell.active { border-color: #000; box-shadow: 0 0 0 2px #000; }
+
+/* ===== 플레이 화면 정렬 ===== */
+/* 캐릭터 열 · 스코어칸 · 입력칸을 하나의 중앙 폭(--play-w)에 맞춰 가로세로로 정렬한다.
+   스코어칸과 입력칸은 좌우 모서리를 공유하고, 캐릭터 열은 그 바깥에 같은 높이로 붙는다. */
+.theme-score {
+  --play-top: 9vh;
+  --play-w: min(900px, 64vw);
+  --play-h: 56vh;
+  --play-gap: clamp(12px, 1.8vw, 24px);
+}
+
+/* 스코어 패널 — 배경/테두리 없이, 정해진 폭·높이의 사각 영역 */
+#score-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  top: var(--play-top);
+  bottom: auto;
+  height: var(--play-h);
+  width: var(--play-w);
+}
+#score-title { display: none; }   /* '스코어' 글자 제거 */
+#conversation { max-height: none; padding: 0; }
+.theme-score .glyphrun { color: #000 !important; }
+
+/* 입력칸 — 스코어칸 바로 아래, 같은 폭으로 중앙 정렬 */
+.theme-score #input-bar {
+  position: absolute;
+  top: calc(var(--play-top) + var(--play-h) + var(--play-gap));
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--play-w);
+  margin: 0;
+}
+
+/* 캐릭터 열 — 스코어칸과 같은 높이로 양옆 바깥에 붙이고, 썸네일은 열 높이에
+   균등 분배해 위·아래 모서리가 스코어칸과 딱 맞게 한다(스크롤·잘림 없음). */
+.theme-score .pick-col {
+  top: var(--play-top);
+  bottom: auto;
+  height: var(--play-h);
+  width: clamp(48px, 5vw, 64px);
+  gap: clamp(5px, 0.9vh, 10px);
+  overflow: visible;
+  justify-content: space-between;
+}
+/* 정사각 비율 유지 — 캐릭터 수가 줄어도 늘어나 찌그러지지 않게(열 높이에 균등 분배) */
+.theme-score .pick-col .pick-thumb { flex: 0 0 auto; width: 100%; height: auto; aspect-ratio: 1 / 1; min-height: 0; }
+/* 사용자 1/2 구분 없이 — 왼쪽 한 열(8개)만 둔다. 오른쪽 열은 숨긴다. */
+.theme-score .pick-col.p1 { left: auto; right: calc(50% + var(--play-w) / 2 + var(--play-gap)); }
+.theme-score .pick-col.p2 { display: none; }
+
+/* 스코어 그리드 — 흰 화면 위 검은 사각 테두리. 칸 안의 글자는 검정 잉크. */
+.theme-score #conversation.grid {
+  border: 2px solid #000;
+  padding: 0;
+}
+.theme-score .gcell { color: #000 !important; }
+
+/* 소통 게이지 — 기능 제거됨(숨김) */
+#connection { display: none !important; }
+
+/* 입력바 — 검정 외곽선만 */
+#input-bar { background: transparent; border-color: #000; box-shadow: none; }
+#input-mode-tag { color: #777; border-color: #aaa; }
+#input-line.alien { color: #000; }
+#caret { color: #000; }
+/* 긴 입력이 상자 밖으로 넘치지 않게 — 공백 없는 글리프 문자열도 강제 줄바꿈 */
+.theme-score #input-line {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: normal;
+}
+
+/* 캐릭터 선택 열 */
+.pick-thumb { background: transparent; border-color: #ccc; }
+.theme-score .pick-thumb { position: relative; }
+.pick-col.p1 .pick-thumb.active, .pick-col.p2 .pick-thumb.active {
+  border-color: #000; box-shadow: 0 0 0 2px #000;
+}
+/* 드롭 대상(드래그 중 위에 올림) — 굵게 강조 */
+.theme-score .pick-thumb.drag-over { border-color: #000; box-shadow: 0 0 0 3px #000; background: rgba(0,0,0,0.06); }
+/* 선물 받은 캐릭터 — 모서리에 ♫ 배지(리버브 켜짐 표시) */
+.theme-score .pick-thumb.gifted { border-color: #000; }
+.theme-score .pick-thumb.gifted::after {
+  content: '♫'; position: absolute; right: -7px; top: -9px;
+  font-size: 12px; line-height: 1; color: #000; background: #fff;
+  border: 1px solid #000; padding: 1px 2px;
+}
+
+/* 선물 트레이 — 왼쪽 위. 캐릭터 위로 끌어다 놓으면 리버브가 걸린다. */
+.theme-score #gift-tray {
+  position: absolute; left: 2.5vw; top: var(--play-top);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 7;
+}
+.theme-score #gift-icon {
+  width: clamp(48px, 5.5vw, 72px); height: clamp(48px, 5.5vw, 72px);
+  display: grid; place-items: center;
+  border: 2px solid #000; background: #fff;
+  cursor: grab; user-select: none;
+  transition: transform .08s ease;
+}
+.theme-score #gift-icon:hover { transform: translateY(-2px); }
+.theme-score #gift-icon:active { cursor: grabbing; }
+.theme-score #gift-icon.dragging { opacity: 0.35; }
+.theme-score #gift-icon canvas { width: 78%; height: 78%; image-rendering: pixelated; display: block; }
+.theme-score #gift-label { font-size: 11px; letter-spacing: 1px; color: #777; }
+
+/* 이펙트 랙 UI — 흰 배경 검정 잉크 */
+#fx-panel { background: #fff; border-color: #000; box-shadow: 4px 4px 0 #000; }
+.fx-title { color: #777; }
+.fx-btn { background: #fff; color: #777; border-color: #aaa; }
+.fx-btn.on { background: #000; color: #fff; border-color: #000; }
+.fx-knob { accent-color: #000; }
+.fx-val { color: #000; }
+
+/* 엔딩 */
+#ending-title { text-shadow: none; color: #000; }
+#ending-meter { background: #eee; border-color: #000; }
+#ending-fill { background: #000 !important; }
+/* 리플레이 버튼을 살짝 왼쪽으로 — 오른쪽 아래 흩어진 캐릭터들과 안 겹치게 */
+#screen-ending .row { transform: translateX(-9vw); }
