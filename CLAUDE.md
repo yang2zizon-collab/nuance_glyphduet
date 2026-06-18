@@ -55,3 +55,10 @@ serve.py                로컬 서버
 ## 작업 컨벤션
 - 주석·UI 문구는 한국어. 코드 스타일은 주변 코드에 맞춘다.
 - 변경 후엔 위 헤드리스 플로우로 스크린샷 찍어 시각/콘솔 에러를 확인한다.
+- **자동 커밋+push**: 사용자가 "수정할 때마다 자동으로 올려달라"고 했다. 코드를 바꾼 작업(턴)을
+  마칠 때마다, 검증이 끝나면 자동으로 `git add -A && git commit && git push` 한다(매번 묻지 않음).
+  - 커밋 메시지는 그 턴에 한 변경을 한국어로 요약. 끝에 `Co-Authored-By: Claude ...` 한 줄.
+  - 코드를 안 바꾼 턴(질문·설명만)에는 push 하지 않는다.
+  - 원격: `origin` = https://github.com/yang2zizon-collab/nuance_glyphduet (main).
+  - 새 컴퓨터에서는 그 PC에 `gh auth login`(또는 git 자격증명)이 돼 있어야 push가 된다. 인증 없으면
+    커밋까지만 하고 push 실패를 사용자에게 알린다.
