@@ -875,7 +875,11 @@ function tickCycle() {
     const frac = remain / (roundDur * 1000);
     const fill = $('#round-gauge-fill'); if (fill) fill.style.width = `${frac * 100}%`;
     const secs = $('#round-secs'); if (secs) secs.textContent = Math.ceil(remain / 1000);
-    if (remain <= 0) { roundIndex++; beginCountIn(); }   // 다음 길이로 예비박부터
+    if (remain <= 0) {
+      commitPendingInput();              // 초 끝 = 자동 엔터(치던 입력 전송)
+      if (!cycleOn) return;              // 그 입력으로 그리드가 꽉 차 선물 단계로 갔으면 멈춤
+      roundIndex++; beginCountIn();      // 다음 길이로 예비박부터
+    }
   }
 }
 
@@ -935,7 +939,8 @@ function updateTally() {
 // 퍼포머가 ■로 사이클을 마침 — 타이핑 잠그고, 그 순간 말투(승자) 고정, 선물 단계로.
 function endCycle() {
   if (!cycleOn) return;
-  cycleOn = false;
+  cycleOn = false;          // 먼저 잠가 재진입 방지(commit→scoreFull→endCycle 루프 차단)
+  commitPendingInput();     // 마치는 순간 치던 입력도 자동 전송
   state.phase = 'gift';
   if (hidden) hidden.blur();
   winningNuance = computeLeader();
@@ -1080,6 +1085,11 @@ function pickRandomActive() {
   refreshTurn();
 }
 
+// 라운드 초가 다 지나면 = 자동으로 엔터친 것처럼 현재 입력을 전송한다(비어있으면 무시).
+function commitPendingInput() {
+  if (hidden && hidden.value.trim()) sendMessage();
+}
+
 function renderInput() {
   const p = state.turn;
   const shown = renderDisplay(state.input, characterVoice(state.picks[p]));
@@ -1116,7 +1126,8 @@ function sendMessage() {
   state.turn = 1 - p;
   pickRandomActive();
 
-  // 그리드가 꽉 차면 더 못 채울 뿐 — 라운드 종료는 8초 타이머가 결정한다.
+  // 그리드가 꽉 차면 사이클을 멈추고 선물 단계로 넘어간다.
+  if (scoreFull()) endCycle();
 }
 
 // 엔딩은 언제나 해피엔딩 — 여정은 달라도 끝내 마음은 닿는다.
