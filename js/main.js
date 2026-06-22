@@ -1040,7 +1040,8 @@ function startPlay() {
   buildGrid();   // 스코어 사각형 그리드를 만든다 (글자가 랜덤 칸에 채워질 공간)
   hidden.value = '';
   typeEvents = [];
-  refreshTurn();
+  lastActiveChar = -1;
+  pickRandomActive();   // 첫 차례 캐릭터 무작위 선택
   startCycle();   // 뉘앙스 라운드 사이클 시작(32→16→8→4 순환, 매 라운드 4초 예비박)
 }
 
@@ -1066,6 +1067,17 @@ function refreshTurn() {
   }
   $('#screen-play').className = `screen active ${p === 0 ? 'p1-tint' : 'p2-tint'}`;
   renderInput();
+}
+
+// 매 차례 4명 중 무작위로 "지금 칠 캐릭터"를 자동 선택한다(직전 화자는 피해 다양하게).
+// 슬롯머신 소개·선물 등은 그대로 4명을 쓰고, 타이핑 차례만 무작위로 돌아간다.
+let lastActiveChar = -1;
+function pickRandomActive() {
+  let r = Math.floor(Math.random() * N);
+  if (N > 1) { let guard = 0; while (r === lastActiveChar && guard++ < 20) r = Math.floor(Math.random() * N); }
+  lastActiveChar = r;
+  state.picks[state.turn] = r;   // 현재 차례 슬롯에 무작위 캐릭터를 앉힌다
+  refreshTurn();
 }
 
 function renderInput() {
@@ -1098,11 +1110,11 @@ function sendMessage() {
   state.talkUntil[p] = now + Math.min(4000, 400 + text.length * 120);
   state.reactUntil[0] = state.reactUntil[1] = now + 700;
 
-  // 입력 비우고 차례 넘김
+  // 입력 비우고 차례 넘김 — 다음 칠 캐릭터를 4명 중 무작위로 자동 선택
   hidden.value = '';
   state.input = '';
   state.turn = 1 - p;
-  refreshTurn();
+  pickRandomActive();
 
   // 그리드가 꽉 차면 더 못 채울 뿐 — 라운드 종료는 8초 타이머가 결정한다.
 }
@@ -1825,7 +1837,7 @@ function passTurn() {
   state.input = '';
   typeEvents = [];
   state.turn = 1 - state.turn;
-  refreshTurn();
+  pickRandomActive();   // Tab — 다음 칠 캐릭터를 4명 중 무작위로 다시 뽑는다
 }
 
 // ===== 입력 이벤트 =====

@@ -41,6 +41,10 @@ serve.py                로컬 서버
   - **소리·글리프**(타이핑·발화·말풍선·엔딩 보이스/글자) = `characterVoice(pick)` 사용.
   - glyphs.js의 SYSTEMS, audio.js의 VOICES는 8개이며 modulo 인덱싱이라 0~7 안전.
 - **캐릭터 선택 UI**: 왼쪽 한 열(현재 4개). 썸네일 클릭 = **지금 차례인 화자**의 캐릭터를 바꾼다. 정사각 비율 유지.
+- **타이핑 차례 = 매번 4명 중 무작위 자동선택**: `pickRandomActive()`가 매 차례(startPlay 첫 차례,
+  sendMessage 전송 후, passTurn=Tab) `state.picks[state.turn]`에 무작위 캐릭터를 앉힌다(직전 화자
+  `lastActiveChar`는 피함). 슬롯머신 소개·선물은 그대로 4명 고정. 메시지마다 `pick`이 기록돼 엔딩이
+  화자별로 재구성됨.
 - **선물(드래그&드롭 이펙트)**: 왼쪽 위 `#gift-icon`을 캐릭터 썸네일에 드롭 → `setGift(characterVoice(idx))`로
   그 캐릭터의 **라이브 소리(타이핑+발화)를 리버브 버스로** 보냄. 다시 드롭하면 토글 해제. ♫ 배지 표시.
   - audio.js: `giftedVoices` Set + `giftBus()` + `destFor(voiceId)`. 확장 시 같은 패턴으로 딜레이/피치 추가 가능.
