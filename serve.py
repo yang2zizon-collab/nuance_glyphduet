@@ -25,6 +25,22 @@ def lan_ip():
     return ip
 
 
+PUB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public_url.txt')
+
+
+def audience_base():
+    """폰이 접속할 기준 주소. 터널 공개주소(public_url.txt)가 있으면 그걸,
+    없으면 같은-와이파이 LAN 주소를 쓴다. 매 요청마다 파일을 읽어 즉시 반영된다."""
+    try:
+        with open(PUB_FILE, 'r') as f:
+            u = f.read().strip().rstrip('/')
+            if u:
+                return u
+    except Exception:
+        pass
+    return f'http://{lan_ip()}:{PORT}'
+
+
 class NoCacheHandler(SimpleHTTPRequestHandler):
     # 개발 중 캐시 때문에 옛 모듈이 로드되는 문제 방지: 항상 새로 받게 한다
     def end_headers(self):
@@ -46,7 +62,12 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if self.path.split('?')[0] == '/events':
             return self.handle_events()
         if self.path.split('?')[0] == '/config':
-            return self._json(200, {'lanUrl': f'http://{lan_ip()}:{PORT}/tap.html', 'port': PORT})
+            base = audience_base()
+            return self._json(200, {
+                'lanUrl': base + '/tap.html',
+                'public': base.startswith('https://'),
+                'port': PORT,
+            })
         return super().do_GET()
 
     def do_POST(self):
@@ -121,11 +142,12 @@ httpd.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 httpd.allow_reuse_address = True
 httpd.server_bind()
 httpd.server_activate()
-ip = lan_ip()
+base = audience_base()
 print(f'serving sori-mokkoji on http://localhost:{PORT}')
-print(f'  메인 화면 : http://localhost:{PORT}/')
-print(f'  관객 폰   : http://{ip}:{PORT}/tap.html   (같은 와이파이)')
-print(f'  데이터로도 받으려면 터널을 띄우고 메인을 ?pub=<공개주소> 로 열어라:')
-print(f'     cloudflared tunnel --url http://localhost:{PORT}')
-print(f'     → http://localhost:{PORT}/?pub=https://xxxx.trycloudflare.com')
+print(f'  메인 화면 : http://localhost:{PORT}/   (그냥 열면 됨)')
+print(f'  관객 폰   : {base}/tap.html')
+if base.startswith('https://'):
+    print(f'  ✓ 공개주소(터널) 사용 중 — QR이 이걸 가리켜 폰 데이터로도 접속됨')
+else:
+    print(f'  · 지금은 같은 와이파이(LAN)만 — 데이터로도 받으려면 ./start-show.sh 로 켜라')
 httpd.serve_forever()
