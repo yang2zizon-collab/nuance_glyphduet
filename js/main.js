@@ -809,6 +809,7 @@ function enterMarkPhase() {
   const layer = $('#mark-layer'); if (layer) layer.innerHTML = '';
   $('#input-bar')?.classList.add('hidden');
   $('#mark-bar')?.classList.remove('hidden');
+  renderMarkQR();   // 관객 폰 참여 QR 띄우기
   updateMarkCount();
   uiClick(0.5);
 }
@@ -867,6 +868,7 @@ function handleMarkKey(e) {
 function exitMarkPhase() {
   state.phase = 'talk';
   $('#mark-bar')?.classList.add('hidden');
+  $('#mark-qr')?.classList.add('hidden');
   $('#input-bar')?.classList.remove('hidden');
 }
 
@@ -898,6 +900,43 @@ function scheduleNuanceLayer(durationSec) {
 function clearNuanceLayer() {
   nuanceTimers.forEach(clearTimeout);
   nuanceTimers = [];
+}
+
+// ===== 관객 폰 실시간 참여 (Phase 2) =====
+// serve.py 의 SSE(/events)로 폰(/tap.html)이 보낸 부호를 받아 markTap(…, 'aud').
+// QR은 부호 탭 모드에서만 띄운다. 서버가 정적뿐이면(SSE 없음) 조용히 퍼포머 전용으로 동작.
+let audienceTapUrl = null;   // 폰이 열 주소 (?pub=공개주소 우선, 없으면 서버 LAN 주소)
+let audienceES = null;
+
+function setupAudience() {
+  const pub = new URLSearchParams(location.search).get('pub');
+  if (pub) audienceTapUrl = pub.replace(/\/+$/, '') + '/tap.html';
+  // 서버가 알려주는 같은-와이파이 LAN 주소(공개주소가 없을 때만 사용)
+  fetch('/config').then((r) => r.json()).then((c) => {
+    if (!audienceTapUrl && c && c.lanUrl) audienceTapUrl = c.lanUrl;
+    if (state.phase === 'mark') renderMarkQR();   // 그새 부호 탭에 들어가 있었으면 갱신
+  }).catch(() => {});
+  try {
+    audienceES = new EventSource('/events');
+    audienceES.onmessage = (ev) => {
+      let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+      if (d && d.mark) markTap(d.mark, 'aud');
+    };
+    audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
+  } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
+}
+
+// 부호 탭 모드에서 관객 참여 QR을 그린다(주소·라이브러리 있을 때만).
+function renderMarkQR() {
+  const box = $('#mark-qr'); const code = $('#mark-qr-code');
+  if (!box || !code) return;
+  if (!audienceTapUrl || typeof QRCode === 'undefined') { box.classList.add('hidden'); return; }
+  code.innerHTML = '';
+  new QRCode(code, {
+    text: audienceTapUrl, width: 128, height: 128,
+    colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M,
+  });
+  box.classList.remove('hidden');
 }
 
 // ===== 도감 그리드 (스코어 테마) =====
@@ -937,6 +976,7 @@ function startPlay() {
   nuanceMarks = [];
   clearNuanceLayer();
   $('#mark-bar')?.classList.add('hidden');
+  $('#mark-qr')?.classList.add('hidden');
   $('#input-bar')?.classList.remove('hidden');
   $('#mark-layer') && ($('#mark-layer').innerHTML = '');
   resetGifts();          // 새 게임 — 선물(리버브) 초기화
@@ -1819,6 +1859,7 @@ document.body.addEventListener('click', (e) => {
 resize();
 buildPickColumns();   // 플레이 중 좌/우 캐릭터 선택 열 생성
 if (SCORE) setupGift();   // 선물 아이콘 + 드래그&드롭(리버브) 준비
+if (SCORE) setupAudience();   // 관객 폰 실시간 부호 탭(SSE) 연결 준비
 buildDex();           // 스코어 테마: 도감 그리드 생성
 updateSelectUI();
 requestAnimationFrame(loop);

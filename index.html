@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/quiple/galmuri/dist/galmuri.css" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/style-score.css" />
+  <!-- 관객 폰 참여용 QR 생성(부호 탭 모드에서 사용). 없어도 퍼포머 전용으로 동작. -->
+  <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
 </head>
 <body class="theme-score">
   <div id="stage">
@@ -74,6 +76,11 @@
           <span id="mark-count">0</span>
           <button class="btn icon" data-action="to-ending" aria-label="연주로" title="연주 듣기 · Play the score">▶</button>
         </div>
+      </div>
+      <!-- 관객 폰 참여 QR — 부호 탭 모드에서만 보임 -->
+      <div id="mark-qr" class="hidden">
+        <div id="mark-qr-code"></div>
+        <div id="mark-qr-cap">QR로 함께 · Scan to join</div>
       </div>
     </section>
 

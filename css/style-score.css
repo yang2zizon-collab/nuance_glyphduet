@@ -326,3 +326,13 @@ html, body { background: #ffffff; color: var(--ink); }
 }
 #mark-meta { display: flex; align-items: center; gap: 10px; }
 #mark-count { font-family: 'Datatype', monospace; font-size: 18px; color: #000; min-width: 2ch; text-align: right; }
+
+/* 관객 폰 참여 QR — 오른쪽 위 모서리 카드 */
+#mark-qr {
+  position: fixed; right: 22px; top: 22px; z-index: 20;
+  background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0 #000;
+  padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+#mark-qr-code { width: 128px; height: 128px; display: grid; place-items: center; }
+#mark-qr-code img, #mark-qr-code canvas { display: block; width: 128px; height: 128px; image-rendering: pixelated; }
+#mark-qr-cap { font-size: 12px; color: #000; letter-spacing: 0.02em; }

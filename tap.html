@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>뉘앙스 — 부호 탭</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@100..900&display=swap" rel="stylesheet" />
+  <style>
+    :root { --ink: #000; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #fff; color: var(--ink);
+      font-family: 'Datatype', system-ui, sans-serif;
+      display: flex; flex-direction: column;
+      padding: env(safe-area-inset-top) 14px env(safe-area-inset-bottom);
+      user-select: none; -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    header { text-align: center; padding: 16px 0 8px; }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: 0.04em; }
+    header p { font-size: 12px; color: #777; margin: 4px 0 0; }
+    #pad {
+      flex: 1 1 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      padding: 12px 0 16px;
+    }
+    .key {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px;
+      background: #fff; color: #000;
+      border: 3px solid #000; border-radius: 2px;
+      box-shadow: 5px 5px 0 #000;
+      font-family: 'Datatype', monospace;
+      cursor: pointer; transition: transform .05s ease, box-shadow .05s ease, background .08s ease;
+    }
+    .key .sym { font-size: 13vh; line-height: 0.9; font-weight: 700; }
+    .key .cap { font-size: 13px; color: #555; }
+    .key.hit { transform: translate(5px, 5px); box-shadow: none; background: #000; color: #fff; }
+    .key.hit .cap { color: #ccc; }
+    footer { text-align: center; font-size: 11px; color: #999; padding: 4px 0 10px; min-height: 16px; }
+    #status.off { color: #c00; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>"뉘앙스" 부호 탭</h1>
+    <p>마음에 드는 말투를 눌러 악보에 얹어 주세요</p>
+  </header>
+  <div id="pad">
+    <button class="key" data-mark="period"><span class="sym">.</span><span class="cap">담담하게</span></button>
+    <button class="key" data-mark="ellipsis"><span class="sym">…</span><span class="cap">머뭇거리며</span></button>
+    <button class="key" data-mark="question"><span class="sym">?</span><span class="cap">되묻듯</span></button>
+    <button class="key" data-mark="bang"><span class="sym">!</span><span class="cap">힘주어</span></button>
+  </div>
+  <footer><span id="status">연결됨</span></footer>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    let sending = 0;
+
+    function flash(btn) {
+      btn.classList.add('hit');
+      setTimeout(() => btn.classList.remove('hit'), 110);
+      if (navigator.vibrate) { try { navigator.vibrate(18); } catch (e) {} }
+    }
+
+    async function tap(mark, btn) {
+      flash(btn);
+      try {
+        const res = await fetch('/tap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mark }),
+          keepalive: true,
+        });
+        if (!res.ok) throw new Error('http ' + res.status);
+        statusEl.textContent = '연결됨';
+        statusEl.classList.remove('off');
+      } catch (e) {
+        statusEl.textContent = '연결 끊김 — 다시 시도해 주세요';
+        statusEl.classList.add('off');
+      }
+    }
+
+    // 터치/클릭 모두 — 빠른 연타가 끊기지 않게 pointerdown에서 바로 보낸다.
+    for (const btn of document.querySelectorAll('.key')) {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        tap(btn.dataset.mark, btn);
+      });
+    }
+    // 더블탭 확대 방지
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+  </script>
+</body>
+</html>
