@@ -3,3 +3,4 @@
 node_modules/
 public_url.txt
 cf.log
+.claude/settings.local.json
