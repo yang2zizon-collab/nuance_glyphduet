@@ -2,7 +2,7 @@
 
 import { drawCharacter, characterCount, characterName, characterColor, characterVoice, setMinimal } from './sprites.js';
 import { initAudio, typeBlip, typeKey, uiClick, speakVoiceEvents, playEnsemble, warmVoices, playScore,
-         stopAmbience, playMark,
+         stopAmbience, playMark, applyNuanceEffect, resetNuanceEffect,
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
          playScreenWav, stopScreenWav, resumeAudio, setGift, clearGifts } from './audio.js';
 import { renderDisplay, isAlienLook } from './language.js';
@@ -330,6 +330,7 @@ function loop(now) {
   const W = window.innerWidth, H = window.innerHeight;
 
   if (state.screen === 'play') {
+    if (SCORE) updateGauge();         // 8초 라운드 게이지 갱신 + 만료 시 종료
     const progress = fillProgress();
     if (SCORE) drawMinimalBg(W, H);   // 스코어 테마: 배경·캐릭터 없이 텅 빈 흰 화면
     else if (MINIMAL) drawMinimalPairBackground(sctx, W, H, t, state.picks[0], state.picks[1], progress);
@@ -789,122 +790,142 @@ function resetGifts() {
   if (pickThumbs[0]) highlightGifts();
 }
 
-// ===== 부호 탭(뉘앙스) 모드 =====
-// 대화가 끝나면 엔딩 직전에 "부호 탭" 단계로 넘어간다. 퍼포머(노트북)와
-// 관객(폰, Phase 2)이 . … ? ! 부호를 찍어 악보에 "말투"를 얹는다.
-// 찍힌 부호는 ① 악보 위에 글리프로 떨어지고 ② 즉시 소리가 나며
-// ③ 뉘앙스 레이어로 기록되어 엔딩 연주 위에 겹쳐 재생된다.
-const MARK_GLYPH = { period: '.', ellipsis: '…', question: '?', bang: '!' };
-let nuanceMarks = [];        // [{ mark, t(ms), who:'perf'|'aud' }]
-let markPhaseStart = 0;
-let nuanceTimers = [];       // 엔딩 레이어 재생용 setTimeout 핸들
+// ===== 8초 뉘앙스 라운드 (타이핑 + 실시간 투표 동시) =====
+// 플레이가 시작되면 8초 동안: 퍼포머가 타이핑해 악보를 채우고, 동시에 퍼포머·
+// 관객(폰)이 6개 부호(. ? ! … ~ ;)에 투표한다. 누를 때마다 인스타 라이브 하트처럼
+// 아이콘이 떠오르고, 가장 많이 눌린 부호가 사운드 이펙트를 실시간으로 결정한다.
+// 8초가 끝나면 승자 말투를 엔딩까지 고정하고 선물 단계로 넘어간다.
+const ROUND_SECONDS = 8;
+const NUANCES = ['period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon'];
+const MARK_GLYPH = { period: '.', question: '?', bang: '!', ellipsis: '…', tilde: '~', semicolon: ';' };
+let roundActive = false;
+let roundEndsAt = 0;
+let nuanceVotes = {};
+let liveLeader = null;
+let winningNuance = null;
 
-// 대화 종료 → 부호 탭 단계 진입. 입력바를 부호 패드로 바꾼다.
-function enterMarkPhase() {
-  if (state.screen !== 'play' || state.phase === 'mark') return;
-  state.phase = 'mark';
-  nuanceMarks = [];
-  markPhaseStart = performance.now();
-  if (hidden) hidden.blur();
-  const layer = $('#mark-layer'); if (layer) layer.innerHTML = '';
-  $('#input-bar')?.classList.add('hidden');
+function resetVotes() {
+  nuanceVotes = {};
+  for (const k of NUANCES) nuanceVotes[k] = 0;
+  liveLeader = null;
+  winningNuance = null;
+}
+
+// 라운드 시작 — startPlay에서 호출.
+function startRound() {
+  state.phase = 'round';
+  resetVotes();
+  resetNuanceEffect();
+  roundActive = true;
+  roundEndsAt = performance.now() + ROUND_SECONDS * 1000;
+  const layer = $('#heart-layer'); if (layer) layer.innerHTML = '';
+  $('#gift-bar')?.classList.add('hidden');
   $('#mark-bar')?.classList.remove('hidden');
-  renderMarkQR();   // 관객 폰 참여 QR 띄우기
-  updateMarkCount();
-  uiClick(0.5);
+  $('#round-gauge')?.classList.remove('hidden');
+  $('#input-bar')?.classList.remove('hidden');
+  renderMarkQR();         // 관객 폰 참여 QR
+  updateTally();
+  updateGauge();
+  setTimeout(() => hidden.focus(), 60);
 }
 
-// 부호 한 번 찍기 — 퍼포머/관객 공통 진입점.
-function markTap(kind, who = 'perf') {
-  if (state.screen !== 'play' || state.phase !== 'mark') return;
-  if (!MARK_GLYPH[kind]) return;
-  nuanceMarks.push({ mark: kind, t: performance.now(), who });
-  playMark(kind, 0, who === 'aud' ? 0.85 : 1.0);
-  dropMarkGlyph(kind, who);
+// 매 프레임(loop)에서 게이지 갱신 + 시간이 다하면 종료.
+function updateGauge() {
+  if (!roundActive) return;
+  const remain = Math.max(0, roundEndsAt - performance.now());
+  const frac = remain / (ROUND_SECONDS * 1000);
+  const fill = $('#round-gauge-fill'); if (fill) fill.style.width = `${frac * 100}%`;
+  const secs = $('#round-secs'); if (secs) secs.textContent = Math.ceil(remain / 1000);
+  if (remain <= 0) endRound();
+}
+
+// 부호 한 표 — 퍼포머(버튼) / 관객(폰 SSE) 공통 진입점.
+function castVote(kind, who = 'perf') {
+  if (!roundActive || !MARK_GLYPH[kind]) return;
+  nuanceVotes[kind] = (nuanceVotes[kind] || 0) + 1;
+  spawnHeart(kind, who);
   flashMarkKey(kind);
-  updateMarkCount();
+  playMark(kind, 0, who === 'aud' ? 0.6 : 0.75);   // 가벼운 피드백음
+  updateTally();
+  // 실시간 리더가 바뀌면 그 말투를 즉시 사운드 전체에 입힌다.
+  const lead = computeLeader();
+  if (lead && lead !== liveLeader) { liveLeader = lead; applyNuanceEffect(lead, 0.3); }
 }
 
-// 부호 글리프를 악보 패널 안 랜덤한 위치에 큼직하게 떨군다.
-function dropMarkGlyph(kind, who) {
-  const layer = $('#mark-layer'); if (!layer) return;
+// 인스타 라이브 하트처럼 — 누른 부호 아이콘이 아래에서 위로 떠오르며 사라진다.
+function spawnHeart(kind, who) {
+  const layer = $('#heart-layer'); if (!layer) return;
   const el = document.createElement('span');
-  el.className = `mark pop${who === 'aud' ? ' aud' : ''}`;
+  el.className = `heart${who === 'aud' ? ' aud' : ''}`;
   el.textContent = MARK_GLYPH[kind];
-  // 가장자리를 살짝 피한 랜덤 위치 + 랜덤 크기
-  el.style.left = `${8 + Math.random() * 84}%`;
-  el.style.top = `${10 + Math.random() * 80}%`;
-  el.style.fontSize = `${28 + Math.random() * 26}px`;
+  el.style.left = `${6 + Math.random() * 22}%`;        // 왼쪽 아래에서 출발(IG 라이브 느낌)
+  el.style.fontSize = `${22 + Math.random() * 22}px`;
+  el.style.setProperty('--dx', `${(Math.random() * 2 - 1) * 60}px`);
+  el.style.setProperty('--rot', `${(Math.random() * 2 - 1) * 24}deg`);
+  el.addEventListener('animationend', () => el.remove());
   layer.appendChild(el);
-  // 너무 많이 쌓이면 오래된 것부터 정리(성능·가독성)
-  while (layer.children.length > 90) layer.removeChild(layer.firstChild);
+  while (layer.children.length > 120) layer.removeChild(layer.firstChild);
 }
 
-// 해당 부호 버튼을 잠깐 눌린 듯 강조(폰 탭 등 클릭이 아닌 경로에서도).
 function flashMarkKey(kind) {
   const b = document.querySelector(`.mark-key[data-mark="${kind}"]`);
   if (!b) return;
   b.classList.add('hit');
-  setTimeout(() => b.classList.remove('hit'), 90);
+  setTimeout(() => b.classList.remove('hit'), 110);
 }
 
-function updateMarkCount() {
-  const c = $('#mark-count'); if (c) c.textContent = String(nuanceMarks.length);
+// 현재까지 최다 득표 부호(동률이면 NUANCES 우선순위).
+function computeLeader() {
+  let best = null, bestN = 0;
+  for (const k of NUANCES) { if ((nuanceVotes[k] || 0) > bestN) { bestN = nuanceVotes[k]; best = k; } }
+  return best;
 }
 
-// 부호 탭에서 키보드로도 찍을 수 있게 — .  ,  ?  !  키 매핑.
-function handleMarkKey(e) {
-  if (e.key === 'Escape') { e.preventDefault(); exitMarkPhase(); show('title'); return; }
-  if (e.key === 'Enter') { e.preventDefault(); exitMarkToEnding(); return; }
-  let kind = null;
-  if (e.key === '.') kind = 'period';
-  else if (e.key === ',' || e.key === ';') kind = 'ellipsis';
-  else if (e.key === '?' || e.key === '/') kind = 'question';
-  else if (e.key === '!' || e.key === '1') kind = 'bang';
-  if (kind) { e.preventDefault(); markTap(kind, 'perf'); }
+// 버튼별 실시간 카운트 + 리더 강조.
+function updateTally() {
+  const lead = computeLeader();
+  for (const k of NUANCES) {
+    const b = document.querySelector(`.mark-key[data-mark="${k}"]`);
+    if (!b) continue;
+    const ct = b.querySelector('.mk-ct'); if (ct) ct.textContent = String(nuanceVotes[k] || 0);
+    b.classList.toggle('lead', k === lead);
+  }
 }
 
-// 부호 패드를 닫고 입력바를 원래대로 — 화면 전환 시 정리용.
-function exitMarkPhase() {
-  state.phase = 'talk';
+// 8초 종료 — 타이핑 잠그고, 승자 이펙트 고정, 선물 단계로.
+function endRound() {
+  if (!roundActive) return;
+  roundActive = false;
+  state.phase = 'gift';
+  if (hidden) hidden.blur();
+  winningNuance = computeLeader();
+  applyNuanceEffect(winningNuance || 'neutral', 0.4);   // 승자 말투를 엔딩까지 고정
+  const fill = $('#round-gauge-fill'); if (fill) fill.style.width = '0%';
+  $('#round-gauge')?.classList.add('hidden');
   $('#mark-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
-  $('#input-bar')?.classList.remove('hidden');
+  // 선물 단계 — 서로 선물을 주고받고 ▶로 엔딩.
+  const gb = $('#gift-bar');
+  if (gb) {
+    const hint = $('#gift-hint');
+    if (hint) hint.textContent = winningNuance
+      ? `'${MARK_GLYPH[winningNuance]}' 의 말투로 — 이제 선물을 주고받으세요`
+      : '이제 선물을 주고받으세요';
+    gb.classList.remove('hidden');
+  }
+  uiClick(0.5);
 }
 
-// 부호 탭 종료 → 엔딩 연주로. 찍은 뉘앙스가 악보 위에 얹혀 재생된다.
-function exitMarkToEnding() {
-  exitMarkPhase();
+// 선물 단계 종료 → 엔딩 연주(승자 뉘앙스 이펙트가 입혀진 채로).
+function giftDoneToEnding() {
+  $('#gift-bar')?.classList.add('hidden');
+  state.phase = 'talk';
   showEnding();
 }
 
-// 엔딩 동안 기록된 부호를 "레이어"로 겹쳐 재생한다. 마크들의 시간 간격을
-// 그대로 살리되, 엔딩이 더 길면 반복해서 채운다.
-function scheduleNuanceLayer(durationSec) {
-  clearNuanceLayer();
-  if (!nuanceMarks.length) return;
-  const t0 = nuanceMarks[0].t;
-  const last = nuanceMarks[nuanceMarks.length - 1].t;
-  const span = Math.max(2.5, (last - t0) / 1000 + 0.8);   // 한 묶음 길이(초)
-  const dur = Math.max(span, durationSec);
-  for (let loop = 0; loop * span < dur; loop++) {
-    const base = loop * span;
-    for (const m of nuanceMarks) {
-      const at = base + (m.t - t0) / 1000;
-      if (at > dur) break;
-      const id = setTimeout(() => playMark(m.mark, 0, 0.6), at * 1000);
-      nuanceTimers.push(id);
-    }
-  }
-}
-function clearNuanceLayer() {
-  nuanceTimers.forEach(clearTimeout);
-  nuanceTimers = [];
-}
-
-// ===== 관객 폰 실시간 참여 (Phase 2) =====
-// serve.py 의 SSE(/events)로 폰(/tap.html)이 보낸 부호를 받아 markTap(…, 'aud').
-// QR은 부호 탭 모드에서만 띄운다. 서버가 정적뿐이면(SSE 없음) 조용히 퍼포머 전용으로 동작.
+// ===== 관객 폰 실시간 참여 =====
+// serve.py 의 SSE(/events)로 폰(/tap.html)이 보낸 부호를 받아 castVote(…, 'aud').
+// QR은 8초 라운드 동안 띄운다. 서버가 정적뿐이면(SSE 없음) 퍼포머 전용으로 동작.
 let audienceTapUrl = null;   // 폰이 열 주소 (?pub=공개주소 우선, 없으면 서버 LAN 주소)
 let audienceES = null;
 
@@ -914,19 +935,19 @@ function setupAudience() {
   // 서버가 알려주는 같은-와이파이 LAN 주소(공개주소가 없을 때만 사용)
   fetch('/config').then((r) => r.json()).then((c) => {
     if (!audienceTapUrl && c && c.lanUrl) audienceTapUrl = c.lanUrl;
-    if (state.phase === 'mark') renderMarkQR();   // 그새 부호 탭에 들어가 있었으면 갱신
+    if (state.phase === 'round') renderMarkQR();   // 그새 라운드에 들어가 있었으면 갱신
   }).catch(() => {});
   try {
     audienceES = new EventSource('/events');
     audienceES.onmessage = (ev) => {
       let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
-      if (d && d.mark) markTap(d.mark, 'aud');
+      if (d && d.mark) castVote(d.mark, 'aud');
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
 }
 
-// 부호 탭 모드에서 관객 참여 QR을 그린다(주소·라이브러리 있을 때만).
+// 라운드 중 관객 참여 QR을 그린다(주소·라이브러리 있을 때만).
 function renderMarkQR() {
   const box = $('#mark-qr'); const code = $('#mark-qr-code');
   if (!box || !code) return;
@@ -972,20 +993,13 @@ function startPlay() {
   state.turn = 0;
   state.lastMood = 'neutral';
   state.ended = false;   // 새 게임 — 엔딩 진입 가드 해제
-  state.phase = 'talk';  // 새 게임 — 부호 탭 단계 해제
-  nuanceMarks = [];
-  clearNuanceLayer();
-  $('#mark-bar')?.classList.add('hidden');
-  $('#mark-qr')?.classList.add('hidden');
-  $('#input-bar')?.classList.remove('hidden');
-  $('#mark-layer') && ($('#mark-layer').innerHTML = '');
   resetGifts();          // 새 게임 — 선물(리버브) 초기화
+  const hl = $('#heart-layer'); if (hl) hl.innerHTML = '';
   buildGrid();   // 스코어 사각형 그리드를 만든다 (글자가 랜덤 칸에 채워질 공간)
   hidden.value = '';
   typeEvents = [];
-  // 대화 배경음: audio/play.wav 가 있으면 그 루프만 (합성 엠비언스 없음).
   refreshTurn();
-  setTimeout(() => hidden.focus(), 50);
+  startRound();   // 8초 뉘앙스 라운드 시작(타이핑 + 실시간 투표)
 }
 
 // 한·영 병기 헬퍼 (CRT 모드에서만 영어를 덧붙인다)
@@ -1048,8 +1062,7 @@ function sendMessage() {
   state.turn = 1 - p;
   refreshTurn();
 
-  // 스코어 패널이 꽉 차면 대화 종료 → 부호 탭(뉘앙스) 단계로
-  if (scoreFull()) setTimeout(enterMarkPhase, 900);
+  // 그리드가 꽉 차면 더 못 채울 뿐 — 라운드 종료는 8초 타이머가 결정한다.
 }
 
 // 엔딩은 언제나 해피엔딩 — 여정은 달라도 끝내 마음은 닿는다.
@@ -1679,8 +1692,8 @@ function startEndingScore() {
     // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
     onDone: () => { if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase(); },
   });
-  // 찍힌 뉘앙스 부호를 엔딩(듀엣+합주) 내내 레이어로 겹쳐 재생한다.
-  scheduleNuanceLayer(Math.max(110, (scoreTotalMs / 1000) + 60));
+  // 승자 뉘앙스 이펙트(applyNuanceEffect)는 마스터 인서트에 이미 걸려 있어,
+  // 엔딩 악보·합주 소리에 그대로 입혀진다.
   // 실제 그리기는 메인 loop()의 ending 분기에서 매 프레임 수행한다.
 }
 
@@ -1710,7 +1723,6 @@ function stopEndingScore() {
   if (stopScore) { stopScore(); stopScore = null; }
   if (stopEnsemble) { stopEnsemble(); stopEnsemble = null; }
   if (scoreAnim) { cancelAnimationFrame(scoreAnim); scoreAnim = null; }
-  clearNuanceLayer();
   endingPhase = 0;
   orchestraScore = null;
 }
@@ -1798,8 +1810,8 @@ const IGNORE_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock',
 
 window.addEventListener('keydown', (e) => {
   if (state.screen !== 'play') return;
-  // 부호 탭 단계에선 글자 입력 대신 부호 키만 받는다.
-  if (state.phase === 'mark') { handleMarkKey(e); return; }
+  if (e.key === 'Escape') { e.preventDefault(); show('title'); return; }
+  if (!roundActive) return;   // 8초가 끝나면 타이핑 잠금(선물 단계)
   const mod = e.ctrlKey || e.metaKey;
 
   // 어떤 키든(자음 단독·한글 조합 중 포함) 타건음을 낸다.
@@ -1839,11 +1851,11 @@ document.body.addEventListener('click', (e) => {
   else if (act === 'to-setup') { uiClick(0.75); if (SCORE) randomMatch(); show('play'); }
   else if (act === 'to-select') { uiClick(0.4); show('select'); }
   else if (act === 'slot-pull') { pullSlot(); }
-  else if (act === 'mark-tap') { markTap(btn.dataset.mark, 'perf'); }
-  else if (act === 'to-ending') { uiClick(0.7); exitMarkToEnding(); }
+  else if (act === 'mark-tap') { castVote(btn.dataset.mark, 'perf'); }
+  else if (act === 'to-ending') { uiClick(0.7); giftDoneToEnding(); }
   else if (act === 'play') { uiClick(0.75); show('play'); }
   else if (act === 'replay-score') { startEndingScore(); }
-  else if (act === 'restart') { stopEndingScore(); show('title'); }
+  else if (act === 'restart') { stopEndingScore(); resetNuanceEffect(); show('title'); }
   if (btn.dataset.pickPrev !== undefined) { uiClick(0.35); cyclePick(+btn.dataset.pickPrev, -1); }
   if (btn.dataset.pickNext !== undefined) { uiClick(0.6); cyclePick(+btn.dataset.pickNext, +1); }
   if (btn.dataset.pickSet !== undefined) {

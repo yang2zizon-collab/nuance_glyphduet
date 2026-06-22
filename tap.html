@@ -24,7 +24,7 @@
     header p { font-size: 12px; color: #777; margin: 4px 0 0; }
     #pad {
       flex: 1 1 auto;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 10px;
       padding: 12px 0 16px;
     }
     .key {
@@ -36,7 +36,7 @@
       font-family: 'Datatype', monospace;
       cursor: pointer; transition: transform .05s ease, box-shadow .05s ease, background .08s ease;
     }
-    .key .sym { font-size: 13vh; line-height: 0.9; font-weight: 700; }
+    .key .sym { font-size: 8.5vh; line-height: 0.9; font-weight: 700; }
     .key .cap { font-size: 13px; color: #555; }
     .key.hit { transform: translate(5px, 5px); box-shadow: none; background: #000; color: #fff; }
     .key.hit .cap { color: #ccc; }
@@ -51,9 +51,11 @@
   </header>
   <div id="pad">
     <button class="key" data-mark="period"><span class="sym">.</span><span class="cap">담담하게</span></button>
-    <button class="key" data-mark="ellipsis"><span class="sym">…</span><span class="cap">머뭇거리며</span></button>
     <button class="key" data-mark="question"><span class="sym">?</span><span class="cap">되묻듯</span></button>
     <button class="key" data-mark="bang"><span class="sym">!</span><span class="cap">힘주어</span></button>
+    <button class="key" data-mark="ellipsis"><span class="sym">…</span><span class="cap">머뭇거리며</span></button>
+    <button class="key" data-mark="tilde"><span class="sym">~</span><span class="cap">물결치듯</span></button>
+    <button class="key" data-mark="semicolon"><span class="sym">;</span><span class="cap">망설이듯</span></button>
   </div>
   <footer><span id="status">연결됨</span></footer>
 

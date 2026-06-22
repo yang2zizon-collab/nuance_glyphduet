@@ -53,35 +53,40 @@
       <!-- 좌/우 캐릭터 선택 열 (클릭해서 게임 중 교체). 스코어: 캐릭터마다 옆에 선물이 붙는다 -->
       <div id="pick-col-0" class="pick-col p1"></div>
       <div id="pick-col-1" class="pick-col p2"></div>
+      <!-- 8초 라운드 타이밍 게이지 -->
+      <div id="round-gauge" class="hidden">
+        <div id="round-gauge-track"><div id="round-gauge-fill"></div></div>
+        <span id="round-secs">8</span>
+      </div>
       <!-- 중앙 스코어 패널 — 대화가 검은 기호로 흰 화면에 그려진다 -->
       <div id="score-panel">
         <div id="score-title"></div>
         <div id="conversation"></div>
-        <!-- 부호 탭 모드에서 관객·퍼포머가 찍는 뉘앙스 부호가 악보 위로 떨어진다 -->
-        <div id="mark-layer"></div>
       </div>
       <div id="input-bar">
         <div id="input-line"><span id="input-text"></span><span id="caret">▌</span></div>
       </div>
-      <!-- 부호 탭 모드 — 대화가 끝나면 입력바 대신 등장. 퍼포머·관객이 뉘앙스 부호를 얹는다 -->
+      <!-- 뉘앙스 투표 패드 — 8초 라운드 동안. 퍼포머·관객이 6개 부호에 투표 -->
       <div id="mark-bar" class="hidden">
-        <div id="mark-hint">뉘앙스를 입혀주세요 · Add the nuance</div>
-        <div id="mark-pad">
-          <button class="mark-key" data-action="mark-tap" data-mark="period"   title="담담하게 · plainly">.</button>
-          <button class="mark-key" data-action="mark-tap" data-mark="ellipsis" title="머뭇거리며 · trailing">…</button>
-          <button class="mark-key" data-action="mark-tap" data-mark="question" title="되묻듯 · questioning">?</button>
-          <button class="mark-key" data-action="mark-tap" data-mark="bang"     title="힘주어 · emphatic">!</button>
-        </div>
-        <div id="mark-meta">
-          <span id="mark-count">0</span>
-          <button class="btn icon" data-action="to-ending" aria-label="연주로" title="연주 듣기 · Play the score">▶</button>
-        </div>
+        <button class="mark-key" data-action="mark-tap" data-mark="period"    title="담담하게 · plainly"><span class="mk-sym">.</span><span class="mk-ct">0</span></button>
+        <button class="mark-key" data-action="mark-tap" data-mark="question"  title="되묻듯 · questioning"><span class="mk-sym">?</span><span class="mk-ct">0</span></button>
+        <button class="mark-key" data-action="mark-tap" data-mark="bang"      title="힘주어 · emphatic"><span class="mk-sym">!</span><span class="mk-ct">0</span></button>
+        <button class="mark-key" data-action="mark-tap" data-mark="ellipsis"  title="머뭇거리며 · trailing"><span class="mk-sym">…</span><span class="mk-ct">0</span></button>
+        <button class="mark-key" data-action="mark-tap" data-mark="tilde"     title="물결치듯 · playful"><span class="mk-sym">~</span><span class="mk-ct">0</span></button>
+        <button class="mark-key" data-action="mark-tap" data-mark="semicolon" title="망설이듯 · suspended"><span class="mk-sym">;</span><span class="mk-ct">0</span></button>
       </div>
-      <!-- 관객 폰 참여 QR — 부호 탭 모드에서만 보임 -->
+      <!-- 선물 단계 — 라운드가 끝나면 등장. 서로 선물을 주고받고 ▶로 엔딩 -->
+      <div id="gift-bar" class="hidden">
+        <span id="gift-hint">이제 선물을 주고받으세요</span>
+        <button class="btn icon" data-action="to-ending" aria-label="연주로" title="연주 듣기 · Play the score">▶</button>
+      </div>
+      <!-- 관객 폰 참여 QR — 라운드 동안만 보임 -->
       <div id="mark-qr" class="hidden">
         <div id="mark-qr-code"></div>
         <div id="mark-qr-cap">QR로 함께 · Scan to join</div>
       </div>
+      <!-- 인스타 라이브 하트처럼 떠오르는 부호 아이콘 레이어 -->
+      <div id="heart-layer"></div>
     </section>
 
     <!-- 5. 엔딩 -->

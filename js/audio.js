@@ -30,9 +30,66 @@ export function initAudio() {
   comp.ratio.value = 4;
   comp.attack.value = 0.006;
   comp.release.value = 0.25;
-  master.connect(comp);
+  // 마스터 출력 전체에 "뉘앙스 이펙트" 인서트를 끼운다(master → nuanceFx → comp → 출력).
+  // 8초 라운드에서 가장 많이 눌린 부호가 이 인서트의 파라미터를 실시간으로 바꾼다.
+  buildNuanceFx(master, comp);
   comp.connect(ctx.destination);
 }
+
+// ===== 뉘앙스 이펙트 인서트 (마스터 전역) =====
+// lowpass(먹먹함) · tremolo(흔들림) · drive(거칢) · reverb send(공간) 4축으로
+// 6개 부호의 "말투"를 사운드 전체에 입힌다.
+let nfxLp = null, nfxTrem = null, nfxLfo = null, nfxLfoGain = null, nfxDrive = null, nfxOut = null, nfxRevSend = null;
+let nfxState = 'neutral';
+const NUANCE_FX = {
+  neutral:   { lp: 20000, trem: 0,    lfo: 5,   drive: 0,    out: 1.0,  rev: 0.0  },
+  period:    { lp: 9000,  trem: 0,    lfo: 5,   drive: 0,    out: 1.0,  rev: 0.05 },  // 담담·마른
+  question:  { lp: 11000, trem: 0.10, lfo: 5,   drive: 0,    out: 1.0,  rev: 0.20 },  // 되묻듯·들뜬
+  bang:      { lp: 13000, trem: 0,    lfo: 5,   drive: 0.4,  out: 1.2,  rev: 0.08 },  // 강조·날카로움
+  ellipsis:  { lp: 3600,  trem: 0.05, lfo: 2,   drive: 0,    out: 0.85, rev: 0.6  },  // 머뭇·아득함
+  tilde:     { lp: 7000,  trem: 0.38, lfo: 6.5, drive: 0.05, out: 1.0,  rev: 0.3  },  // 물결·흔들림
+  semicolon: { lp: 4800,  trem: 0.04, lfo: 3,   drive: 0,    out: 0.9,  rev: 0.34 },  // 망설임·머무름
+};
+
+function buildNuanceFx(inputNode, outputNode) {
+  nfxLp = ctx.createBiquadFilter(); nfxLp.type = 'lowpass'; nfxLp.frequency.value = 20000; nfxLp.Q.value = 0.5;
+  nfxTrem = ctx.createGain(); nfxTrem.gain.value = 1;              // 트레몰로 베이스
+  nfxLfo = ctx.createOscillator(); nfxLfo.type = 'sine'; nfxLfo.frequency.value = 5;
+  nfxLfoGain = ctx.createGain(); nfxLfoGain.gain.value = 0;        // 트레몰로 깊이(0=꺼짐)
+  nfxLfo.connect(nfxLfoGain); nfxLfoGain.connect(nfxTrem.gain); nfxLfo.start();
+  nfxDrive = ctx.createWaveShaper(); nfxDrive.curve = null; nfxDrive.oversample = '2x';  // null=바이패스
+  nfxOut = ctx.createGain(); nfxOut.gain.value = 1;
+  inputNode.connect(nfxLp); nfxLp.connect(nfxTrem); nfxTrem.connect(nfxDrive); nfxDrive.connect(nfxOut); nfxOut.connect(outputNode);
+  // 병렬 리버브 센드
+  const rate = ctx.sampleRate, len = Math.floor(rate * 2.6);
+  const ir = ctx.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+  }
+  const conv = ctx.createConvolver(); conv.buffer = ir;
+  nfxRevSend = ctx.createGain(); nfxRevSend.gain.value = 0;
+  const revLp = ctx.createBiquadFilter(); revLp.type = 'lowpass'; revLp.frequency.value = 6000;
+  inputNode.connect(nfxRevSend); nfxRevSend.connect(conv); conv.connect(revLp); revLp.connect(nfxOut);
+}
+
+// 가장 많이 눌린 부호(또는 실시간 리더)의 말투를 사운드 전체에 입힌다.
+export function applyNuanceEffect(kind, smooth = 0.25) {
+  if (!ctx || !nfxLp) return;
+  const p = NUANCE_FX[kind] || NUANCE_FX.neutral;
+  const t = ctx.currentTime, tau = Math.max(0.01, smooth);
+  nfxLp.frequency.setTargetAtTime(p.lp, t, tau);
+  nfxLfo.frequency.setTargetAtTime(p.lfo, t, tau);
+  nfxTrem.gain.setTargetAtTime(1 - p.trem, t, tau);   // 트레몰로: [1-깊이 .. 1] 사이로 흔들림
+  nfxLfoGain.gain.setTargetAtTime(p.trem, t, tau);
+  nfxOut.gain.setTargetAtTime(p.out, t, tau);
+  nfxRevSend.gain.setTargetAtTime(p.rev, t, tau);
+  nfxDrive.curve = p.drive > 0 ? makeDistortionCurve(p.drive * 120) : null;
+  nfxState = kind;
+  emit({ type: 'nuance-fx', kind });
+}
+export function resetNuanceEffect() { applyNuanceEffect('neutral', 0.05); }
+export function currentNuance() { return nfxState; }
 
 // 긴 세션/포커스 전환으로 컨텍스트가 멈춰 있으면 다시 깨운다.
 export function resumeAudio() {
@@ -309,6 +366,22 @@ export function playMark(kind, when = 0, gain = 1) {
       tick(t0, 520, 0.12, 0.24 * gain, 'square');
       tick(t0, 784, 0.10, 0.11 * gain, 'triangle');
       hit(t0, 0.05, 0.18 * gain, 2600);
+      break;
+    case 'tilde': {  // 물결 — 흔들리는 비브라토
+      const o = ctx.createOscillator(); const e = ctx.createGain();
+      const vib = ctx.createOscillator(); const vg = ctx.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(360, t0);
+      vib.type = 'sine'; vib.frequency.setValueAtTime(11, t0); vg.gain.setValueAtTime(36, t0);
+      vib.connect(vg); vg.connect(o.frequency); vib.start(t0); vib.stop(t0 + 0.42);
+      e.gain.setValueAtTime(0.0001, t0);
+      e.gain.exponentialRampToValueAtTime(0.18 * gain, t0 + 0.02);
+      e.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38);
+      o.connect(e).connect(master); o.start(t0); o.stop(t0 + 0.42);
+      break;
+    }
+    case 'semicolon':  // 망설임 — 짧은 한 점 뒤 머무는 한 점
+      tick(t0, 300, 0.08, 0.16 * gain);
+      tick(t0 + 0.12, 360, 0.30, 0.13 * gain);
       break;
     default:
       tick(t0, 360, 0.10, 0.16 * gain);

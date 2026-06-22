@@ -50,16 +50,23 @@ serve.py                로컬 서버
   2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
      `playEnsemble(..., {loop:false})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
   - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
-- **부호 탭(뉘앙스) — 관객참여**: 대화로 악보가 다 차면(scoreFull) 엔딩 직행 대신
-  `state.phase='mark'`로 전환(`enterMarkPhase`). 입력바→부호 패드(`#mark-bar`)로 바뀌고
-  `. … ? !`를 찍으면 ①`#mark-layer`에 부호 글리프 떨굼(`dropMarkGlyph`) ②`playMark()`(audio.js)
-  로 즉시 소리 ③`nuanceMarks`에 기록. ▶(`to-ending`)=`exitMarkToEnding`→`showEnding`.
-  엔딩에선 `scheduleNuanceLayer()`가 기록된 부호를 연주 위에 레이어로 겹쳐 재생.
-  키보드: `.`담담 `,`머뭇 `?`되물음 `!`강조, Enter=연주로, Esc=처음으로.
-  - **관객 폰(실시간)**: `serve.py`가 정적 서빙에 더해 SSE(`/events`)·탭수신(`/tap`)·`/config`
-    제공(표준 라이브러리만, 의존성 0). 폰은 `tap.html`에서 부호를 POST → 메인은 `setupAudience()`
-    의 EventSource로 받아 `markTap(kind,'aud')`. 부호 탭 모드에 QR 표시(`renderMarkQR`,
-    QRCode CDN). 관객 글리프는 회색 외곽(`.mark.aud`), 퍼포머는 검정.
+- **8초 뉘앙스 라운드 — 관객참여**: 플레이 시작 시 `startRound()`(startPlay에서 호출)로
+  `state.phase='round'`, `roundActive=true`, `roundEndsAt=now+8s`. 8초 동안 타이핑(악보 채움)과
+  부호 투표가 동시 진행. `loop()`의 play 분기에서 `updateGauge()`가 게이지(`#round-gauge`) 갱신,
+  만료 시 `endRound()`. 6개 부호 `NUANCES=[period,question,bang,ellipsis,tilde,semicolon]`
+  (`MARK_GLYPH` = `. ? ! … ~ ;`).
+  - **투표**: `castVote(kind,who)` — 버튼(`#mark-bar`의 `.mark-key`, data-action `mark-tap`) 또는
+    폰 SSE. `nuanceVotes` 증가 → `spawnHeart()`(인스타 라이브식 떠오르는 부호, `#heart-layer`,
+    `.heart`/`.heart.aud`) + `playMark()` 피드백음 + `updateTally()`(버튼 카운트/`.lead` 강조).
+  - **실시간 이펙트**: `computeLeader()`(최다 득표)가 바뀌면 `applyNuanceEffect(lead)` 즉시 적용.
+    audio.js의 마스터 인서트(`buildNuanceFx`: lowpass/tremolo/drive/reverb send, master→nuanceFx→comp)를
+    `NUANCE_FX[kind]` 파라미터로 setTargetAtTime 램프. `endRound()`에서 승자(`winningNuance`)를
+    엔딩까지 고정. `resetNuanceEffect()`=neutral(startRound·restart 시).
+  - **이후 흐름**: `endRound()`→`state.phase='gift'`(타이핑 잠금, `#gift-bar` 표시) →
+    ▶(`to-ending`)=`giftDoneToEnding`→`showEnding`. 선물 드래그&드롭은 기존대로 동작.
+  - **관객 폰(실시간)**: `serve.py`가 정적 서빙 + SSE(`/events`)·탭수신(`/tap`, MARKS 6개)·`/config`
+    (표준 라이브러리만). 폰 `tap.html`(6버튼)에서 POST → `setupAudience()` EventSource가
+    `castVote(kind,'aud')`. 라운드 중 QR 표시(`renderMarkQR`, QRCode CDN).
   - **폰 접속 주소**: 같은 와이파이면 `/config`의 LAN 주소 QR. 데이터(셀룰러)로도 받으려면
     `cloudflared tunnel --url http://localhost:8777`로 공개주소를 만들고 메인을
     `?pub=<공개주소>`로 열면 QR이 그 주소를 가리킨다. 터널 없으면 LAN으로 폴백.

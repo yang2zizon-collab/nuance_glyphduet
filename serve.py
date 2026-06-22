@@ -7,7 +7,7 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get('PORT', 877
 # ===== 관객 폰 실시간 부호 탭 =====
 # 폰(/tap.html)이 POST /tap 으로 부호를 보내면, 메인 화면(EventSource /events)에
 # 실시간으로 흘려 보낸다. 외부 의존성 없이 표준 라이브러리 SSE만 사용한다.
-MARKS = ('period', 'ellipsis', 'question', 'bang')
+MARKS = ('period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon')
 clients = set()             # 연결된 SSE 구독자(메인 화면)들의 큐
 clients_lock = threading.Lock()
 

@@ -277,55 +277,73 @@ html, body { background: #ffffff; color: var(--ink); }
 /* 리플레이 버튼을 살짝 왼쪽으로 — 오른쪽 아래 흩어진 캐릭터들과 안 겹치게 */
 #screen-ending .row { transform: translateX(-9vw); }
 
-/* ===== 부호 탭(뉘앙스) 모드 ===== */
+/* ===== 8초 뉘앙스 라운드 ===== */
 .hidden { display: none !important; }
 
-/* 악보 위에 떠다니는 부호 주석 레이어 — 스코어 패널 안쪽을 꽉 덮는다 */
-#mark-layer {
-  position: absolute; inset: 0;
-  pointer-events: none; overflow: hidden; z-index: 3;
+/* 8초 타이밍 게이지 — 화면 위쪽 중앙, 스코어칸 폭에 맞춤 */
+.theme-score #round-gauge {
+  position: absolute; top: calc(var(--play-top) - 4.4vh);
+  left: 50%; transform: translateX(-50%);
+  width: var(--play-w);
+  display: flex; align-items: center; gap: 10px;
 }
-.theme-score .mark {
-  position: absolute;
-  transform: translate(-50%, -50%) scale(0.2);
-  font-family: 'Datatype', monospace;
-  font-weight: 700; color: #000; line-height: 1;
-  opacity: 0;
+#round-gauge-track {
+  flex: 1 1 auto; height: 10px; background: #eee;
+  border: 2px solid #000; overflow: hidden;
 }
-.theme-score .mark.pop { animation: mark-pop .42s cubic-bezier(.2,1.4,.5,1) forwards; }
-@keyframes mark-pop {
-  0%   { opacity: 0;   transform: translate(-50%,-50%) scale(0.2) rotate(-8deg); }
-  60%  { opacity: 1;   transform: translate(-50%,-50%) scale(1.18) rotate(2deg); }
-  100% { opacity: .92; transform: translate(-50%,-50%) scale(1)    rotate(0deg); }
+#round-gauge-fill {
+  height: 100%; width: 100%; background: #000;
+  transition: width .12s linear;
 }
-/* 관객(폰)이 찍은 부호는 살짝 다른 결로 — 속이 빈 듯한 회색 외곽 */
-.theme-score .mark.aud { color: #444; -webkit-text-stroke: 1px #000; }
+#round-secs { font-family: 'Datatype', monospace; font-size: 18px; color: #000; min-width: 1.5ch; text-align: right; }
 
-/* 부호 패드 바 — 입력바와 같은 자리(스코어칸 바로 아래, 같은 폭) */
+/* 뉘앙스 투표 패드 — 화면 아래쪽 중앙, 6개 부호 한 줄 */
 .theme-score #mark-bar {
   position: absolute;
-  top: calc(var(--play-top) + var(--play-h) + var(--play-gap));
-  left: 50%; transform: translateX(-50%);
-  width: var(--play-w); margin: 0;
-  display: flex; align-items: center; gap: clamp(10px, 1.6vw, 20px);
+  bottom: 3.2vh; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: flex-end; gap: clamp(10px, 1.6vw, 22px);
+  z-index: 12;
 }
-#mark-hint { font-size: 13px; color: #777; white-space: nowrap; }
-#mark-pad { display: flex; gap: clamp(8px, 1.2vw, 16px); flex: 1 1 auto; justify-content: center; }
 .theme-score .mark-key {
   flex: 0 0 auto;
-  width: clamp(48px, 6vw, 68px); aspect-ratio: 1 / 1;
-  display: grid; place-items: center;
-  font-family: 'Datatype', monospace; font-size: clamp(22px, 2.6vw, 34px); font-weight: 700;
+  width: clamp(54px, 6.2vw, 76px); aspect-ratio: 3 / 4;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   color: #000; background: #fff; border: 2px solid #000;
   box-shadow: 3px 3px 0 #000; cursor: pointer; user-select: none;
   transition: transform .06s ease, box-shadow .06s ease, background .1s ease;
 }
+.theme-score .mark-key .mk-sym { font-family: 'Datatype', monospace; font-size: clamp(24px, 2.8vw, 36px); font-weight: 700; line-height: 1; }
+.theme-score .mark-key .mk-ct { font-family: 'Datatype', monospace; font-size: 13px; color: #777; line-height: 1; }
 .theme-score .mark-key:hover { background: #f2f2f2; }
 .theme-score .mark-key:active, .theme-score .mark-key.hit {
   transform: translate(3px, 3px); box-shadow: none; background: #000; color: #fff;
 }
-#mark-meta { display: flex; align-items: center; gap: 10px; }
-#mark-count { font-family: 'Datatype', monospace; font-size: 18px; color: #000; min-width: 2ch; text-align: right; }
+.theme-score .mark-key.hit .mk-ct { color: #ccc; }
+/* 현재 최다 득표 — 굵게 채워 강조 */
+.theme-score .mark-key.lead { background: #000; color: #fff; box-shadow: 5px 5px 0 #888; }
+.theme-score .mark-key.lead .mk-ct { color: #ccc; }
+
+/* 선물 단계 바 — 라운드 종료 후, 패드 자리에 안내 + ▶ */
+.theme-score #gift-bar {
+  position: absolute; bottom: 3.2vh; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px; z-index: 12;
+}
+#gift-hint { font-family: 'Datatype', monospace; font-size: 15px; color: #000; white-space: nowrap; }
+
+/* 인스타 라이브 하트처럼 떠오르는 부호 — 화면 왼쪽 아래에서 솟아 사라진다 */
+#heart-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 11; }
+.theme-score .heart {
+  position: absolute; bottom: 8vh;
+  font-family: 'Datatype', monospace; font-weight: 700; color: #000; line-height: 1;
+  will-change: transform, opacity;
+  animation: heart-rise 2.1s ease-out forwards;
+}
+.theme-score .heart.aud { color: #555; -webkit-text-stroke: 1px #000; }
+@keyframes heart-rise {
+  0%   { opacity: 0;   transform: translate(0, 10px) scale(0.4) rotate(0deg); }
+  12%  { opacity: 1;   transform: translate(0, 0) scale(1.1) rotate(0deg); }
+  100% { opacity: 0;   transform: translate(var(--dx, 0), -64vh) scale(0.9) rotate(var(--rot, 0deg)); }
+}
 
 /* 관객 폰 참여 QR — 오른쪽 위 모서리 카드 */
 #mark-qr {
