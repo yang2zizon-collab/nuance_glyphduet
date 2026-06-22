@@ -50,19 +50,22 @@ serve.py                로컬 서버
   2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
      `playEnsemble(..., {loop:false})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
   - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
-- **8초 뉘앙스 라운드 — 관객참여**: 플레이 시작 시 `startRound()`(startPlay에서 호출)로
-  `state.phase='round'`, `roundActive=true`, `roundEndsAt=now+8s`. 8초 동안 타이핑(악보 채움)과
-  부호 투표가 동시 진행. `loop()`의 play 분기에서 `updateGauge()`가 게이지(`#round-gauge`) 갱신,
-  만료 시 `endRound()`. 6개 부호 `NUANCES=[period,question,bang,ellipsis,tilde,semicolon]`
-  (`MARK_GLYPH` = `. ? ! … ~ ;`).
+- **뉘앙스 라운드 사이클 — 관객참여**: 플레이 시작 시 `startCycle()`(startPlay에서 호출).
+  라운드 길이가 `ROUND_DURATIONS=[32,16,8,4]`(초)로 순환 반복(`roundIndex%4`), 각 라운드 앞에
+  `COUNTIN_SECONDS=4` 예비박. phase는 `'countin' → 'round' → … → 'gift'`. `loop()`의 play
+  분기에서 `tickCycle()`이 예비박 카운트(4·3·2·1, `#countin`, uiClick 비트)·라운드 게이지
+  (`#round-gauge`) 갱신과 전환을 처리(`phaseEndsAt` 기준, setTimeout 없이 loop로 구동).
+  타이핑은 phase==='round'에서만, 투표는 round·countin 둘 다 가능. 퍼포머가 ■
+  (`#round-stop`, data-action `round-stop`)로 `endCycle()`→선물 단계. 6개 부호
+  `NUANCES=[period,question,bang,ellipsis,tilde,semicolon]` (`MARK_GLYPH` = `. ? ! … ~ ;`).
   - **투표**: `castVote(kind,who)` — 버튼(`#mark-bar`의 `.mark-key`, data-action `mark-tap`) 또는
     폰 SSE. `nuanceVotes` 증가 → `spawnHeart()`(인스타 라이브식 떠오르는 부호, `#heart-layer`,
     `.heart`/`.heart.aud`) + `playMark()` 피드백음 + `updateTally()`(버튼 카운트/`.lead` 강조).
   - **실시간 이펙트**: `computeLeader()`(최다 득표)가 바뀌면 `applyNuanceEffect(lead)` 즉시 적용.
     audio.js의 마스터 인서트(`buildNuanceFx`: lowpass/tremolo/drive/reverb send, master→nuanceFx→comp)를
-    `NUANCE_FX[kind]` 파라미터로 setTargetAtTime 램프. `endRound()`에서 승자(`winningNuance`)를
-    엔딩까지 고정. `resetNuanceEffect()`=neutral(startRound·restart 시).
-  - **이후 흐름**: `endRound()`→`state.phase='gift'`(타이핑 잠금, `#gift-bar` 표시) →
+    `NUANCE_FX[kind]` 파라미터로 setTargetAtTime 램프. `endCycle()`에서 그때의 승자
+    (`winningNuance`)를 엔딩까지 고정. `resetNuanceEffect()`=neutral(startCycle·restart 시).
+  - **이후 흐름**: ■→`endCycle()`→`state.phase='gift'`(타이핑 잠금, `#gift-bar` 표시) →
     ▶(`to-ending`)=`giftDoneToEnding`→`showEnding`. 선물 드래그&드롭은 기존대로 동작.
   - **관객 폰(실시간)**: `serve.py`가 정적 서빙 + SSE(`/events`)·탭수신(`/tap`, MARKS 6개)·`/config`
     (표준 라이브러리만). 폰 `tap.html`(6버튼)에서 POST → `setupAudience()` EventSource가

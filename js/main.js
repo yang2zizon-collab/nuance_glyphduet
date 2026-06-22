@@ -330,7 +330,7 @@ function loop(now) {
   const W = window.innerWidth, H = window.innerHeight;
 
   if (state.screen === 'play') {
-    if (SCORE) updateGauge();         // 8초 라운드 게이지 갱신 + 만료 시 종료
+    if (SCORE) tickCycle();           // 예비박/라운드 진행·전환 + 게이지 갱신
     const progress = fillProgress();
     if (SCORE) drawMinimalBg(W, H);   // 스코어 테마: 배경·캐릭터 없이 텅 빈 흰 화면
     else if (MINIMAL) drawMinimalPairBackground(sctx, W, H, t, state.picks[0], state.picks[1], progress);
@@ -790,16 +790,21 @@ function resetGifts() {
   if (pickThumbs[0]) highlightGifts();
 }
 
-// ===== 8초 뉘앙스 라운드 (타이핑 + 실시간 투표 동시) =====
-// 플레이가 시작되면 8초 동안: 퍼포머가 타이핑해 악보를 채우고, 동시에 퍼포머·
-// 관객(폰)이 6개 부호(. ? ! … ~ ;)에 투표한다. 누를 때마다 인스타 라이브 하트처럼
-// 아이콘이 떠오르고, 가장 많이 눌린 부호가 사운드 이펙트를 실시간으로 결정한다.
-// 8초가 끝나면 승자 말투를 엔딩까지 고정하고 선물 단계로 넘어간다.
-const ROUND_SECONDS = 8;
+// ===== 뉘앙스 라운드 사이클 (타이핑 + 실시간 투표 동시) =====
+// 플레이가 시작되면 라운드가 32→16→8→4초로 순환하며 계속 반복된다. 각 라운드
+// 앞엔 4초 예비박(카운트인 4·3·2·1). 라운드 동안 퍼포머가 타이핑(악보 채움)하고,
+// 퍼포머·관객(폰)이 6개 부호(. ? ! … ~ ;)에 투표한다. 누를 때마다 인스타 라이브
+// 하트처럼 아이콘이 떠오르고, 가장 많이 눌린 부호가 사운드 이펙트를 실시간 결정.
+// 퍼포머가 ■(round-stop)로 마치면 그 순간 말투를 고정하고 선물 단계로 넘어간다.
+const ROUND_DURATIONS = [32, 16, 8, 4];   // 초 — 이 순서로 순환 반복
+const COUNTIN_SECONDS = 4;                 // 매 라운드 앞 예비박
 const NUANCES = ['period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon'];
 const MARK_GLYPH = { period: '.', question: '?', bang: '!', ellipsis: '…', tilde: '~', semicolon: ';' };
-let roundActive = false;
-let roundEndsAt = 0;
+let cycleOn = false;          // 라운드 사이클 진행 중
+let roundIndex = 0;          // ROUND_DURATIONS 순환 인덱스
+let roundDur = 8;            // 현재 라운드 길이(초)
+let phaseEndsAt = 0;         // 현재 phase(countin/round) 종료 시각
+let countinShown = -1;       // 마지막으로 표시한 카운트인 숫자
 let nuanceVotes = {};
 let liveLeader = null;
 let winningNuance = null;
@@ -811,37 +816,72 @@ function resetVotes() {
   winningNuance = null;
 }
 
-// 라운드 시작 — startPlay에서 호출.
-function startRound() {
-  state.phase = 'round';
+// 사이클 시작 — startPlay에서 호출. 첫 라운드(32초) 예비박부터.
+function startCycle() {
+  cycleOn = true;
+  roundIndex = 0;
   resetVotes();
   resetNuanceEffect();
-  roundActive = true;
-  roundEndsAt = performance.now() + ROUND_SECONDS * 1000;
   const layer = $('#heart-layer'); if (layer) layer.innerHTML = '';
   $('#gift-bar')?.classList.add('hidden');
-  $('#mark-bar')?.classList.remove('hidden');
-  $('#round-gauge')?.classList.remove('hidden');
+  $('#mark-bar')?.classList.remove('hidden');   // 투표 패드는 예비박부터 보임
+  $('#round-stop')?.classList.remove('hidden');
   $('#input-bar')?.classList.remove('hidden');
   renderMarkQR();         // 관객 폰 참여 QR
   updateTally();
-  updateGauge();
-  setTimeout(() => hidden.focus(), 60);
+  beginCountIn();
 }
 
-// 매 프레임(loop)에서 게이지 갱신 + 시간이 다하면 종료.
-function updateGauge() {
-  if (!roundActive) return;
-  const remain = Math.max(0, roundEndsAt - performance.now());
-  const frac = remain / (ROUND_SECONDS * 1000);
-  const fill = $('#round-gauge-fill'); if (fill) fill.style.width = `${frac * 100}%`;
-  const secs = $('#round-secs'); if (secs) secs.textContent = Math.ceil(remain / 1000);
-  if (remain <= 0) endRound();
+// 예비박(4초 카운트인) — 타이핑은 잠그되 투표는 계속 받는다.
+function beginCountIn() {
+  state.phase = 'countin';
+  roundDur = ROUND_DURATIONS[roundIndex % ROUND_DURATIONS.length];
+  phaseEndsAt = performance.now() + COUNTIN_SECONDS * 1000;
+  countinShown = -1;
+  if (hidden) hidden.blur();
+  $('#round-gauge')?.classList.add('hidden');
+  const lbl = $('#countin-label'); if (lbl) lbl.textContent = `다음 ${roundDur}초 · ready`;
+  $('#countin')?.classList.remove('hidden');
 }
 
-// 부호 한 표 — 퍼포머(버튼) / 관객(폰 SSE) 공통 진입점.
+// 라운드 본 구간 — 타이핑 + 투표.
+function beginRound() {
+  state.phase = 'round';
+  phaseEndsAt = performance.now() + roundDur * 1000;
+  $('#countin')?.classList.add('hidden');
+  $('#round-gauge')?.classList.remove('hidden');
+  const dl = $('#round-dur'); if (dl) dl.textContent = `${roundDur}″`;
+  setTimeout(() => hidden.focus(), 40);
+}
+
+// 매 프레임(loop)에서 호출 — 예비박/라운드 진행과 전환을 처리.
+function tickCycle() {
+  if (!cycleOn) return;
+  const now = performance.now();
+  const remain = Math.max(0, phaseEndsAt - now);
+  if (state.phase === 'countin') {
+    const n = Math.ceil(remain / 1000);   // 4,3,2,1
+    if (n !== countinShown) {
+      countinShown = n;
+      const numEl = $('#countin-num');
+      if (numEl && n >= 1) {
+        numEl.textContent = String(n);
+        numEl.classList.remove('tick'); void numEl.offsetWidth; numEl.classList.add('tick');
+      }
+      if (n >= 1) uiClick(0.32 + (COUNTIN_SECONDS - n) * 0.12);   // 또각또각, 마지막이 더 높게
+    }
+    if (remain <= 0) beginRound();
+  } else if (state.phase === 'round') {
+    const frac = remain / (roundDur * 1000);
+    const fill = $('#round-gauge-fill'); if (fill) fill.style.width = `${frac * 100}%`;
+    const secs = $('#round-secs'); if (secs) secs.textContent = Math.ceil(remain / 1000);
+    if (remain <= 0) { roundIndex++; beginCountIn(); }   // 다음 길이로 예비박부터
+  }
+}
+
+// 부호 한 표 — 퍼포머(버튼) / 관객(폰 SSE) 공통 진입점. 예비박·라운드 둘 다 투표 가능.
 function castVote(kind, who = 'perf') {
-  if (!roundActive || !MARK_GLYPH[kind]) return;
+  if (!cycleOn || (state.phase !== 'round' && state.phase !== 'countin') || !MARK_GLYPH[kind]) return;
   nuanceVotes[kind] = (nuanceVotes[kind] || 0) + 1;
   spawnHeart(kind, who);
   flashMarkKey(kind);
@@ -892,16 +932,18 @@ function updateTally() {
   }
 }
 
-// 8초 종료 — 타이핑 잠그고, 승자 이펙트 고정, 선물 단계로.
-function endRound() {
-  if (!roundActive) return;
-  roundActive = false;
+// 퍼포머가 ■로 사이클을 마침 — 타이핑 잠그고, 그 순간 말투(승자) 고정, 선물 단계로.
+function endCycle() {
+  if (!cycleOn) return;
+  cycleOn = false;
   state.phase = 'gift';
   if (hidden) hidden.blur();
   winningNuance = computeLeader();
   applyNuanceEffect(winningNuance || 'neutral', 0.4);   // 승자 말투를 엔딩까지 고정
   const fill = $('#round-gauge-fill'); if (fill) fill.style.width = '0%';
   $('#round-gauge')?.classList.add('hidden');
+  $('#countin')?.classList.add('hidden');
+  $('#round-stop')?.classList.add('hidden');
   $('#mark-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
   // 선물 단계 — 서로 선물을 주고받고 ▶로 엔딩.
@@ -935,7 +977,7 @@ function setupAudience() {
   // 서버가 알려주는 같은-와이파이 LAN 주소(공개주소가 없을 때만 사용)
   fetch('/config').then((r) => r.json()).then((c) => {
     if (!audienceTapUrl && c && c.lanUrl) audienceTapUrl = c.lanUrl;
-    if (state.phase === 'round') renderMarkQR();   // 그새 라운드에 들어가 있었으면 갱신
+    if (cycleOn) renderMarkQR();   // 그새 사이클에 들어가 있었으면 갱신
   }).catch(() => {});
   try {
     audienceES = new EventSource('/events');
@@ -999,7 +1041,7 @@ function startPlay() {
   hidden.value = '';
   typeEvents = [];
   refreshTurn();
-  startRound();   // 8초 뉘앙스 라운드 시작(타이핑 + 실시간 투표)
+  startCycle();   // 뉘앙스 라운드 사이클 시작(32→16→8→4 순환, 매 라운드 4초 예비박)
 }
 
 // 한·영 병기 헬퍼 (CRT 모드에서만 영어를 덧붙인다)
@@ -1811,7 +1853,7 @@ const IGNORE_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock',
 window.addEventListener('keydown', (e) => {
   if (state.screen !== 'play') return;
   if (e.key === 'Escape') { e.preventDefault(); show('title'); return; }
-  if (!roundActive) return;   // 8초가 끝나면 타이핑 잠금(선물 단계)
+  if (state.phase !== 'round') return;   // 예비박·선물 단계에선 타이핑 잠금
   const mod = e.ctrlKey || e.metaKey;
 
   // 어떤 키든(자음 단독·한글 조합 중 포함) 타건음을 낸다.
@@ -1852,6 +1894,7 @@ document.body.addEventListener('click', (e) => {
   else if (act === 'to-select') { uiClick(0.4); show('select'); }
   else if (act === 'slot-pull') { pullSlot(); }
   else if (act === 'mark-tap') { castVote(btn.dataset.mark, 'perf'); }
+  else if (act === 'round-stop') { endCycle(); }
   else if (act === 'to-ending') { uiClick(0.7); giftDoneToEnding(); }
   else if (act === 'play') { uiClick(0.75); show('play'); }
   else if (act === 'replay-score') { startEndingScore(); }

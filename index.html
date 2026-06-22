@@ -53,10 +53,18 @@
       <!-- 좌/우 캐릭터 선택 열 (클릭해서 게임 중 교체). 스코어: 캐릭터마다 옆에 선물이 붙는다 -->
       <div id="pick-col-0" class="pick-col p1"></div>
       <div id="pick-col-1" class="pick-col p2"></div>
-      <!-- 8초 라운드 타이밍 게이지 -->
+      <!-- 라운드 타이밍 게이지 (현재 라운드 길이 동안 줄어듦) -->
       <div id="round-gauge" class="hidden">
+        <span id="round-dur">32″</span>
         <div id="round-gauge-track"><div id="round-gauge-fill"></div></div>
-        <span id="round-secs">8</span>
+        <span id="round-secs">32</span>
+      </div>
+      <!-- 라운드 마치기 — 사이클 동안 보임. 누르면 선물·연주로 -->
+      <button id="round-stop" class="btn icon hidden" data-action="round-stop" aria-label="라운드 마치기" title="라운드 마치고 선물·연주로 · Finish">■</button>
+      <!-- 예비박(카운트인) 오버레이 — 매 라운드 앞 4·3·2·1 -->
+      <div id="countin" class="hidden">
+        <span id="countin-num">4</span>
+        <span id="countin-label">다음 32초 · ready</span>
       </div>
       <!-- 중앙 스코어 패널 — 대화가 검은 기호로 흰 화면에 그려진다 -->
       <div id="score-panel">
