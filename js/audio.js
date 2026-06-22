@@ -257,6 +257,65 @@ export function uiClick(pitch = 0.5) {
   emit({ type: 'ui-click', pitch });
 }
 
+// 뉘앙스 부호음 — 퍼포머·관객이 찍는 . … ? ! 의 아티큘레이션.
+// 부호가 곧 "말투"다: 담담(.)·머뭇거림(…)·되물음(?)·강조(!).
+export function playMark(kind, when = 0, gain = 1) {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const t0 = ctx.currentTime + Math.max(0, when);
+  // 짧은 음 한 점
+  const tick = (at, freq, dur, g, type = 'triangle') => {
+    const o = ctx.createOscillator(); const e = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, at);
+    e.gain.setValueAtTime(0.0001, at);
+    e.gain.exponentialRampToValueAtTime(Math.max(0.0002, g), at + 0.004);
+    e.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(e).connect(master);
+    o.start(at); o.stop(at + dur + 0.03);
+  };
+  // 마른 타격 노이즈(우드블록 느낌)
+  const hit = (at, dur, g, hp = 1800) => {
+    const src = ctx.createBufferSource(); src.buffer = clickBuf();
+    const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp;
+    const e = ctx.createGain();
+    e.gain.setValueAtTime(Math.max(0.0002, g), at);
+    e.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(e).connect(master);
+    src.start(at); src.stop(at + dur + 0.03);
+  };
+  switch (kind) {
+    case 'period':   // 담담한 종지 — 짧고 마른 한 점
+      tick(t0, 320, 0.10, 0.20 * gain);
+      hit(t0, 0.03, 0.10 * gain, 1500);
+      break;
+    case 'ellipsis': // 머뭇거림 — 내려가는 세 점, 마지막이 길게 흐려진다
+      tick(t0,        300, 0.16, 0.15 * gain);
+      tick(t0 + 0.14, 264, 0.18, 0.13 * gain);
+      tick(t0 + 0.30, 232, 0.40, 0.12 * gain);
+      break;
+    case 'question': { // 되물음 — 끝에서 음정이 위로 휘어 오른다
+      const o = ctx.createOscillator(); const e = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(300, t0);
+      o.frequency.exponentialRampToValueAtTime(680, t0 + 0.24);
+      e.gain.setValueAtTime(0.0001, t0);
+      e.gain.exponentialRampToValueAtTime(0.20 * gain, t0 + 0.02);
+      e.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+      o.connect(e).connect(master);
+      o.start(t0); o.stop(t0 + 0.36);
+      break;
+    }
+    case 'bang':     // 강조 — 밝고 날카로운 악센트
+      tick(t0, 520, 0.12, 0.24 * gain, 'square');
+      tick(t0, 784, 0.10, 0.11 * gain, 'triangle');
+      hit(t0, 0.05, 0.18 * gain, 2600);
+      break;
+    default:
+      tick(t0, 360, 0.10, 0.16 * gain);
+  }
+  emit({ type: 'mark', kind });
+}
+
 // 미지의 언어: 글자마다 블립을 이어 붙인 지껄임.
 // garble(0..1): 클수록 더 먹먹하고 느릿하게, 즉 점점 더 웅얼거린다.
 export function speakAlien(text, base = 0.5, garble = 1, voiceId = null) {

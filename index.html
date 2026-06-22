@@ -55,9 +55,25 @@
       <div id="score-panel">
         <div id="score-title"></div>
         <div id="conversation"></div>
+        <!-- 부호 탭 모드에서 관객·퍼포머가 찍는 뉘앙스 부호가 악보 위로 떨어진다 -->
+        <div id="mark-layer"></div>
       </div>
       <div id="input-bar">
         <div id="input-line"><span id="input-text"></span><span id="caret">▌</span></div>
+      </div>
+      <!-- 부호 탭 모드 — 대화가 끝나면 입력바 대신 등장. 퍼포머·관객이 뉘앙스 부호를 얹는다 -->
+      <div id="mark-bar" class="hidden">
+        <div id="mark-hint">뉘앙스를 입혀주세요 · Add the nuance</div>
+        <div id="mark-pad">
+          <button class="mark-key" data-action="mark-tap" data-mark="period"   title="담담하게 · plainly">.</button>
+          <button class="mark-key" data-action="mark-tap" data-mark="ellipsis" title="머뭇거리며 · trailing">…</button>
+          <button class="mark-key" data-action="mark-tap" data-mark="question" title="되묻듯 · questioning">?</button>
+          <button class="mark-key" data-action="mark-tap" data-mark="bang"     title="힘주어 · emphatic">!</button>
+        </div>
+        <div id="mark-meta">
+          <span id="mark-count">0</span>
+          <button class="btn icon" data-action="to-ending" aria-label="연주로" title="연주 듣기 · Play the score">▶</button>
+        </div>
       </div>
     </section>
 
