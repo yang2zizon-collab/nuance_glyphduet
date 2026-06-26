@@ -15,7 +15,7 @@ disown 2>/dev/null || true
 # 공개 터널 시작 + 공개주소를 public_url.txt에 기록(있을 때만)
 if command -v cloudflared >/dev/null 2>&1; then
   : > cf.log
-  nohup cloudflared tunnel --url "http://localhost:$PORT" >cf.log 2>&1 &
+  nohup cloudflared tunnel --protocol http2 --url "http://localhost:$PORT" >cf.log 2>&1 &
   disown 2>/dev/null || true
   (
     for _ in $(seq 1 40); do

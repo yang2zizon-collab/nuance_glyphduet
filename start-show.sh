@@ -18,7 +18,7 @@ trap cleanup INT TERM EXIT
 
 if command -v cloudflared >/dev/null 2>&1; then
   echo "터널 여는 중…(공개주소 받기)"
-  cloudflared tunnel --url "http://localhost:$PORT" > cf.log 2>&1 &
+  cloudflared tunnel --protocol http2 --url "http://localhost:$PORT" > cf.log 2>&1 &
   CF=$!
   URL=""
   for i in $(seq 1 30); do
