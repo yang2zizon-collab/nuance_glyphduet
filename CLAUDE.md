@@ -54,6 +54,12 @@ serve.py                로컬 서버
   2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
      `playEnsemble(..., {loop:false})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
   - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
+  - **3D 그래픽 스코어(score 테마 엔딩)**: `drawScore3D()`가 1·2단계 모두 렌더(loop의 ending 분기에서
+    SCORE면 호출). `flatScoreNotes()`로 `{beat,midi,lane,player,glyph,accent}` 평탄화 → 고정 3D 공간에
+    배치(z=beat·ZS 깊이, y=음높이, x=성부 레인). `beat<=playBeat`인 음만 보임(칠 때 생성·누적). 캔버스
+    원근 투영(라이브러리 0, v3* 헬퍼). 카메라는 리드 약간 앞에서 -z로 보며 음악과 함께 전진+잔잔한 sway,
+    가까운 음 크고 진하게/먼 음 작고 옅게, 성부별 연결선·3선 받침이 소실점으로. 비SCORE는 기존
+    `drawFullScore`/`drawOrchestraScore` 유지.
 - **뉘앙스 라운드 사이클 — 관객참여**: 플레이 시작 시 `startCycle()`(startPlay에서 호출).
   라운드 길이가 `ROUND_DURATIONS=[32,16,8,4]`(초)로 순환 반복(`roundIndex%4`), 각 라운드 앞에
   `COUNTIN_SECONDS=4` 예비박. phase는 `'countin' → 'round' → … → 'gift'`. `loop()`의 play

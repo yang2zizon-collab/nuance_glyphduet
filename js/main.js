@@ -357,7 +357,8 @@ function loop(now) {
     }
   } else if (state.screen === 'ending') {
     // 1단계: 순차 듀엣 악보 / 2단계: 오케스트라 총보. 맨 밑엔 캐릭터들이 춤춘다.
-    if (endingPhase === 2 && SCORE && orchestraScore) drawOrchestraScore(sctx, W, H, t, scoreProgress());
+    if (SCORE) drawScore3D(sctx, W, H, t, scoreProgress());   // 스코어 테마: 3D 그래픽 스코어
+    else if (endingPhase === 2 && orchestraScore) drawOrchestraScore(sctx, W, H, t, scoreProgress());
     else drawFullScore(sctx, W, H, t, scoreProgress());
   } else {
     // title
@@ -1387,6 +1388,126 @@ function lastNoteRecency(playBeat) {
     if (beat > playBeat + 0.01) break;
   }
   return last;
+}
+
+// 1·2단계 악보를 절대 박(beat) 기준 평탄 음표 목록으로 — 3D 렌더 공용.
+function flatScoreNotes() {
+  if (endingPhase === 2 && orchestraScore) {
+    const out = [];
+    orchestraScore.parts.forEach((p) => {
+      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, player: p.player, glyph: n.glyph, accent: n.accent }));
+    });
+    return { notes: out, lo: orchestraScore.lo, span: orchestraScore.span, totalBeats: orchestraScore.totalBeats, phase: 2 };
+  }
+  if (endingScore) {
+    const out = []; let beat = 0;
+    endingScore.notes.forEach((n) => {
+      if (!n.rest) out.push({ beat, midi: n.midi, lane: n.player, player: n.player, glyph: n.glyph, accent: n.accent });
+      beat += n.dur;
+    });
+    if (!out.length) return null;
+    const ps = out.map((o) => o.midi);
+    const lo = Math.min(...ps), span = Math.max(1, Math.max(...ps) - lo);
+    return { notes: out, lo, span, totalBeats: endingScore.totalBeats, phase: 1 };
+  }
+  return null;
+}
+
+// ===== 3D 그래픽 스코어 =====
+// 고정된 3D 공간에 음이 칠 때마다 점·선이 생성되어 쌓이고(이미 생긴 건 월드 좌표에 고정),
+// z(깊이)는 박(beat)에 비례한다. 카메라는 가장 최근 음(리드) 약간 앞에서 -z 방향으로 보며,
+// 음악이 진행되면 함께 전진한다(잔잔한 sway). 새 음은 카메라 가까이 생겨 점점 멀어진다.
+// 라이브러리 없이 캔버스 원근 투영. 흰 배경·검정 잉크 미학 유지.
+const ZS = 1.45;          // 박당 깊이(월드 단위)
+function laneX(d, phase) {
+  const base = phase === 2 ? ((((d.lane % 4) + 4) % 4) - 1.5) * 1.25 : (d.player === 1 ? 1.6 : -1.6);
+  return base + Math.sin(d.beat * 12.9898) * 0.18;   // 살짝 흩어 유기적으로
+}
+function v3sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+function v3dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+function v3cross(a, b) { return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }; }
+function v3norm(a) { const m = Math.hypot(a.x, a.y, a.z) || 1; return { x: a.x / m, y: a.y / m, z: a.z / m }; }
+
+function drawScore3D(ctx, W, H, t, progress) {
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  const S = flatScoreNotes();
+  if (!S) { drawDancers(ctx, W, H, t, 0); return; }
+  const { notes, lo, span, totalBeats, phase } = S;
+  const playBeat = progress * totalBeats;
+  const leadZ = playBeat * ZS;
+
+  // 카메라 — 리드 약간 앞에서 -z 방향, 거의 정면(살짝 위)에서 보며 음악과 함께 전진 + 잔잔한 sway.
+  // 정면에 가깝게 둬서 누적 음이 화면 중앙으로 모이고(위쪽 쏠림 방지) 프레임이 꽉 찬다.
+  const D = 5.6, CAMUP = 0.9;
+  const swayX = Math.sin(t * 0.32) * 0.85, swayY = Math.sin(t * 0.24 + 1) * 0.4;
+  const cam = { x: swayX, y: CAMUP + swayY, z: leadZ + D };
+  const target = { x: swayX * 0.25, y: 0.3, z: leadZ - 1.6 };
+  const fwd = v3norm(v3sub(target, cam));
+  const right = v3norm(v3cross(fwd, { x: 0, y: 1, z: 0 }));
+  const upv = v3cross(right, fwd);
+  const focal = W * 0.86, cx = W / 2, cy = H * 0.5;
+
+  function project(P) {
+    const dp = v3sub(P, cam);
+    const vz = v3dot(fwd, dp);
+    if (vz < 0.4) return null;
+    return { sx: cx + focal * v3dot(right, dp) / vz, sy: cy - focal * v3dot(upv, dp) / vz, vz };
+  }
+  const depthAlpha = (vz) => Math.max(0.1, Math.min(1, (46 - vz) / 40));
+
+  // 받침 — y 레벨 3줄(3선보표)이 깊이로 뻗어 소실점으로. 음악 진행만큼만 자란다.
+  ctx.lineWidth = 1;
+  [-2.3, 0, 2.3].forEach((yL) => {
+    ctx.beginPath(); let started = false;
+    const step = Math.max(0.6, leadZ / 70);
+    for (let z = 0; z <= leadZ + 0.001; z += step) {
+      const pr = project({ x: 0, y: yL, z });
+      if (!pr) { started = false; continue; }
+      if (!started) { ctx.moveTo(pr.sx, pr.sy); started = true; } else ctx.lineTo(pr.sx, pr.sy);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.stroke();
+  });
+
+  // 생성된 음표(beat<=playBeat)를 월드 좌표에 배치 + 화면 투영.
+  const placed = [];
+  for (const d of notes) {
+    if (d.beat > playBeat) continue;
+    const P = { x: laneX(d, phase), y: ((d.midi - lo) / span - 0.5) * 5.4, z: d.beat * ZS };
+    const pr = project(P);
+    if (pr) placed.push({ d, pr });
+  }
+
+  // 레인(성부)별 연결선 — 3D 공간을 굽이도는 선율선.
+  const lanes = {};
+  placed.forEach((o) => { const k = o.d.lane; (lanes[k] = lanes[k] || []).push(o); });
+  Object.keys(lanes).forEach((k) => {
+    const arr = lanes[k].sort((a, b) => a.d.beat - b.d.beat);
+    if (arr.length < 2) return;
+    for (let i = 1; i < arr.length; i++) {
+      const a = arr[i - 1].pr, b = arr[i].pr;
+      ctx.strokeStyle = `rgba(0,0,0,${(0.22 * depthAlpha((a.vz + b.vz) / 2)).toFixed(3)})`;
+      ctx.lineWidth = Math.max(0.6, 2.4 / (((a.vz + b.vz) / 2) * 0.12 + 1));
+      ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+    }
+  });
+
+  // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음(새 음)은 살짝 팝.
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  placed.forEach(({ d, pr }) => {
+    const age = playBeat - d.beat;
+    const fresh = age < 0.45;
+    const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0));
+    const fpx = Math.max(8, Math.min(64, focal * (0.5 + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+    ctx.font = `${fpx.toFixed(1)}px Datatype, Galmuri11, monospace`;
+    ctx.fillText(d.glyph || '◇', pr.sx, pr.sy);
+    if (d.accent) {
+      ctx.strokeStyle = `rgba(0,0,0,${(a * 0.7).toFixed(3)})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * 0.62, 0, Math.PI * 2); ctx.stroke();
+    }
+  });
+
+  drawDancers(ctx, W, H, t, playBeat);
 }
 
 // 엔딩 화면 전체: 악보로 꽉 채우고, 맨 밑에 작은 캐릭터들이 음악에 맞춰 춤춘다.
