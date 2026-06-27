@@ -1394,8 +1394,8 @@ function lastNoteRecency(playBeat) {
 function flatScoreNotes() {
   if (endingPhase === 2 && orchestraScore) {
     const out = [];
-    orchestraScore.parts.forEach((p) => {
-      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, player: p.player, glyph: n.glyph, accent: n.accent }));
+    orchestraScore.parts.forEach((p, pi) => {
+      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, part: pi, player: p.player, glyph: n.glyph, accent: n.accent }));
     });
     return { notes: out, lo: orchestraScore.lo, span: orchestraScore.span, totalBeats: orchestraScore.totalBeats, phase: 2 };
   }
@@ -1434,13 +1434,22 @@ const SPH = 7.4;          // 2단계 구형 점구름 반지름
 // 음의 월드 좌표. 1단계=박 깊이로 전진하는 선율, 2단계=중심 둘레의 구형 점구름.
 function noteWorld(d, phase, lo, span) {
   if (phase === 2) {
-    // 그래프 뷰처럼 — 음마다 고정 해시로 구(球) 위/안쪽에 흩뿌린다(완벽한 구 아님).
-    const sd = d.beat * 7.7 + d.midi * 1.3 + d.lane * 9.1;
-    const theta = hash01(sd * 1.1) * 6.2831853;
-    const phi = Math.acos(2 * hash01(sd * 1.7 + 3.1) - 1);
-    const rr = SPH * (0.4 + 0.6 * hash01(sd * 2.3 + 7.7));
-    const st = Math.sin(phi);
-    return { x: rr * st * Math.cos(theta), y: rr * Math.cos(phi), z: rr * st * Math.sin(theta) };
+    // 그래프 뷰처럼 — 발화(파트)마다 한 덩어리(클러스터)로 뭉친다. 클러스터 위치·크기·밀도가
+    // 제각각이라 어떤 덴 빽빽, 어떤 덴 성기게. 연결선은 같은 덩어리 안에서만 이어져 짧다.
+    const cp = d.part != null ? d.part : d.lane;
+    const cs = (cp + 1) * 31.7;
+    const cth = hash01(cs * 1.1) * 6.2831853;
+    const cphi = Math.acos(2 * hash01(cs * 1.7 + 2.3) - 1);
+    const cr = SPH * (0.3 + 0.65 * hash01(cs * 2.9 + 5.1));   // 클러스터마다 중심까지 거리 다름(불균등)
+    const cst = Math.sin(cphi);
+    const center = { x: cr * cst * Math.cos(cth), y: cr * Math.cos(cphi), z: cr * cst * Math.sin(cth) };
+    const tight = 0.7 + 1.3 * hash01(cs * 3.7 + 8.8);         // 덩어리 반경(뭉침 정도) 제각각
+    const sd = d.beat * 7.7 + d.midi * 1.3;
+    const lt = hash01(sd * 1.1) * 6.2831853;
+    const lp = Math.acos(2 * hash01(sd * 1.7 + 3.1) - 1);
+    const lr = tight * Math.cbrt(hash01(sd * 2.3 + 7.7));     // cbrt → 중심에 더 모여 밀도감
+    const lst = Math.sin(lp);
+    return { x: center.x + lr * lst * Math.cos(lt), y: center.y + lr * Math.cos(lp), z: center.z + lr * lst * Math.sin(lt) };
   }
   const sd = d.beat * 13.13 + d.midi * 0.77 + d.lane * 4.7;
   return {
@@ -1509,15 +1518,17 @@ function drawScore3D(ctx, W, H, t, progress) {
     if (pr) placed.push({ d, pr });
   }
 
-  // 레인(성부)별 연결선 — 공간을 굽이도는 선율선(2단계엔 그래프 엣지처럼).
+  // 연결선 — 1단계는 성부(lane)별, 2단계는 덩어리(part)별로만 이어 선이 짧게 머문다.
   const lanes = {};
-  placed.forEach((o) => { const k = o.d.lane; (lanes[k] = lanes[k] || []).push(o); });
+  placed.forEach((o) => { const k = sphere ? (o.d.part != null ? 'p' + o.d.part : o.d.lane) : o.d.lane; (lanes[k] = lanes[k] || []).push(o); });
   Object.keys(lanes).forEach((k) => {
     const arr = lanes[k].sort((a, b) => a.d.beat - b.d.beat);
     if (arr.length < 2) return;
+    const maxLen = W * 0.16;   // 너무 멀리 가는 엣지는 그리지 않는다(선이 가까이 머물게)
     for (let i = 1; i < arr.length; i++) {
       const a = arr[i - 1].pr, b = arr[i].pr;
-      ctx.strokeStyle = `rgba(0,0,0,${((sphere ? 0.16 : 0.22) * depthAlpha((a.vz + b.vz) / 2)).toFixed(3)})`;
+      if (sphere && Math.hypot(a.sx - b.sx, a.sy - b.sy) > maxLen) continue;
+      ctx.strokeStyle = `rgba(0,0,0,${((sphere ? 0.18 : 0.22) * depthAlpha((a.vz + b.vz) / 2)).toFixed(3)})`;
       ctx.lineWidth = Math.max(0.5, 2.2 / (((a.vz + b.vz) / 2) * 0.12 + 1));
       ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
     }
