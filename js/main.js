@@ -1430,6 +1430,26 @@ function v3dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 function v3cross(a, b) { return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }; }
 function v3norm(a) { const m = Math.hypot(a.x, a.y, a.z) || 1; return { x: a.x / m, y: a.y / m, z: a.z / m }; }
 
+const SPH = 7.4;          // 2단계 구형 점구름 반지름
+// 음의 월드 좌표. 1단계=박 깊이로 전진하는 선율, 2단계=중심 둘레의 구형 점구름.
+function noteWorld(d, phase, lo, span) {
+  if (phase === 2) {
+    // 그래프 뷰처럼 — 음마다 고정 해시로 구(球) 위/안쪽에 흩뿌린다(완벽한 구 아님).
+    const sd = d.beat * 7.7 + d.midi * 1.3 + d.lane * 9.1;
+    const theta = hash01(sd * 1.1) * 6.2831853;
+    const phi = Math.acos(2 * hash01(sd * 1.7 + 3.1) - 1);
+    const rr = SPH * (0.4 + 0.6 * hash01(sd * 2.3 + 7.7));
+    const st = Math.sin(phi);
+    return { x: rr * st * Math.cos(theta), y: rr * Math.cos(phi), z: rr * st * Math.sin(theta) };
+  }
+  const sd = d.beat * 13.13 + d.midi * 0.77 + d.lane * 4.7;
+  return {
+    x: laneX(d, phase) + (hash01(sd) - 0.5) * ORG * 1.7,
+    y: ((d.midi - lo) / span - 0.5) * 5.4 + (hash01(sd * 1.7 + 3.1) - 0.5) * ORG * 1.3,
+    z: d.beat * ZS + (hash01(sd * 2.3 + 7.7) - 0.5) * ORG * 1.3,
+  };
+}
+
 function drawScore3D(ctx, W, H, t, progress) {
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
   const S = flatScoreNotes();
@@ -1437,17 +1457,25 @@ function drawScore3D(ctx, W, H, t, progress) {
   const { notes, lo, span, totalBeats, phase } = S;
   const playBeat = progress * totalBeats;
   const leadZ = playBeat * ZS;
+  const sphere = phase === 2;
 
-  // 카메라 — 리드 약간 앞에서 -z 방향, 거의 정면(살짝 위)에서 보며 음악과 함께 전진 + 잔잔한 sway.
-  // 정면에 가깝게 둬서 누적 음이 화면 중앙으로 모이고(위쪽 쏠림 방지) 프레임이 꽉 찬다.
-  const D = 5.6, CAMUP = 0.9;
-  const swayX = Math.sin(t * 0.32) * 0.85, swayY = Math.sin(t * 0.24 + 1) * 0.4;
-  const cam = { x: swayX, y: CAMUP + swayY, z: leadZ + D };
-  const target = { x: swayX * 0.25, y: 0.3, z: leadZ - 1.6 };
+  // 카메라 — 1단계: 리드 약간 앞에서 -z로 음악과 함께 전진(잔잔한 sway).
+  //          2단계: 위치 고정, 중심(원점)을 기준으로 천천히 공전(=구가 회전하는 느낌).
+  let cam, target;
+  if (sphere) {
+    const orbit = t * 0.17;                      // 느린 회전
+    const camR = 17.5;
+    cam = { x: Math.sin(orbit) * camR, y: 2.2 + Math.sin(t * 0.12) * 1.0, z: Math.cos(orbit) * camR };
+    target = { x: Math.sin(t * 0.2) * 0.4, y: 0, z: 0 };
+  } else {
+    const swayX = Math.sin(t * 0.32) * 0.85, swayY = Math.sin(t * 0.24 + 1) * 0.4;
+    cam = { x: swayX, y: 0.9 + swayY, z: leadZ + 5.6 };
+    target = { x: swayX * 0.25, y: 0.3, z: leadZ - 1.6 };
+  }
   const fwd = v3norm(v3sub(target, cam));
   const right = v3norm(v3cross(fwd, { x: 0, y: 1, z: 0 }));
   const upv = v3cross(right, fwd);
-  const focal = W * 0.86, cx = W / 2, cy = H * 0.5;
+  const focal = W * 0.86, cx = W / 2, cy = H * (sphere ? 0.46 : 0.5);
 
   function project(P) {
     const dp = v3sub(P, cam);
@@ -1455,37 +1483,33 @@ function drawScore3D(ctx, W, H, t, progress) {
     if (vz < 0.4) return null;
     return { sx: cx + focal * v3dot(right, dp) / vz, sy: cy - focal * v3dot(upv, dp) / vz, vz };
   }
-  const depthAlpha = (vz) => Math.max(0.1, Math.min(1, (46 - vz) / 40));
+  const near = sphere ? 11 : 3, far = sphere ? 26 : 46;
+  const depthAlpha = (vz) => Math.max(0.1, Math.min(1, (far - vz) / (far - near)));
 
-  // 받침 — y 레벨 3줄(3선보표)이 깊이로 뻗어 소실점으로. 음악 진행만큼만 자란다.
-  ctx.lineWidth = 1;
-  [-2.3, 0, 2.3].forEach((yL) => {
-    ctx.beginPath(); let started = false;
-    const step = Math.max(0.6, leadZ / 70);
-    for (let z = 0; z <= leadZ + 0.001; z += step) {
-      const pr = project({ x: 0, y: yL, z });
-      if (!pr) { started = false; continue; }
-      if (!started) { ctx.moveTo(pr.sx, pr.sy); started = true; } else ctx.lineTo(pr.sx, pr.sy);
-    }
-    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.stroke();
-  });
+  // 받침 — 1단계만: y 레벨 3줄(3선보표)이 깊이로 뻗어 소실점으로.
+  if (!sphere) {
+    ctx.lineWidth = 1;
+    [-2.3, 0, 2.3].forEach((yL) => {
+      ctx.beginPath(); let started = false;
+      const step = Math.max(0.6, leadZ / 70);
+      for (let z = 0; z <= leadZ + 0.001; z += step) {
+        const pr = project({ x: 0, y: yL, z });
+        if (!pr) { started = false; continue; }
+        if (!started) { ctx.moveTo(pr.sx, pr.sy); started = true; } else ctx.lineTo(pr.sx, pr.sy);
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.stroke();
+    });
+  }
 
   // 생성된 음표(beat<=playBeat)를 월드 좌표에 배치 + 화면 투영.
   const placed = [];
   for (const d of notes) {
     if (d.beat > playBeat) continue;
-    // 성부 레인·음높이·박을 기준으로 두되, 음마다 고정 해시로 유기적으로 흩뿌린다.
-    const sd = d.beat * 13.13 + d.midi * 0.77 + d.lane * 4.7;
-    const P = {
-      x: laneX(d, phase) + (hash01(sd) - 0.5) * ORG * 1.7,
-      y: ((d.midi - lo) / span - 0.5) * 5.4 + (hash01(sd * 1.7 + 3.1) - 0.5) * ORG * 1.3,
-      z: d.beat * ZS + (hash01(sd * 2.3 + 7.7) - 0.5) * ORG * 1.3,
-    };
-    const pr = project(P);
+    const pr = project(noteWorld(d, phase, lo, span));
     if (pr) placed.push({ d, pr });
   }
 
-  // 레인(성부)별 연결선 — 3D 공간을 굽이도는 선율선.
+  // 레인(성부)별 연결선 — 공간을 굽이도는 선율선(2단계엔 그래프 엣지처럼).
   const lanes = {};
   placed.forEach((o) => { const k = o.d.lane; (lanes[k] = lanes[k] || []).push(o); });
   Object.keys(lanes).forEach((k) => {
@@ -1493,19 +1517,19 @@ function drawScore3D(ctx, W, H, t, progress) {
     if (arr.length < 2) return;
     for (let i = 1; i < arr.length; i++) {
       const a = arr[i - 1].pr, b = arr[i].pr;
-      ctx.strokeStyle = `rgba(0,0,0,${(0.22 * depthAlpha((a.vz + b.vz) / 2)).toFixed(3)})`;
-      ctx.lineWidth = Math.max(0.6, 2.4 / (((a.vz + b.vz) / 2) * 0.12 + 1));
+      ctx.strokeStyle = `rgba(0,0,0,${((sphere ? 0.16 : 0.22) * depthAlpha((a.vz + b.vz) / 2)).toFixed(3)})`;
+      ctx.lineWidth = Math.max(0.5, 2.2 / (((a.vz + b.vz) / 2) * 0.12 + 1));
       ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
     }
   });
 
-  // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음(새 음)은 살짝 팝.
+  // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝. 2단계는 점구름이라 더 작게.
+  const sizeBase = sphere ? 0.3 : 0.5, sizeMax = sphere ? 40 : 64;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   placed.forEach(({ d, pr }) => {
-    const age = playBeat - d.beat;
-    const fresh = age < 0.45;
+    const fresh = (playBeat - d.beat) < 0.45;
     const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0));
-    const fpx = Math.max(8, Math.min(64, focal * (0.5 + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    const fpx = Math.max(8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
     ctx.font = `${fpx.toFixed(1)}px Datatype, Galmuri11, monospace`;
     ctx.fillText(d.glyph || '◇', pr.sx, pr.sy);
