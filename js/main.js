@@ -1419,10 +1419,12 @@ function flatScoreNotes() {
 // 음악이 진행되면 함께 전진한다(잔잔한 sway). 새 음은 카메라 가까이 생겨 점점 멀어진다.
 // 라이브러리 없이 캔버스 원근 투영. 흰 배경·검정 잉크 미학 유지.
 const ZS = 1.45;          // 박당 깊이(월드 단위)
+const ORG = 1.0;          // 유기적 흩뿌림 정도(0=격자처럼 정렬, 클수록 자유롭게 흩어짐)
 function laneX(d, phase) {
-  const base = phase === 2 ? ((((d.lane % 4) + 4) % 4) - 1.5) * 1.25 : (d.player === 1 ? 1.6 : -1.6);
-  return base + Math.sin(d.beat * 12.9898) * 0.18;   // 살짝 흩어 유기적으로
+  return phase === 2 ? ((((d.lane % 4) + 4) % 4) - 1.5) * 1.25 : (d.player === 1 ? 1.6 : -1.6);
 }
+// 음마다 고정된 의사난수(해시) — 같은 음은 늘 같은 자리에 찍힌다(고정).
+function hash01(s) { const x = Math.sin(s) * 43758.5453; return x - Math.floor(x); }
 function v3sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
 function v3dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 function v3cross(a, b) { return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }; }
@@ -1472,7 +1474,13 @@ function drawScore3D(ctx, W, H, t, progress) {
   const placed = [];
   for (const d of notes) {
     if (d.beat > playBeat) continue;
-    const P = { x: laneX(d, phase), y: ((d.midi - lo) / span - 0.5) * 5.4, z: d.beat * ZS };
+    // 성부 레인·음높이·박을 기준으로 두되, 음마다 고정 해시로 유기적으로 흩뿌린다.
+    const sd = d.beat * 13.13 + d.midi * 0.77 + d.lane * 4.7;
+    const P = {
+      x: laneX(d, phase) + (hash01(sd) - 0.5) * ORG * 1.7,
+      y: ((d.midi - lo) / span - 0.5) * 5.4 + (hash01(sd * 1.7 + 3.1) - 0.5) * ORG * 1.3,
+      z: d.beat * ZS + (hash01(sd * 2.3 + 7.7) - 0.5) * ORG * 1.3,
+    };
     const pr = project(P);
     if (pr) placed.push({ d, pr });
   }
