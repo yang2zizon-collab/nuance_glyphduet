@@ -11,6 +11,7 @@ MARKS = ('period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon')
 clients = set()             # 연결된 SSE 구독자(메인 화면 + 폰)들의 큐
 clients_lock = threading.Lock()
 current_phase = {'v': 'idle'}   # 메인이 POST /phase 로 알려주는 현재 단계(폰 화면 전환용)
+current_ascii = {'v': None}     # 마지막 아스키아트(mark+chars) — 늦게 접속한 폰도 그린다
 
 
 def broadcast(payload):
@@ -74,6 +75,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'lanUrl': base + '/tap.html',
                 'public': base.startswith('https://'),
                 'phase': current_phase['v'],
+                'ascii': current_ascii['v'],
                 'port': PORT,
             })
         return super().do_GET()
@@ -105,6 +107,8 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if phase not in ('idle', 'round', 'gift', 'ending'):
             return self._json(400, {'ok': False, 'error': 'bad phase'})
         current_phase['v'] = phase
+        if phase in ('round', 'idle'):
+            current_ascii['v'] = None
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
         return self._json(200, {'ok': True})
 
@@ -115,6 +119,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         chars = str(data.get('chars', ''))[:800]
         if mark not in MARKS or not chars:
             return self._json(400, {'ok': False, 'error': 'bad ascii'})
+        current_ascii['v'] = {'mark': mark, 'chars': chars}
         broadcast(json.dumps({'type': 'ascii', 'mark': mark, 'chars': chars}))
         return self._json(200, {'ok': True})
 
@@ -150,6 +155,10 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         try:
             self.wfile.write(b': connected\n\n')
+            # 접속(재접속 포함) 즉시 현재 상태를 밀어준다 — 놓친 전환을 스스로 따라잡게
+            self.wfile.write(('data: ' + json.dumps({'type': 'phase', 'phase': current_phase['v']}) + '\n\n').encode('utf-8'))
+            if current_ascii['v']:
+                self.wfile.write(('data: ' + json.dumps({'type': 'ascii', **current_ascii['v']}) + '\n\n').encode('utf-8'))
             self.wfile.flush()
             while True:
                 try:

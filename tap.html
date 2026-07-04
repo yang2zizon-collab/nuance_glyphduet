@@ -57,11 +57,26 @@
     <button class="key" data-mark="tilde"><span class="sym">~</span><span class="cap">물결치듯</span></button>
     <button class="key" data-mark="semicolon"><span class="sym">;</span><span class="cap">망설이듯</span></button>
   </div>
-  <!-- 선물 단계 화면 — 메인이 선물 단계로 넘어가면 이 화면으로 바뀐다 -->
-  <div id="gift-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:12px; padding:12px 0 16px;">
-    <p id="gift-step" style="margin:0; text-align:center; font-size:15px; color:#333;">누가 선물을 주나요?</p>
+  <!-- 선물 단계 화면 — 메인이 선물 단계로 넘어가면 자동으로 이 화면으로 바뀐다 -->
+  <div id="gift-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:10px; padding:8px 0 16px;">
+    <!-- 진행 흐름: [주는이] → [받는이] 슬롯이 채워진다 -->
+    <div id="gift-flow" style="display:flex; align-items:center; justify-content:center; gap:10px;">
+      <div id="flow-giver" class="flow-slot"></div>
+      <span style="font-size:26px; line-height:1;">→</span>
+      <div id="flow-recip" class="flow-slot"></div>
+    </div>
+    <p id="gift-step" style="margin:0; text-align:center; font-size:16px; color:#111; font-weight:600;">① 선물을 주는 캐릭터를 고르세요</p>
     <div id="gift-chars" style="flex:1 1 auto; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:10px;"></div>
+    <button id="gift-back" style="display:none; font-size:14px; padding:10px; border:2px solid #999; background:#fff; color:#555;">← 다시 고르기</button>
   </div>
+  <style>
+    .flow-slot {
+      min-width: 118px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px;
+      border: 2px dashed #aaa; border-radius: 6px; font-size: 14px; color: #999; padding: 0 10px;
+    }
+    .flow-slot.filled { border-style: solid; color: #000; font-weight: 600; }
+    .flow-dot { width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; }
+  </style>
   <!-- 아스키아트 — 공연에서 완성된 부호 그림이 폰 규격에 맞게 뜬다 -->
   <div id="art-ui" style="display:none; flex:1 1 auto; align-items:center; justify-content:center; padding:8px 0 14px;">
     <canvas id="art-cv" style="width:100%; image-rendering:pixelated; border:3px solid #000; box-shadow:5px 5px 0 #000;"></canvas>
@@ -112,14 +127,34 @@
     // 더블탭 확대 방지
     document.addEventListener('gesturestart', (e) => e.preventDefault());
 
-    // ===== 선물 화면 — 누가 → 누구에게 두 번 눌러 선물을 보낸다 =====
+    // ===== 선물 화면 — [주는이] → [받는이] 흐름이 눈에 보이게 =====
     const padEl = document.getElementById('pad');
     const giftEl = document.getElementById('gift-ui');
     const giftStep = document.getElementById('gift-step');
     const giftChars = document.getElementById('gift-chars');
+    const giftBack = document.getElementById('gift-back');
+    const flowGiver = document.getElementById('flow-giver');
+    const flowRecip = document.getElementById('flow-recip');
     const titleEl = document.getElementById('title');
     const subEl = document.getElementById('subtitle');
     let giftGiver = null;
+    let giftLock = false;   // 전송 직후 잠깐 잠금(더블탭 방지)
+
+    // 방향별 선물 품목(메인과 동일) — 전달 확인에 품목 이름을 보여준다
+    const GIFT_NAMES = {
+      0: { 1: '모자', 2: '둥지', 3: '액자' },
+      1: { 0: '잠수안경', 2: '물방울', 3: '돌미역' },
+      2: { 0: '무지개', 1: '구름', 3: '치즈' },
+      3: { 0: '용과', 1: '바질', 2: '반지' },
+    };
+
+    function slotChip(el, idx, placeholder) {
+      if (idx == null) { el.className = 'flow-slot'; el.innerHTML = placeholder; return; }
+      const [name, color] = CHARS[idx];
+      el.className = 'flow-slot filled';
+      el.style.borderColor = color;
+      el.innerHTML = '<span class="flow-dot" style="background:' + color + '"></span>' + name;
+    }
 
     function charBtn(i, disabled) {
       const [name, color] = CHARS[i];
@@ -128,35 +163,45 @@
       b.style.borderColor = color;
       b.style.boxShadow = '5px 5px 0 ' + color;
       b.disabled = !!disabled;
-      if (disabled) b.style.opacity = '0.3';
+      if (disabled) b.style.opacity = '0.25';
       b.innerHTML = '<span class="sym" style="font-size:6vh;color:' + color + '">●</span><span class="cap">' + name + '</span>';
       return b;
     }
 
     function renderGift() {
-      giftChars.innerHTML = '';
       const picking = giftGiver == null;
+      slotChip(flowGiver, giftGiver, '누가');
+      slotChip(flowRecip, null, '누구에게');
       giftStep.textContent = picking
-        ? '누가 선물을 주나요?'
-        : CHARS[giftGiver][0] + ' 님이 — 누구에게 줄까요?';
+        ? '① 선물을 주는 캐릭터를 고르세요'
+        : '② ' + CHARS[giftGiver][0] + '의 선물을 받을 캐릭터를 고르세요';
+      giftBack.style.display = picking ? 'none' : 'block';
+      giftChars.innerHTML = '';
       for (let i = 0; i < 4; i++) {
         const b = charBtn(i, !picking && i === giftGiver);
         b.addEventListener('pointerdown', async (e) => {
           e.preventDefault();
-          if (b.disabled) return;
+          if (b.disabled || giftLock) return;
           flash(b);
           if (picking) { giftGiver = i; renderGift(); return; }
           const giver = giftGiver, recip = i;
-          giftGiver = null;
+          giftLock = true;
+          slotChip(flowRecip, recip, '');
+          const item = (GIFT_NAMES[giver] || {})[recip] || '선물';
           try {
             await post('/gift', { giver, recip });
-            setStatus(true, CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' 선물 전달! 🎁 또 줄 수 있어요');
-          } catch (err) { setStatus(false, '전달 실패 — 다시 시도해 주세요'); }
-          renderGift();
+            giftStep.textContent = '🎁 ' + CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' : ' + item + ' 전달!';
+            setStatus(true, '전달했어요 — 또 줄 수 있어요');
+          } catch (err) {
+            giftStep.textContent = '전달 실패 — 다시 시도해 주세요';
+            setStatus(false, '연결 끊김');
+          }
+          setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1300);
         });
         giftChars.appendChild(b);
       }
     }
+    giftBack.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!giftLock) { giftGiver = null; renderGift(); } });
 
     // ===== 아스키아트 — 공연에서 완성된 부호 그림을 폰 규격으로 그린다 =====
     const artEl = document.getElementById('art-ui');
@@ -235,8 +280,11 @@
       requestAnimationFrame(() => renderArt(mark, chars));
     }
 
+    let curPhase = null;
     function setMode(phase) {
       if (phase === 'round' || phase === 'idle') artOn = false;   // 새 라운드 — 그림 내리기
+      if (phase === curPhase) return;                             // 같은 단계 반복 알림은 무시(선택 유지)
+      curPhase = phase;
       if (artOn) return;                                          // 그림은 엔딩 동안 유지
       const gift = phase === 'gift';
       padEl.style.display = gift ? 'none' : 'grid';
@@ -244,21 +292,33 @@
       artEl.style.display = 'none';
       titleEl.textContent = gift ? '"뉘앙스" 선물' : '"뉘앙스" 부호 탭';
       subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다' : '마음에 드는 말투를 눌러 악보에 얹어 주세요';
-      if (gift) { giftGiver = null; renderGift(); }
+      if (gift) { giftGiver = null; giftLock = false; renderGift(); }
     }
 
-    // 서버 SSE로 단계 전환을 받는다(늦게 접속해도 /config의 phase로 맞춘다).
-    fetch('/config').then((r) => r.json()).then((c) => { if (c && c.phase) setMode(c.phase); }).catch(() => {});
+    // ===== 단계 자동 동기화 — 새로고침 없이 화면이 따라온다 =====
+    // ① SSE(접속 즉시 서버가 현재 단계를 밀어줌 + 실시간 전환)
+    // ② 4초 폴링(연결이 끊겨 전환을 놓쳐도 따라잡음)
+    // ③ 화면 켜짐/복귀 시 즉시 동기화(폰 잠금 해제 등)
+    function syncNow() {
+      fetch('/config').then((r) => r.json()).then((c) => {
+        if (!c) return;
+        if (c.phase) setMode(c.phase);
+        if (c.ascii && c.ascii.mark && !artOn) showArt(c.ascii.mark, c.ascii.chars);
+      }).catch(() => {});
+    }
+    syncNow();
+    setInterval(syncNow, 4000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNow(); });
     try {
       const es = new EventSource('/events');
       es.onmessage = (ev) => {
         let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
         if (!d) return;
         if (d.type === 'phase') setMode(d.phase);
-        else if (d.type === 'ascii') showArt(d.mark, d.chars);
+        else if (d.type === 'ascii' && !artOn) showArt(d.mark, d.chars);
       };
       es.onerror = () => {};
-    } catch (e) { /* SSE 미지원 — 부호 패드만 */ }
+    } catch (e) { /* SSE 미지원 — 폴링만으로 동작 */ }
   </script>
 </body>
 </html>
