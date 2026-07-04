@@ -46,8 +46,8 @@
 </head>
 <body>
   <header>
-    <h1>"뉘앙스" 부호 탭</h1>
-    <p>마음에 드는 말투를 눌러 악보에 얹어 주세요</p>
+    <h1 id="title">"뉘앙스" 부호 탭</h1>
+    <p id="subtitle">마음에 드는 말투를 눌러 악보에 얹어 주세요</p>
   </header>
   <div id="pad">
     <button class="key" data-mark="period"><span class="sym">.</span><span class="cap">담담하게</span></button>
@@ -57,34 +57,45 @@
     <button class="key" data-mark="tilde"><span class="sym">~</span><span class="cap">물결치듯</span></button>
     <button class="key" data-mark="semicolon"><span class="sym">;</span><span class="cap">망설이듯</span></button>
   </div>
+  <!-- 선물 단계 화면 — 메인이 선물 단계로 넘어가면 이 화면으로 바뀐다 -->
+  <div id="gift-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:12px; padding:12px 0 16px;">
+    <p id="gift-step" style="margin:0; text-align:center; font-size:15px; color:#333;">누가 선물을 주나요?</p>
+    <div id="gift-chars" style="flex:1 1 auto; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:10px;"></div>
+  </div>
   <footer><span id="status">연결됨</span></footer>
 
   <script>
     const statusEl = document.getElementById('status');
-    let sending = 0;
+    const CHARS = [
+      ['핑크토마토', '#ff5d8f'],
+      ['심해어', '#3a4fa0'],
+      ['새', '#ff9d3b'],
+      ['생쥐', '#b9a6e8'],
+    ];
 
     function flash(btn) {
       btn.classList.add('hit');
       setTimeout(() => btn.classList.remove('hit'), 110);
       if (navigator.vibrate) { try { navigator.vibrate(18); } catch (e) {} }
     }
+    function setStatus(ok, msg) {
+      statusEl.textContent = msg;
+      statusEl.classList.toggle('off', !ok);
+    }
+    async function post(path, body) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        keepalive: true,
+      });
+      if (!res.ok) throw new Error('http ' + res.status);
+    }
 
     async function tap(mark, btn) {
       flash(btn);
-      try {
-        const res = await fetch('/tap', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mark }),
-          keepalive: true,
-        });
-        if (!res.ok) throw new Error('http ' + res.status);
-        statusEl.textContent = '연결됨';
-        statusEl.classList.remove('off');
-      } catch (e) {
-        statusEl.textContent = '연결 끊김 — 다시 시도해 주세요';
-        statusEl.classList.add('off');
-      }
+      try { await post('/tap', { mark }); setStatus(true, '연결됨'); }
+      catch (e) { setStatus(false, '연결 끊김 — 다시 시도해 주세요'); }
     }
 
     // 터치/클릭 모두 — 빠른 연타가 끊기지 않게 pointerdown에서 바로 보낸다.
@@ -96,6 +107,72 @@
     }
     // 더블탭 확대 방지
     document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+    // ===== 선물 화면 — 누가 → 누구에게 두 번 눌러 선물을 보낸다 =====
+    const padEl = document.getElementById('pad');
+    const giftEl = document.getElementById('gift-ui');
+    const giftStep = document.getElementById('gift-step');
+    const giftChars = document.getElementById('gift-chars');
+    const titleEl = document.getElementById('title');
+    const subEl = document.getElementById('subtitle');
+    let giftGiver = null;
+
+    function charBtn(i, disabled) {
+      const [name, color] = CHARS[i];
+      const b = document.createElement('button');
+      b.className = 'key';
+      b.style.borderColor = color;
+      b.style.boxShadow = '5px 5px 0 ' + color;
+      b.disabled = !!disabled;
+      if (disabled) b.style.opacity = '0.3';
+      b.innerHTML = '<span class="sym" style="font-size:6vh;color:' + color + '">●</span><span class="cap">' + name + '</span>';
+      return b;
+    }
+
+    function renderGift() {
+      giftChars.innerHTML = '';
+      const picking = giftGiver == null;
+      giftStep.textContent = picking
+        ? '누가 선물을 주나요?'
+        : CHARS[giftGiver][0] + ' 님이 — 누구에게 줄까요?';
+      for (let i = 0; i < 4; i++) {
+        const b = charBtn(i, !picking && i === giftGiver);
+        b.addEventListener('pointerdown', async (e) => {
+          e.preventDefault();
+          if (b.disabled) return;
+          flash(b);
+          if (picking) { giftGiver = i; renderGift(); return; }
+          const giver = giftGiver, recip = i;
+          giftGiver = null;
+          try {
+            await post('/gift', { giver, recip });
+            setStatus(true, CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' 선물 전달! 🎁 또 줄 수 있어요');
+          } catch (err) { setStatus(false, '전달 실패 — 다시 시도해 주세요'); }
+          renderGift();
+        });
+        giftChars.appendChild(b);
+      }
+    }
+
+    function setMode(phase) {
+      const gift = phase === 'gift';
+      padEl.style.display = gift ? 'none' : 'grid';
+      giftEl.style.display = gift ? 'flex' : 'none';
+      titleEl.textContent = gift ? '"뉘앙스" 선물' : '"뉘앙스" 부호 탭';
+      subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다' : '마음에 드는 말투를 눌러 악보에 얹어 주세요';
+      if (gift) { giftGiver = null; renderGift(); }
+    }
+
+    // 서버 SSE로 단계 전환을 받는다(늦게 접속해도 /config의 phase로 맞춘다).
+    fetch('/config').then((r) => r.json()).then((c) => { if (c && c.phase) setMode(c.phase); }).catch(() => {});
+    try {
+      const es = new EventSource('/events');
+      es.onmessage = (ev) => {
+        let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+        if (d && d.type === 'phase') setMode(d.phase);
+      };
+      es.onerror = () => {};
+    } catch (e) { /* SSE 미지원 — 부호 패드만 */ }
   </script>
 </body>
 </html>

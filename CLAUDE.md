@@ -45,8 +45,18 @@ serve.py                로컬 서버
   sendMessage 전송 후, passTurn=Tab) `state.picks[state.turn]`에 무작위 캐릭터를 앉힌다(직전 화자
   `lastActiveChar`는 피함). 슬롯머신 소개·선물은 그대로 4명 고정. 메시지마다 `pick`이 기록돼 엔딩이
   화자별로 재구성됨.
-- **선물(드래그&드롭 이펙트)**: 왼쪽 위 `#gift-icon`을 캐릭터 썸네일에 드롭 → `setGift(characterVoice(idx))`로
-  그 캐릭터의 **라이브 소리(타이핑+발화)를 리버브 버스로** 보냄. 다시 드롭하면 토글 해제. ♫ 배지 표시.
+- **캐릭터 컬러**: 모든 화면에서 캐릭터 실루엣만 색을 가진다 — 토마토 핑크(#ff5d8f)·심해어
+  남색(#3a4fa0)·새 귤색(#ff9d3b)·생쥐 연보라(#b9a6e8). `silhouetteDraw`가 `characterColor(idx)`로
+  픽셀 단위 채색(silhouetteFill rgb 파라미터). CSS의 brightness(0) 필터는 제거됨(다시 넣으면 색이 죽는다).
+  컷신에선 캐릭터를 별도 컬러 레이어(introColorCanvas)에 그려 디더링을 통과하지 않는다.
+- **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
+  **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
+  선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
+  나열(title에 품목 텍스트 나열).
+- **폰 선물 화면**: 메인이 `postPhase('round'|'gift'|'ending')`→서버 `/phase`→SSE `{type:'phase'}` 브로드캐스트.
+  폰(tap.html)은 phase에 따라 투표 패드↔선물 화면 전환(늦게 접속하면 /config의 phase로 동기화).
+  폰 선물: 누가→누구에게 두 번 탭→POST `/gift {giver,recip}`→SSE `{type:'gift'}`→메인이 선물 단계일 때만
+  `giveSpecificGift` 적용.
   - audio.js: `giftedVoices` Set + `giftBus()` + `destFor(voiceId)`. 확장 시 같은 패턴으로 딜레이/피치 추가 가능.
   - 아직 **엔딩 악보/합주에는 미반영**(라이브 소리에만). 드래그는 마우스(HTML5 DnD) 기준 — 터치는 미지원.
 - **엔딩(2단계)**:

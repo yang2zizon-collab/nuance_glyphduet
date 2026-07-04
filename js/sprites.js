@@ -187,7 +187,7 @@ const CHARACTERS = [
     }
   },
   {
-    id: 'anglerfish', name: '심해어', color: '#6c7bff', voice: 1,
+    id: 'anglerfish', name: '심해어', color: '#3a4fa0', voice: 1,
     draw(g, t, talking, mood) {
       const glow = 0.5 + 0.5 * Math.sin(t * 3);
       // 안테나 + 발광체
@@ -209,7 +209,7 @@ const CHARACTERS = [
     }
   },
   {
-    id: 'bird', name: '새', color: '#ffd166', voice: 2,
+    id: 'bird', name: '새', color: '#ff9d3b', voice: 2,
     draw(g, t, talking, mood) {
       const blink = (Math.floor(t * 1.1) % 8) === 0;
       g.disc(16, 18, 9, '#3d9be9');   // 몸
@@ -229,7 +229,7 @@ const CHARACTERS = [
     }
   },
   {
-    id: 'mouse', name: '생쥐', color: '#cfcfe0', voice: 7,
+    id: 'mouse', name: '생쥐', color: '#b9a6e8', voice: 7,
     draw(g, t, talking, mood) {
       const blink = (Math.floor(t * 1.4) % 9) === 0;
       const tail = Math.round(Math.sin(t * 3) * 2);

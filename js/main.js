@@ -275,6 +275,7 @@ const seg = (s, a, b) => easeIO((s - a) / (b - a));
 // 신문 망점/Obra Dinn 느낌: 그라데이션·그림자·빛이 전부 도트 밀도로 표현된다.
 const INTRO_PX = 3.2;      // 도트 한 알의 크기(CSS px)
 let introCanvas = null, introCtx = null;
+let introColorCanvas = null, introColorCtx = null;   // 캐릭터(컬러) 레이어 — 디더링을 통과하지 않는다
 const BAYER8 = [
   [0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26],
   [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22],
@@ -312,9 +313,15 @@ function drawIntroScene(t) {
   const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
   if (!introCanvas) { introCanvas = document.createElement('canvas'); introCtx = introCanvas.getContext('2d', { willReadFrequently: true }); }
   if (introCanvas.width !== pw || introCanvas.height !== ph) { introCanvas.width = pw; introCanvas.height = ph; }
+  if (!introColorCanvas) { introColorCanvas = document.createElement('canvas'); introColorCtx = introColorCanvas.getContext('2d'); }
+  if (introColorCanvas.width !== pw || introColorCanvas.height !== ph) { introColorCanvas.width = pw; introColorCanvas.height = ph; }
   const ctx = introCtx;
   ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);   // 이하 W,H 좌표 그대로 사용
   ctx.imageSmoothingEnabled = true;               // 다운스케일 시 회색 경계 → 디더로 녹는다
+  const cctx = introColorCtx;                     // 캐릭터는 이 레이어에 — 색이 살아남는다
+  cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, pw, ph);
+  cctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+  cctx.imageSmoothingEnabled = true;
 
   const s = (performance.now() - introScene.start) / 1000;   // 경과 초
   const kind = introScene.kind;
@@ -367,7 +374,7 @@ function drawIntroScene(t) {
     fxOnce('gasp', () => setTimeout(() => uiClick(0.9), Math.max(0, (2.0 - s) * 1000)));
     // 우리 핑크토마토(모양이 다른 아이)
     shadow(px, groundY + 4, S * 0.5, S * 0.13, 0.5);
-    silhouetteDraw(ctx, 0, px - S / 2, gy - S / 2 + bob * 0.4, S, t, false, s > 4.6 ? 'sad' : 'neutral', false);
+    silhouetteDraw(cctx, 0, px - S / 2, gy - S / 2 + bob * 0.4, S, t, false, s > 4.6 ? 'sad' : 'neutral', false);
     // 혼자 남아 "…"
     if (s > 5.0) {
       drawIntroMark(ctx, '…', px, gy - S * 0.72, S * 0.4, seg(s, 5.0, 5.5));
@@ -423,8 +430,8 @@ function drawIntroScene(t) {
     let fg = ctx.createRadialGradient(fishX, fishY, 0, fishX, fishY, S * 1.35);
     fg.addColorStop(0, `rgba(255,255,255,${0.95 * glowK})`); fg.addColorStop(0.5, `rgba(255,255,255,${0.4 * glowK})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = fg; ctx.fillRect(fishX - S * 1.6, fishY - S * 1.6, S * 3.2, S * 3.2);
-    silhouetteDraw(ctx, 1, fishX - S / 2, fishY - S / 2, S, t, s > 5 && Math.sin(t * 6) > 0, 'neutral', true);
-    silhouetteDraw(ctx, 2, birdX - S / 2, birdY - S / 2, S, t + 1, s > 5.6 && Math.sin(t * 6 + 3) > 0, 'neutral', false);
+    silhouetteDraw(cctx, 1, fishX - S / 2, fishY - S / 2, S, t, s > 5 && Math.sin(t * 6) > 0, 'neutral', true);
+    silhouetteDraw(cctx, 2, birdX - S / 2, birdY - S / 2, S, t + 1, s > 5.6 && Math.sin(t * 6 + 3) > 0, 'neutral', false);
     // 전화기 발견 — 수화기 모양(ㄷ자) 둘
     const phoneA = seg(s, 1.2, 1.8);
     if (phoneA > 0) {
@@ -536,7 +543,7 @@ function drawIntroScene(t) {
     const mx = W * (0.52 - dash * 0.38);
     const nib = s < 2.6 ? Math.abs(Math.sin(t * 7)) * 4 : 0;
     shadow(mx, floorY + 3, S * 0.5, S * 0.12, 0.45);
-    silhouetteDraw(ctx, 3, mx - S / 2, gy - S / 2 + nib * 0.3, S, t, s < 2.6 && Math.sin(t * 9) > 0, dash > 0 ? 'sad' : 'neutral', dash > 0);
+    silhouetteDraw(cctx, 3, mx - S / 2, gy - S / 2 + nib * 0.3, S, t, s < 2.6 && Math.sin(t * 9) > 0, dash > 0 ? 'sad' : 'neutral', dash > 0);
     if (s > 2.9 && s < 3.9) drawIntroMark(ctx, '!', mx, gy - S * 0.72, S * 0.42, seg(s, 2.9, 3.15) * (1 - seg(s, 3.6, 3.9)));
     // 커다란 사람 발(양말 신은 다리) — 위에서 쿵, 음영으로 둥글게
     const stomp = seg(s, 2.6, 3.0);
@@ -591,6 +598,8 @@ function drawIntroScene(t) {
   sctx.save();
   sctx.imageSmoothingEnabled = false;   // 도트를 또렷하게 확대
   sctx.drawImage(introCanvas, 0, 0, W, H);
+  sctx.globalAlpha = Math.max(0, fade);
+  sctx.drawImage(introColorCanvas, 0, 0, W, H);   // 컬러 캐릭터 레이어(디더 위)
   sctx.restore();
 
   if (s * 1000 >= introScene.dur) endIntroScene();
@@ -750,7 +759,14 @@ function loop(now) {
 // 나머지(윤곽선 + 안쪽 빈 곳)를 전부 불투명 검정으로 채운다. 다리 사이처럼 바깥과
 // 이어진 오목한 틈은 그대로 흰 채로 남아 실루엣다운 형태가 유지된다.
 let silCanvas = null, silCtx = null;
-function silhouetteFill(ctx, w, h) {
+// '#rrggbb' → [r,g,b]
+function hexRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return [0, 0, 0];
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+function silhouetteFill(ctx, w, h, rgb = [0, 0, 0]) {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   const n = w * h;
@@ -771,11 +787,12 @@ function silhouetteFill(ctx, w, h) {
   for (let i = 0; i < n; i++) {
     const o = i * 4;
     if (outside[i]) { d[o + 3] = 0; }
-    else { d[o] = 0; d[o + 1] = 0; d[o + 2] = 0; d[o + 3] = 255; }
+    else { d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255; }
   }
   ctx.putImageData(img, 0, 0);
 }
-// dst 컨텍스트에 (x,y) 위치·size로 캐릭터를 검정 통짜 실루엣으로 그린다.
+// dst 컨텍스트에 (x,y) 위치·size로 캐릭터를 "그 캐릭터 색" 통짜 실루엣으로 그린다.
+// (토마토=핑크·심해어=남색·새=귤색·생쥐=연보라 — 모든 화면에서 캐릭터만 색을 가진다)
 function silhouetteDraw(dst, idx, x, y, size, t, talking, mood, flip) {
   const pad = Math.ceil(size * 0.35);
   const dim = Math.ceil(size + pad * 2);
@@ -787,7 +804,7 @@ function silhouetteDraw(dst, idx, x, y, size, t, talking, mood, flip) {
   if (flip) { silCtx.translate(dim, 0); silCtx.scale(-1, 1); }
   drawCharacter(silCtx, idx, pad, pad, size, t, talking, mood);
   silCtx.restore();
-  silhouetteFill(silCtx, dim, dim);
+  silhouetteFill(silCtx, dim, dim, hexRgb(characterColor(idx)));
   dst.drawImage(silCanvas, x - pad, y - pad);
 }
 
@@ -942,20 +959,22 @@ const giftedChars = new Set();   // 선물 받은 캐릭터 인덱스
 
 // 선물 상자 아이콘을 캔버스에 그린다(검정 실루엣 + 흰 리본 — 스코어 테마 톤).
 function drawGiftIcon(cv) {
+  // 외곽선 스타일 — 작은 크기에서도 '선물 상자'로 읽히게(까만 덩어리 방지).
   const g = cv.getContext('2d');
   g.imageSmoothingEnabled = false;
   g.clearRect(0, 0, cv.width, cv.height);
   const s = cv.width / 32;
-  const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x * s), Math.round(y * s), Math.round(w * s), Math.round(h * s)); };
   const INK = '#000';
+  g.strokeStyle = INK; g.lineWidth = Math.max(2, 2.4 * s); g.lineJoin = 'round';
+  g.fillStyle = '#fff';
+  // 몸통 + 뚜껑(흰 속, 검정 테)
+  g.fillRect(7 * s, 14 * s, 18 * s, 13 * s); g.strokeRect(7 * s, 14 * s, 18 * s, 13 * s);
+  g.fillRect(5 * s, 9 * s, 22 * s, 5 * s); g.strokeRect(5 * s, 9 * s, 22 * s, 5 * s);
+  // 세로 리본
+  g.beginPath(); g.moveTo(16 * s, 9 * s); g.lineTo(16 * s, 27 * s); g.stroke();
   // 나비 리본(두 고리)
-  R(9, 5, 6, 5, INK); R(17, 5, 6, 5, INK);
-  R(14, 6, 4, 4, '#fff'); R(9, 6, 6, 1, '#fff'); R(17, 6, 6, 1, '#fff');
-  // 뚜껑 + 몸통
-  R(5, 10, 22, 5, INK);
-  R(7, 15, 18, 12, INK);
-  // 세로 리본(흰색)
-  R(15, 10, 2, 17, '#fff');
+  g.beginPath(); g.ellipse(12 * s, 6.4 * s, 3.4 * s, 2.4 * s, -0.3, 0, 7); g.stroke();
+  g.beginPath(); g.ellipse(20 * s, 6.4 * s, 3.4 * s, 2.4 * s, 0.3, 0, 7); g.stroke();
 }
 
 // 방향별 선물 — GIFTS[주는이][받는이] = { name, kind }. (인덱스: 0토마토 1심해어 2새 3쥐)
@@ -1097,7 +1116,7 @@ function giveSpecificGift(recip, giver) {
   giftedChars.add(recip);
   setGift(characterVoice(recip), true);   // 효과: 일단 리버브 ON
   highlightGifts();
-  updateGiftBadge(recip, item);
+  updateGiftBadge(recip);
   showGiftPopup(recip, giver, item);
   uiClick(0.7);
   // 받은 즉시 그 목소리로 짧게 울려 리버브를 들려준다.
@@ -1108,13 +1127,20 @@ function highlightGifts() {
   pickThumbs[0].forEach((b, i) => b.classList.toggle('gifted', giftedChars.has(i)));
 }
 
-// 받은 캐릭터 썸네일 모서리에 "가장 최근 받은 선물" 아이콘 배지.
-function updateGiftBadge(recip, item) {
+// 받은 캐릭터 썸네일 아래 — 받은 선물 "전부"를 아이콘 줄로 나열한다.
+function updateGiftBadge(recip) {
   const b = pickThumbs[0][recip]; if (!b) return;
-  let cv = b.querySelector('.gift-badge');
-  if (!cv) { cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; cv.className = 'gift-badge'; b.appendChild(cv); }
-  drawItem(cv, item.kind);
+  let row = b.querySelector('.gift-badges');
+  if (!row) { row = document.createElement('div'); row.className = 'gift-badges'; b.appendChild(row); }
+  row.innerHTML = '';
   const list = received.get(recip) || [];
+  list.forEach((it) => {
+    const cv = document.createElement('canvas');
+    cv.width = 32; cv.height = 32;
+    cv.title = it.name;
+    drawItem(cv, it.kind);
+    row.appendChild(cv);
+  });
   b.title = characterName(recip) + ' — 받은 선물: ' + list.map((x) => x.name).join(', ');
 }
 
@@ -1151,7 +1177,7 @@ function resetGifts() {
   giftedChars.clear();
   received.clear();
   clearGifts();
-  document.querySelectorAll('.gift-badge, .gift-popup').forEach((el) => el.remove());
+  document.querySelectorAll('.gift-badge, .gift-badges, .gift-popup').forEach((el) => el.remove());
   if (pickThumbs[0]) highlightGifts();
 }
 
@@ -1181,12 +1207,19 @@ function resetVotes() {
   winningNuance = null;
 }
 
+// 관객 폰에 현재 단계 알림 — 폰 화면(투표 패드 ↔ 선물 화면)이 이걸 보고 전환된다.
+function postPhase(phase) {
+  try { fetch('/phase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase }) }).catch(() => {}); } catch (e) { /* 정적 서버 — 무시 */ }
+}
+
 // 사이클 시작 — startPlay에서 호출. 첫 라운드(32초) 예비박부터.
 function startCycle() {
   cycleOn = true;
   roundIndex = 0;
   resetVotes();
   resetNuanceEffect();
+  document.body.classList.remove('gift-time');   // 라운드 동안 선물 숨김
+  postPhase('round');
   const layer = $('#heart-layer'); if (layer) layer.innerHTML = '';
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-bar')?.classList.remove('hidden');   // 투표 패드는 예비박부터 보임
@@ -1315,8 +1348,10 @@ function endCycle() {
   $('#countin')?.classList.add('hidden');
   $('#round-stop')?.classList.add('hidden');
   $('#mark-bar')?.classList.add('hidden');
-  $('#mark-qr')?.classList.add('hidden');
-  // 선물 단계 — 서로 선물을 주고받고 ▶로 엔딩.
+  const hl = $('#heart-layer'); if (hl) hl.innerHTML = '';   // 기호(하트)도 모두 제거
+  // 선물 단계 — 이제야 선물이 보인다(라운드 동안 숨김). 폰도 선물 화면으로.
+  document.body.classList.add('gift-time');
+  postPhase('gift');
   const gb = $('#gift-bar');
   if (gb) {
     const hint = $('#gift-hint');
@@ -1331,6 +1366,9 @@ function endCycle() {
 // 선물 단계 종료 → 엔딩 연주(승자 뉘앙스 이펙트가 입혀진 채로).
 function giftDoneToEnding() {
   $('#gift-bar')?.classList.add('hidden');
+  $('#mark-qr')?.classList.add('hidden');
+  document.body.classList.remove('gift-time');
+  postPhase('ending');
   state.phase = 'talk';
   showEnding();
 }
@@ -1353,7 +1391,15 @@ function setupAudience() {
     audienceES = new EventSource('/events');
     audienceES.onmessage = (ev) => {
       let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
-      if (d && d.mark) castVote(d.mark, 'aud');
+      if (!d) return;
+      if (d.mark) castVote(d.mark, 'aud');
+      // 폰에서 온 선물 — 선물 단계에서만, 자기 자신 제외, 인덱스 검증.
+      else if (d.type === 'gift' && state.phase === 'gift') {
+        const g = +d.giver, r = +d.recip;
+        if (Number.isInteger(g) && Number.isInteger(r) && g !== r && g >= 0 && g < N && r >= 0 && r < N) {
+          giveSpecificGift(r, g);
+        }
+      }
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }

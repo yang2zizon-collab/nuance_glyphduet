@@ -8,8 +8,15 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get('PORT', 877
 # 폰(/tap.html)이 POST /tap 으로 부호를 보내면, 메인 화면(EventSource /events)에
 # 실시간으로 흘려 보낸다. 외부 의존성 없이 표준 라이브러리 SSE만 사용한다.
 MARKS = ('period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon')
-clients = set()             # 연결된 SSE 구독자(메인 화면)들의 큐
+clients = set()             # 연결된 SSE 구독자(메인 화면 + 폰)들의 큐
 clients_lock = threading.Lock()
+current_phase = {'v': 'idle'}   # 메인이 POST /phase 로 알려주는 현재 단계(폰 화면 전환용)
+
+
+def broadcast(payload):
+    with clients_lock:
+        for q in list(clients):
+            q.put(payload)
 
 
 def lan_ip():
@@ -66,14 +73,50 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return self._json(200, {
                 'lanUrl': base + '/tap.html',
                 'public': base.startswith('https://'),
+                'phase': current_phase['v'],
                 'port': PORT,
             })
         return super().do_GET()
 
     def do_POST(self):
-        if self.path.split('?')[0] == '/tap':
+        path = self.path.split('?')[0]
+        if path == '/tap':
             return self.handle_tap()
+        if path == '/phase':
+            return self.handle_phase()
+        if path == '/gift':
+            return self.handle_gift()
         self.send_error(404)
+
+    def _body_json(self):
+        length = int(self.headers.get('Content-Length', 0) or 0)
+        raw = self.rfile.read(length) if length else b'{}'
+        try:
+            return json.loads(raw or b'{}')
+        except Exception:
+            return {}
+
+    # 메인 화면이 단계 전환을 알림 → 모든 폰에 브로드캐스트(투표 패드 ↔ 선물 화면 전환).
+    def handle_phase(self):
+        data = self._body_json()
+        phase = str(data.get('phase', ''))
+        if phase not in ('idle', 'round', 'gift', 'ending'):
+            return self._json(400, {'ok': False, 'error': 'bad phase'})
+        current_phase['v'] = phase
+        broadcast(json.dumps({'type': 'phase', 'phase': phase}))
+        return self._json(200, {'ok': True})
+
+    # 폰이 선물을 보냄(주는이→받는이) → 메인 화면이 받아 적용.
+    def handle_gift(self):
+        data = self._body_json()
+        try:
+            giver = int(data.get('giver')); recip = int(data.get('recip'))
+        except (TypeError, ValueError):
+            return self._json(400, {'ok': False, 'error': 'bad gift'})
+        if not (0 <= giver <= 3 and 0 <= recip <= 3 and giver != recip):
+            return self._json(400, {'ok': False, 'error': 'bad gift'})
+        broadcast(json.dumps({'type': 'gift', 'giver': giver, 'recip': recip}))
+        return self._json(200, {'ok': True})
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -122,10 +165,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         mark = str(data.get('mark', ''))
         if mark not in MARKS:
             return self._json(400, {'ok': False, 'error': 'bad mark'})
-        payload = json.dumps({'mark': mark, 'who': 'aud'})
-        with clients_lock:
-            for q in list(clients):
-                q.put(payload)
+        broadcast(json.dumps({'mark': mark, 'who': 'aud'}))
         return self._json(200, {'ok': True})
 
     def log_message(self, *args):
