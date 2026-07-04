@@ -289,16 +289,20 @@ html, body { background: #ffffff; color: var(--ink); }
   width: var(--play-w);
   display: flex; align-items: center; gap: 10px;
 }
-#round-gauge-track {
-  flex: 1 1 auto; height: 10px; background: #eee;
-  border: 2px solid #000; overflow: hidden;
+/* 비트 동그라미 — 지나간 박은 검게 차고, 지금 박은 커지며 튄다 */
+#beat-dots { flex: 1 1 auto; display: flex; justify-content: center; gap: 14px; }
+.beat-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid #000; background: #fff;
+  transition: background .08s linear;
 }
-#round-gauge-fill {
-  height: 100%; width: 100%; background: #000;
-  transition: width .12s linear;
+.beat-dot.on { background: #000; }
+.beat-dot.now { animation: beat-pop .3s ease-out; }
+@keyframes beat-pop {
+  0% { transform: scale(1.9); }
+  100% { transform: scale(1); }
 }
 #round-dur { font-family: 'Datatype', monospace; font-size: 16px; color: #000; min-width: 3ch; }
-#round-secs { font-family: 'Datatype', monospace; font-size: 18px; color: #000; min-width: 2ch; text-align: right; }
 
 /* 라운드 마치기 ■ — 왼쪽 위 모서리 */
 .theme-score #round-stop {

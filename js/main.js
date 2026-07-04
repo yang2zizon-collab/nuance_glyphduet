@@ -1,9 +1,10 @@
 // "뉘앙스" 글리프 듀엣 / "Nuance" Glyph Duet — 상태 머신 + 입력 + 렌더 루프.
 
 import { drawCharacter, characterCount, characterName, characterColor, characterVoice, setMinimal } from './sprites.js';
-import { initAudio, typeBlip, typeKey, uiClick, speakVoiceEvents, playEnsemble, warmVoices, playScore,
+import { initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, playEnsemble, warmVoices, playScore,
          stopAmbience, playMark, applyNuanceEffect, resetNuanceEffect,
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
+         startPlayBeat, stopPlayBeat, beatKick, countTick, slotSpin, slotLand,
          playScreenWav, stopScreenWav, resumeAudio, setGift, clearGifts } from './audio.js';
 import { renderDisplay, isAlienLook } from './language.js';
 import { glyphForCode, glyphForChar, toAlien } from './glyphs.js';
@@ -174,6 +175,7 @@ function pullSlot() {
   slotSpinning = true; slotTickIdx = -1;
   const nm = $('#slot-name'); if (nm) nm.classList.remove('show');
   uiClick(0.45);
+  slotSpin(slotSpinDur / 1000);   // 키치한 또로로로롱 — 긴장 쌓기
   const lever = $('#slot-lever');
   if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 430); }
 }
@@ -185,6 +187,7 @@ function onSlotLanded() {
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `${slotIndex} / ${N}`;
   const win = $('#slot-window'); if (win) { win.classList.remove('land'); void win.offsetWidth; win.classList.add('land'); }
   uiClick(0.85);   // 착지 딩
+  slotLand();      // 밝은 화음으로 이완(릴리스)
   speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');
   const kind = slotDisplay === 0 ? 'tomato' : slotDisplay === 2 ? 'phone' : slotDisplay === 3 ? 'mouse' : null;
   if (kind) {
@@ -238,7 +241,7 @@ function drawSlotWindow(t) {
   }
   if (slotSpinning) {                                        // 릴 틱 사운드(가운데 칸 바뀔 때)
     const centerIdx = ((Math.round(slotScroll / CH) % N) + N) % N;
-    if (centerIdx !== slotTickIdx) { slotTickIdx = centerIdx; uiClick(0.22); }
+    if (centerIdx !== slotTickIdx) { slotTickIdx = centerIdx; uiClick(0.22, 0.5); }   // 룰렛 드르륵 — 크게
   }
 }
 
@@ -621,7 +624,7 @@ function show(name) {
   for (const k in screens) { if (screens[k]) screens[k].classList.toggle('active', k === name); }
   // 이전 화면의 음악/사운드 정리
   if (prev !== name) {
-    if (prev === 'play') stopAmbience();
+    if (prev === 'play') { stopAmbience(); stopPlayBeat(); }
     if (prev === 'title') stopTitleMusic();
     if (prev === 'select') stopSelectTone();
     stopScreenWav();   // 이전 화면의 배경 WAV(있다면) 페이드 아웃
@@ -638,9 +641,10 @@ function startScreenAudio(name) {
   playScreenWav(name).then((played) => {
     if (played) return;                 // WAV가 깔렸으면 합성 배경 생략
     if (state.screen !== name) return;  // 그새 화면이 바뀌었으면 무시
-    if (name === 'title') startTitleMusic();
+    if (name === 'title') { startTitleMusic(); scheduleIntroAdvance(); }
     else if (name === 'select') startSelectTone();
-    // 대화(play) 화면은 합성 엠비언스 없음 — audio/play.wav 가 있으면 그것만 재생.
+    else if (name === 'play') startPlayBeat();   // 타자에 박자를 입히는 킥 그리드
+    // 대화(play) 화면은 합성 엠비언스 없음 — 타자 킥만 그리드에 스냅된다.
   });
 }
 
@@ -657,6 +661,17 @@ function ensureAudio() {
 }
 window.addEventListener('pointerdown', ensureAudio);
 window.addEventListener('keydown', ensureAudio);
+
+// 타이틀 인트로(리버스 스웰)가 끝나면 자동으로 캐릭터 선택 화면으로 넘어간다.
+// 인트로 ~10초 + 마지막 "커넥션" 피크 여운까지 들려준 뒤 전환.
+let introTimer = null;
+function scheduleIntroAdvance() {
+  clearTimeout(introTimer);
+  introTimer = setTimeout(() => {
+    introTimer = null;
+    if (state.screen === 'title') { updateSelectUI(); show('select'); }
+  }, 10500);
+}
 
 function base(player) { return (state.picks[player] % N) / N; }
 
@@ -1187,15 +1202,19 @@ function resetGifts() {
 // 퍼포머·관객(폰)이 6개 부호(. ? ! … ~ ;)에 투표한다. 누를 때마다 인스타 라이브
 // 하트처럼 아이콘이 떠오르고, 가장 많이 눌린 부호가 사운드 이펙트를 실시간 결정.
 // 퍼포머가 ■(round-stop)로 마치면 그 순간 말투를 고정하고 선물 단계로 넘어간다.
-const ROUND_DURATIONS = [32, 16, 8, 4];   // 초 — 이 순서로 순환 반복
-const COUNTIN_SECONDS = 4;                 // 매 라운드 앞 예비박
+const BEATS_PER_ROUND = 8;       // 라운드당 8박
+const COUNTIN_BEATS = 4;         // 예비박 4박(4·3·2·1)
+const BPM_START = 80;            // 시작 템포(느리게 시작 → 라운드마다 가속)
+const BPM_ACCEL = 1.18;          // 라운드마다 ×1.18로 가속 → 갈수록 빨라짐
+const BPM_MAX = 220;             // 템포 상한
 const NUANCES = ['period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon'];
 const MARK_GLYPH = { period: '.', question: '?', bang: '!', ellipsis: '…', tilde: '~', semicolon: ';' };
 let cycleOn = false;          // 라운드 사이클 진행 중
-let roundIndex = 0;          // ROUND_DURATIONS 순환 인덱스
-let roundDur = 8;            // 현재 라운드 길이(초)
+let roundIndex = 0;          // 몇 번째 라운드인지(가속 계산·표시용)
+let bpm = BPM_START;         // 현재 템포 — 라운드마다 빨라진다
 let phaseEndsAt = 0;         // 현재 phase(countin/round) 종료 시각
-let countinShown = -1;       // 마지막으로 표시한 카운트인 숫자
+let beatsLeft = 0;           // 현재 phase에 남은 박
+let nextBeatAt = 0;          // 다음 박을 칠 시각(performance.now ms)
 let nuanceVotes = {};
 let liveLeader = null;
 let winningNuance = null;
@@ -1216,6 +1235,7 @@ function postPhase(phase) {
 function startCycle() {
   cycleOn = true;
   roundIndex = 0;
+  bpm = BPM_START;             // 템포 초기화(라운드마다 가속)
   resetVotes();
   resetNuanceEffect();
   document.body.classList.remove('gift-time');   // 라운드 동안 선물 숨김
@@ -1230,53 +1250,73 @@ function startCycle() {
   beginCountIn();
 }
 
-// 예비박(4초 카운트인) — 타이핑은 잠그되 투표는 계속 받는다.
+// 현재 템포의 한 박 길이(ms).
+function beatMs() { return 60000 / bpm; }
+
+// 예비박(4박 카운트인) — 타이핑은 잠그되 투표는 계속 받는다.
 function beginCountIn() {
   state.phase = 'countin';
-  roundDur = ROUND_DURATIONS[roundIndex % ROUND_DURATIONS.length];
-  phaseEndsAt = performance.now() + COUNTIN_SECONDS * 1000;
-  countinShown = -1;
+  beatsLeft = COUNTIN_BEATS;
+  nextBeatAt = performance.now();                     // 첫 박 즉시
+  phaseEndsAt = performance.now() + COUNTIN_BEATS * beatMs();
   if (hidden) hidden.blur();
   $('#round-gauge')?.classList.add('hidden');
-  const lbl = $('#countin-label'); if (lbl) lbl.textContent = `다음 ${roundDur}초 · ready`;
+  const lbl = $('#countin-label'); if (lbl) lbl.textContent = `${Math.round(bpm)} BPM · ready`;
   $('#countin')?.classList.remove('hidden');
 }
 
-// 라운드 본 구간 — 타이핑 + 투표.
+// 라운드 본 구간 — 타이핑 + 투표. 4박이며 템포는 라운드마다 빨라진다.
 function beginRound() {
   state.phase = 'round';
-  phaseEndsAt = performance.now() + roundDur * 1000;
+  beatsLeft = BEATS_PER_ROUND;
+  nextBeatAt = performance.now();                     // 라운드 첫 박 즉시
+  phaseEndsAt = performance.now() + BEATS_PER_ROUND * beatMs();
   $('#countin')?.classList.add('hidden');
   $('#round-gauge')?.classList.remove('hidden');
-  const dl = $('#round-dur'); if (dl) dl.textContent = `${roundDur}″`;
+  const dl = $('#round-dur'); if (dl) dl.textContent = `${Math.round(bpm)}BPM`;
+  const dots = $('#beat-dots');   // 박 수만큼 빈 동그라미로 리셋
+  if (dots) dots.innerHTML = Array.from({ length: BEATS_PER_ROUND }, () => '<span class="beat-dot"></span>').join('');
   setTimeout(() => hidden.focus(), 40);
 }
 
-// 매 프레임(loop)에서 호출 — 예비박/라운드 진행과 전환을 처리.
+// 매 프레임(loop)에서 호출 — 메트로놈 박(가속) + 예비박/라운드 전환 처리.
 function tickCycle() {
   if (!cycleOn) return;
   const now = performance.now();
-  const remain = Math.max(0, phaseEndsAt - now);
-  if (state.phase === 'countin') {
-    const n = Math.ceil(remain / 1000);   // 4,3,2,1
-    if (n !== countinShown) {
-      countinShown = n;
+  const bMs = beatMs();
+  const countin = state.phase === 'countin';
+  // 메트로놈 — 박마다 트랩 비트. 라운드가 갈수록 고조(heat 0→1).
+  const heat = Math.min(1, roundIndex / 5);
+  while (beatsLeft > 0 && now >= nextBeatAt) {
+    if (countin) {
       const numEl = $('#countin-num');
-      if (numEl && n >= 1) {
-        numEl.textContent = String(n);
+      if (numEl) {
+        numEl.textContent = String(beatsLeft);
         numEl.classList.remove('tick'); void numEl.offsetWidth; numEl.classList.add('tick');
       }
-      if (n >= 1) uiClick(0.32 + (COUNTIN_SECONDS - n) * 0.12);   // 또각또각, 마지막이 더 높게
+      countTick(beatsLeft, roundIndex);                        // 4·3·2·1 — 라운드마다 업그레이드
+      beatKick(beatsLeft === 1, bMs / 1000, false, heat);      // 예비박 킥(마지막 '1' 더 세게)
+    } else {
+      const strong = beatsLeft === BEATS_PER_ROUND;            // 라운드 첫 박 강조
+      const snare = beatsLeft % 2 === 1;                       // 2·4박에 백비트 클랩
+      beatKick(strong, bMs / 1000, snare, heat);
+      // 비트 동그라미 — 이번 박을 검게 채우고 톡 튀게
+      const dots = $$('#beat-dots .beat-dot');
+      const idx = BEATS_PER_ROUND - beatsLeft;
+      if (dots[idx]) { dots[idx].classList.add('on', 'now'); setTimeout(() => dots[idx]?.classList.remove('now'), 320); }
     }
-    if (remain <= 0) beginRound();
-  } else if (state.phase === 'round') {
-    const frac = remain / (roundDur * 1000);
-    const fill = $('#round-gauge-fill'); if (fill) fill.style.width = `${frac * 100}%`;
-    const secs = $('#round-secs'); if (secs) secs.textContent = Math.ceil(remain / 1000);
-    if (remain <= 0) {
-      commitPendingInput();              // 초 끝 = 자동 엔터(치던 입력 전송)
+    beatsLeft--;
+    nextBeatAt += bMs;
+  }
+  const remain = Math.max(0, phaseEndsAt - now);
+  if (remain <= 0) {
+    if (countin) { beginRound(); }
+    else {
+      commitPendingInput();              // 박 끝 = 자동 엔터(치던 입력 전송)
       if (!cycleOn) return;              // 그 입력으로 그리드가 꽉 차 선물 단계로 갔으면 멈춤
-      roundIndex++; beginCountIn();      // 다음 길이로 예비박부터
+      roundIndex++;
+      bpm = Math.min(BPM_MAX, bpm * BPM_ACCEL);   // 다음 라운드 가속
+      beginCountIn();
     }
   }
 }
@@ -1287,11 +1327,11 @@ function castVote(kind, who = 'perf') {
   nuanceVotes[kind] = (nuanceVotes[kind] || 0) + 1;
   spawnHeart(kind, who);
   flashMarkKey(kind);
-  playMark(kind, 0, who === 'aud' ? 0.6 : 0.75);   // 가벼운 피드백음
+  // 부호 누르는 소리는 내지 않는다 — 대신 타이핑 목소리의 억양이 확 바뀐다.
   updateTally();
-  // 실시간 리더가 바뀌면 그 말투를 즉시 사운드 전체에 입힌다.
+  // 실시간 리더가 바뀌면 그 말투를 즉시(짧은 스무딩) 타이핑 목소리에 입힌다.
   const lead = computeLeader();
-  if (lead && lead !== liveLeader) { liveLeader = lead; applyNuanceEffect(lead, 0.3); }
+  if (lead && lead !== liveLeader) { liveLeader = lead; applyNuanceEffect(lead, 0.06); }
 }
 
 // 인스타 라이브 하트처럼 — 누른 부호 아이콘이 아래에서 위로 떠오르며 사라진다.
@@ -1343,7 +1383,6 @@ function endCycle() {
   if (hidden) hidden.blur();
   winningNuance = computeLeader();
   applyNuanceEffect(winningNuance || 'neutral', 0.4);   // 승자 말투를 엔딩까지 고정
-  const fill = $('#round-gauge-fill'); if (fill) fill.style.width = '0%';
   $('#round-gauge')?.classList.add('hidden');
   $('#countin')?.classList.add('hidden');
   $('#round-stop')?.classList.add('hidden');
@@ -1520,10 +1559,11 @@ function sendMessage() {
   // 메시지에 리듬을 직접 붙여 둔다 → 엔딩 악보가 화자별로 빠짐없이(실제 리듬으로) 재구성된다.
   // pick = 캐릭터 인덱스(스프라이트·색·이름). voiceId = 원래 소리·글리프 체계 인덱스.
   const voiceId = characterVoice(state.picks[p]);
-  state.messages.push({ player: p, pick: state.picks[p], voiceId, text, mood, garble, rhythm });
+  // 보낸 순간의 뉘앙스(투표 리더)도 함께 저장 → 엔딩 악보에서 문장부호로 발음된다.
+  state.messages.push({ player: p, pick: state.picks[p], voiceId, text, mood, garble, rhythm, nuance: computeLeader() || 'period' });
   state.lastMood = mood;
   addBubble(p, text);                          // 스코어에 화자 기호로 쌓는다
-  speakVoiceEvents(rhythm, voiceId, mood);
+  // 메시지 읽어주기(speakVoiceEvents)는 다음 파트에서 쓰기로 하고 잠시 꺼둠 — 리듬은 엔딩 합주용으로 계속 보관.
   if (rhythm.length) state.rhythms.push({ player: p, voiceId, events: rhythm, garble });  // 엔딩 합주용 보관(실제 리듬+화자+가블)
   typeEvents = [];                             // 다음 메시지를 위해 리셋
 
@@ -2326,17 +2366,28 @@ function startEndingScore() {
   resumeAudio();   // 긴 플레이로 컨텍스트가 멈춰 있어도 엔딩 소리가 나오게
   endingPhase = 1;
   orchestraScore = null;
-  endingScore = buildScore();
-  const spb = 60 / SCORE_TEMPO;
-  scoreTotalMs = endingScore.totalBeats * spb * 1000;
-  scoreStartWall = performance.now() + 200;   // playScore의 0.2초 선행과 맞춤
-  stopScore = playScore(endingScore.notes, {
-    tempo: SCORE_TEMPO, root: endingScore.root,
-    // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
-    onDone: () => { if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase(); },
+  endingScore = buildScore();   // 그리기(악보 시각화)는 그대로 이 데이터로
+  // 1단계 소리 — 라이브에서 아껴둔 "원래 읽어주는 소리"로 대화를 악보처럼 차례로 재생하고,
+  // 각 문장 끝에 그때 투표된 문장부호(뉘앙스)를 발음한다. 이것이 곧 악보화다.
+  const msgs = state.messages.filter((m) => m.rhythm && m.rhythm.length);
+  const timers = [];
+  let tSec = 0.2;
+  const GAP = 0.55;                                    // 문장 사이 숨
+  msgs.forEach((m) => {
+    const last = m.rhythm[m.rhythm.length - 1];
+    const dur = (last ? last.rel : 0) + 0.5;           // 이 발화의 실제 길이
+    timers.push(setTimeout(() => speakVoiceEvents(m.rhythm, m.voiceId, m.mood), tSec * 1000));
+    timers.push(setTimeout(() => playMark(m.nuance || 'period', 0, 0.9), (tSec + dur) * 1000));  // 문장부호
+    tSec += dur + GAP;
   });
-  // 승자 뉘앙스 이펙트(applyNuanceEffect)는 마스터 인서트에 이미 걸려 있어,
-  // 엔딩 악보·합주 소리에 그대로 입혀진다.
+  scoreTotalMs = Math.max(1000, tSec * 1000);          // 그리기 진행도 재생 길이에 맞춤
+  scoreStartWall = performance.now() + 200;
+  // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
+  timers.push(setTimeout(() => {
+    if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase();
+  }, scoreTotalMs + 400));
+  stopScore = () => timers.forEach(clearTimeout);
+  // 승자 뉘앙스 이펙트(applyNuanceEffect)는 목소리 버스에 걸려 있어 발화에 입혀진다.
   // 실제 그리기는 메인 loop()의 ending 분기에서 매 프레임 수행한다.
 }
 
@@ -2399,8 +2450,8 @@ function showEnding() {
     : descsKo[di];
   $('#ending-fill').style.width = `${pct}%`;
   $('#ending-fill').style.background = connColor(shown);
-  $('#ending-stat').textContent = SCORE
-    ? `${state.messages.length} · ${pct}%`
+  $('#ending-stat').innerHTML = SCORE
+    ? `소통 ${pct}% · 주고받은 말 ${state.messages.length}마디<br><span class="en">Communication ${pct}% · ${state.messages.length} interactions</span>`
     : MINIMAL
     ? `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%  /  ${state.messages.length} words exchanged · ${pct}% rapport`
     : `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%`;
@@ -2460,7 +2511,7 @@ window.addEventListener('keydown', (e) => {
   // 어떤 키든(자음 단독·한글 조합 중 포함) 타건음을 낸다.
   if (!mod && !IGNORE_KEYS.includes(e.key)) {
     const ch = (e.key && e.key.length === 1) ? e.key : null;
-    typeKey(e.key, base(state.turn), characterVoice(state.picks[state.turn]));
+    typeVoice(e.key, base(state.turn), characterVoice(state.picks[state.turn]));   // 타자 = 캐릭터 목소리(뉘앙스가 억양을 바꾼다)
     typeEvents.push({ t: performance.now(), ch }); // 친 시각+글자 그대로 기록
   }
 
@@ -2482,10 +2533,12 @@ document.body.addEventListener('click', (e) => {
   if (!btn) return;
   const act = btn.dataset.action;
   if (act === 'start') {
-    // 첫 클릭은 오디오를 깨우고 타이틀 사운드를 들려준다(머문다).
-    // 같은 제스처로 바로 넘어가면 타이틀 음악이 안 들리므로, 방금 깨운
-    // 경우엔 화면을 넘기지 않고 다음 클릭에서 진입한다.
+    // 첫 클릭은 오디오를 깨우고 리버스 스웰 인트로를 시작한다(머문다).
+    // 같은 제스처로 바로 넘어가면 인트로가 안 들리므로, 방금 깨운
+    // 경우엔 화면을 넘기지 않고 인트로를 들려준다(끝나면 자동 전환).
     if (!audioReady || performance.now() - audioWokenAt < 600) { ensureAudio(); return; }
+    // 인트로 도중 다시 누르면 건너뛰고 바로 캐릭터 선택으로.
+    clearTimeout(introTimer); introTimer = null;
     updateSelectUI(); show('select');
   }
   else if (act === 'random') { uiClick(Math.random()); randomMatch(); }

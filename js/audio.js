@@ -30,11 +30,14 @@ export function initAudio() {
   comp.ratio.value = 4;
   comp.attack.value = 0.006;
   comp.release.value = 0.25;
-  // 마스터 출력 전체에 "뉘앙스 이펙트" 인서트를 끼운다(master → nuanceFx → comp → 출력).
-  // 8초 라운드에서 가장 많이 눌린 부호가 이 인서트의 파라미터를 실시간으로 바꾼다.
-  buildNuanceFx(master, comp);
+  // "뉘앙스 이펙트"는 목소리 버스에만 끼운다(voiceBus → nuanceFx → comp).
+  // 비트·배경음(master)은 그대로 comp로 직행 → 부호는 타이핑/목소리만 물들인다.
+  voiceBus = ctx.createGain();
+  buildNuanceFx(voiceBus, comp);
+  master.connect(comp);
   comp.connect(ctx.destination);
 }
+let voiceBus = null;   // 타이핑·발화 전용 버스(뉘앙스 이펙트 통과)
 
 // ===== 뉘앙스 이펙트 인서트 (마스터 전역) =====
 // lowpass(먹먹함) · tremolo(흔들림) · drive(거칢) · reverb send(공간) 4축으로
@@ -117,14 +120,14 @@ function giftBus() {
   const dry = ctx.createGain(); dry.gain.value = 0.8;   // 원음
   const wet = ctx.createGain(); wet.gain.value = 1.0;   // 리버브
   const wetLp = ctx.createBiquadFilter(); wetLp.type = 'lowpass'; wetLp.frequency.value = 6000;
-  inp.connect(dry); dry.connect(master);
-  inp.connect(conv); conv.connect(wetLp); wetLp.connect(wet); wet.connect(master);
+  inp.connect(dry); dry.connect(voiceBus || master);
+  inp.connect(conv); conv.connect(wetLp); wetLp.connect(wet); wet.connect(voiceBus || master);
   giftInput = inp;
   return inp;
 }
-// 이 목소리가 향할 목적지 — 선물 받았으면 리버브 버스, 아니면 마스터.
+// 이 목소리가 향할 목적지 — 선물 받았으면 리버브 버스, 아니면 목소리 버스(뉘앙스 통과).
 function destFor(voiceId) {
-  return (voiceId != null && ctx && giftedVoices.has(voiceId)) ? giftBus() : master;
+  return (voiceId != null && ctx && giftedVoices.has(voiceId)) ? giftBus() : (voiceBus || master);
 }
 export function setGift(voiceId, on) {
   if (voiceId == null) return;
@@ -153,8 +156,8 @@ function emit(event) {
 const VOICES = [
   // 0 핑크토마토 — 밝고 또랑또랑
   { wave: 'square',   oct:  0,  bpMul: 1.5, lpMul: 1.0, q: 4,   vib: 0.15, vibHz: 6,   ttsPitch: 1.15, ttsRate: 1.05, voiceIdx: 0 },
-  // 1 심해어 — 깊고 먹먹한 저음
-  { wave: 'triangle', oct: -12, bpMul: 0.9, lpMul: 0.5, q: 2,   vib: 0.08, vibHz: 4,   ttsPitch: 0.55, ttsRate: 0.9,  voiceIdx: 1 },
+  // 1 심해어 — 깊고 먹먹한 저음 (저역이라 묻히기 쉬워 gain으로 보정)
+  { wave: 'triangle', oct: -12, bpMul: 0.9, lpMul: 0.5, q: 2,   vib: 0.08, vibHz: 4,   ttsPitch: 0.55, ttsRate: 0.9,  voiceIdx: 1, gain: 2.1 },
   // 2 새 — 높고 지저귀는
   { wave: 'square',   oct: +12, bpMul: 1.8, lpMul: 1.3, q: 6,   vib: 0.45, vibHz: 11,  ttsPitch: 1.7,  ttsRate: 1.2,  voiceIdx: 2 },
   // 3 우파루파 — 동글동글 보드라운
@@ -246,19 +249,47 @@ function typeHit(pitch01, base, voiceId, dest) {
   const v = voiceFor(voiceId);
   const now = ctx.currentTime;
   const octMul = v ? Math.pow(2, v.oct / 12) : 1;
-  const freq = (220 + base * 240 + pitch01 * 520) * octMul;
+  let freq = (220 + base * 240 + pitch01 * 520) * octMul;
 
-  // 피치 블립 — 짧고 단단하게(날카로운 어택 → 리듬의 점이 또렷)
+  // 투표로 뽑힌 뉘앙스(nfxState)가 타건의 "말투"를 정한다.
+  //  . 차분 / ? 끝올림 / ! 강조 / … 흐림 / ~ 발랄 / ; 띠꺼움
+  let peak = 0.34 * ((v && v.gain) || 1), dur = 0.06, endMul = 0.72, atk = 0.003, vib = 0, buzz = false;
+  switch (nfxState) {
+    case 'period':    freq *= 0.82; peak = 0.24; endMul = 0.92; dur = 0.08; break;   // 낮고 부드럽게 가라앉는
+    case 'question':  endMul = 1.75; dur = 0.11; break;                              // 끝이 쓱 올라가는
+    case 'bang':      freq *= 1.12; peak = 0.55; endMul = 0.58; atk = 0.0015; break; // 세고 단단한 악센트
+    case 'ellipsis':  peak = 0.15; endMul = 0.5; dur = 0.2; atk = 0.012; break;      // 작게, 길게 사그라드는
+    case 'tilde':     vib = 1; endMul = 1.15; dur = 0.1; break;                      // 통통 비브라토
+    case 'semicolon': freq *= 0.93; endMul = 0.97; dur = 0.09; buzz = true; break;   // 낮게 눌러 삐딱한 버즈
+  }
+
+  // 피치 블립 — 뉘앙스별 곡선(어택→감쇠·글라이드)이 곧 억양이 된다
   const osc = ctx.createOscillator();
   osc.type = v ? v.wave : 'square';
   osc.frequency.setValueAtTime(freq * 1.02, now);
-  osc.frequency.exponentialRampToValueAtTime(freq * 0.72, now + 0.05);
+  osc.frequency.exponentialRampToValueAtTime(freq * endMul, now + dur * 0.85);
   const og = ctx.createGain();
   og.gain.setValueAtTime(0.0001, now);
-  og.gain.exponentialRampToValueAtTime(0.34, now + 0.003);
-  og.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+  og.gain.exponentialRampToValueAtTime(peak, now + atk);
+  og.gain.exponentialRampToValueAtTime(0.0001, now + dur);
   osc.connect(og); og.connect(dest);
-  osc.start(now); osc.stop(now + 0.08);
+  osc.start(now); osc.stop(now + dur + 0.02);
+  if (vib) {                                        // ~ 발랄: 빠른 비브라토
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 11;
+    const lg = ctx.createGain(); lg.gain.value = freq * 0.05;
+    lfo.connect(lg); lg.connect(osc.frequency);
+    lfo.start(now); lfo.stop(now + dur + 0.02);
+  }
+  if (buzz) {                                       // ; 띠꺼움: 미세하게 어긋난 톱니가 거슬리게 비빔
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(freq * 0.985, now);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, now);
+    g2.gain.exponentialRampToValueAtTime(peak * 0.45, now + atk);
+    g2.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    o2.connect(g2); g2.connect(dest);
+    o2.start(now); o2.stop(now + dur + 0.02);
+  }
 
   // 클릭 트랜지언트 — 타건감, 리듬이 도드라지게
   const click = ctx.createBufferSource(); click.buffer = clickBuf();
@@ -293,9 +324,40 @@ export function typeKey(ch = null, base = 0.5, voiceId = null) {
   emit({ type: 'type', char: c || '?', pitch: p, base });
 }
 
+// 타자 한 타 = 그 캐릭터의 "목소리" 한 음절(포먼트 보이스).
+// 투표로 뽑힌 뉘앙스(nfxState)가 억양을 극적으로 바꾼다 — 누가 들어도 확 다르게.
+const TYPE_VOWELS = ['a', 'e', 'i', 'o', 'u'];
+export function typeVoice(ch = null, base = 0.5, voiceId = null) {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const prof = speakProfile(voiceId);
+  const now = ctx.currentTime;
+  const c = (typeof ch === 'string' && ch.length === 1) ? ch : null;
+  const p = c ? pitchForChar(c) : Math.random();
+  const vowel = TYPE_VOWELS[c ? c.charCodeAt(0) % TYPE_VOWELS.length : (Math.random() * 5) | 0];
+  let freq = prof.f0 * (0.85 + p * 0.7);
+  let dur = 0.13, gain = prof.gain, over = {};
+  switch (nfxState) {
+    case 'period':      // 차분 — 낮게 가라앉는 담담한 중얼거림
+      freq *= 0.7; dur = 0.17; gain *= 0.85; over = { vib: 0, glide: -0.12 }; break;
+    case 'question':    // 되물음 — 끝이 확 올라가는
+      dur = 0.2; over = { glide: 1.1 }; break;
+    case 'bang':        // 강조 — 높고 크고 짧게 내리꽂는
+      freq *= 1.3; dur = 0.09; gain *= 2.0; over = { wave: 'sawtooth', glide: -0.25, q: prof.q + 4 }; break;
+    case 'ellipsis':    // 흐림 — 작고 길게 스러지는 속삭임
+      freq *= 0.85; dur = 0.32; gain *= 0.4; over = { lp: prof.lp * 0.35, glide: -0.3, vib: 0.02 }; break;
+    case 'tilde':       // 발랄 — 크게 출렁이는 노래하는 비브라토
+      dur = 0.22; gain *= 1.2; over = { vib: 0.4, vibHz: 8.5, glide: 0.25 }; break;
+    case 'semicolon':   // 띠꺼움 — 삐딱하게 눌러 끄는 콧소리
+      freq *= 0.82; dur = 0.15; gain *= 1.1; over = { wave: 'sawtooth', formant: prof.formant * 0.78, glide: -0.06, vib: 0.06, vibHz: 3 }; break;
+  }
+  speakNote({ ...prof, ...over }, freq, vowel, now, dur, gain, destFor(voiceId), [], true);
+  emit({ type: 'type', char: c || '?', pitch: p, base });
+}
+
 // UI 클릭음 — 캐릭터 고르기 화살표·랜덤매칭·대화시작 버튼 등.
 // 타이핑 이펙트 랙을 거치지 않는 깔끔한 단음(마스터로 직결).
-export function uiClick(pitch = 0.5) {
+export function uiClick(pitch = 0.5, gain = 0.16) {
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume();
   const t = ctx.currentTime;
@@ -306,7 +368,7 @@ export function uiClick(pitch = 0.5) {
   osc.frequency.setValueAtTime(freq, t);
   osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.04);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.16, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
   osc.connect(g).connect(master);
   osc.start(t);
@@ -465,7 +527,7 @@ const SPEAK = [
   // 0 핑크토마토 — 아름다운 여성: 높은 기음 + 포먼트 위로, 부드러운 비브라토
   { f0: 300, wave: 'sawtooth', formant: 1.18, lp: 5200, vib: 0.03, vibHz: 5.5, q: 9,  step: 0.105, dur: 0.16, glide: 0,    gran: 0,   tremolo: 0,   tremHz: 0,  gain: 0.42 },
   // 1 심해어 — 저음의 동굴 목소리: 낮은 기음 + 포먼트 아래 + 동굴 리버브
-  { f0: 90,  wave: 'sawtooth', formant: 0.80, lp: 1300, vib: 0.02, vibHz: 3.5, q: 7,  step: 0.135, dur: 0.24, glide: 0,    gran: 0,   tremolo: 0,   tremHz: 0,  gain: 0.5,  cave: 0.75 },
+  { f0: 90,  wave: 'sawtooth', formant: 0.80, lp: 1300, vib: 0.02, vibHz: 3.5, q: 7,  step: 0.135, dur: 0.24, glide: 0,    gran: 0,   tremolo: 0,   tremHz: 0,  gain: 0.9,  cave: 0.75 },
   // 2 새 — 짹짹: 아주 높은 기음 + 위로 글라이드 + 짧고 빠르게
   { f0: 660, wave: 'square',   formant: 1.30, lp: 6000, vib: 0.05, vibHz: 9,   q: 6,  step: 0.075, dur: 0.085,glide: 0.5,  gran: 0,   tremolo: 0,   tremHz: 0,  gain: 0.34 },
   // 3 우파루파 — LPF가 심하게 걸린 목소리(그래도 들림): 컷오프 아주 낮게
@@ -1128,75 +1190,220 @@ function makeBreathLayer(dest) {
   };
 }
 
+// ---- 8비트 퍼커션(킥/스네어/하이햇) — 강한 킥의 펀치 있는 그루브용 ----
+let drumNoiseBuf = null;
+function drumNoise() {
+  if (drumNoiseBuf) return drumNoiseBuf;
+  const len = Math.floor(ctx.sampleRate * 0.5);
+  const b = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;   // 화이트 노이즈
+  drumNoiseBuf = b; return b;
+}
+// 강한 8비트 킥 — 빠른 피치 드롭(165→44Hz) + 노이즈 클릭으로 어택을 "딱!" 때린다.
+function kick8(when, dest, gain = 1.1) {
+  const o = ctx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(165, when);
+  o.frequency.exponentialRampToValueAtTime(44, when + 0.09);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, when);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.3);
+  o.connect(g); g.connect(dest);
+  o.start(when); o.stop(when + 0.32);
+  // 클릭 트랜지언트(어택 강조)
+  const n = ctx.createBufferSource(); n.buffer = drumNoise();
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1400;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(gain * 0.7, when);
+  ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.03);
+  n.connect(hp); hp.connect(ng); ng.connect(dest);
+  n.start(when); n.stop(when + 0.05);
+}
+// 8비트 스네어 — 하이패스 노이즈 + 삼각파 바디.
+function snare8(when, dest, gain = 0.5) {
+  const n = ctx.createBufferSource(); n.buffer = drumNoise();
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1600;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, when);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.17);
+  n.connect(hp); hp.connect(g); g.connect(dest);
+  n.start(when); n.stop(when + 0.19);
+  const o = ctx.createOscillator(); o.type = 'triangle';
+  o.frequency.setValueAtTime(190, when);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(gain * 0.5, when);
+  og.gain.exponentialRampToValueAtTime(0.0001, when + 0.11);
+  o.connect(og); og.connect(dest); o.start(when); o.stop(when + 0.13);
+}
+// 8비트 하이햇 — 아주 짧은 고역 노이즈 칩.
+function hat8(when, dest, gain = 0.05) {
+  const n = ctx.createBufferSource(); n.buffer = drumNoise();
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, when);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.045);
+  n.connect(hp); hp.connect(g); g.connect(dest);
+  n.start(when); n.stop(when + 0.06);
+}
+
+// 디스토션 곡선 — 드럼/베이스를 찌그러뜨려 블론아웃(Death Grips풍)으로.
+function distCurve(amount) {
+  const n = 1024, c = new Float32Array(n), k = amount;
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = (1 + k) * x / (1 + k * Math.abs(x)); }
+  return c;
+}
+
+// 키치한 효과음 — 코인/보잉/반짝/잽/뿅 중 하나를 랜덤으로(촌스럽고 귀엽게).
+// 깔끔한 채널(dest=out)로 보내 더러운 드럼과 대비시킨다.
+function kitschFx(when, dest) {
+  const g = ctx.createGain(); g.gain.value = 0.5; g.connect(dest);
+  const kind = (Math.random() * 5) | 0;
+  if (kind === 0) {                                  // 코인(마리오풍 2음)
+    pluck8(mtof(83), when, 0.08, 0.16, 'square', g);
+    pluck8(mtof(88), when + 0.07, 0.16, 0.16, 'square', g);
+  } else if (kind === 1) {                           // 보잉(아래로 미끄러지는 토이)
+    slideTone(when, 880, 150, 0.24, 'triangle', 0.2, g);
+  } else if (kind === 2) {                           // 반짝 상승 아르페지오
+    [0, 4, 7, 12].forEach((d, k) => pluck8(mtof(72 + d), when + k * 0.04, 0.1, 0.12, 'square', g));
+  } else if (kind === 3) {                           // 잽(빠른 하강 스윕)
+    slideTone(when, 1200, 120, 0.12, 'sawtooth', 0.16, g);
+  } else {                                           // 뿅(위로 슬라이드)
+    slideTone(when, 220, 1100, 0.13, 'square', 0.14, g);
+  }
+}
+// 주파수를 미끄러뜨리는 한 음(효과음용).
+function slideTone(when, f0, f1, dur, type, gain, dest) {
+  const o = ctx.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(f0, when);
+  o.frequency.exponentialRampToValueAtTime(f1, when + dur);
+  const e = ctx.createGain(); e.gain.setValueAtTime(gain, when);
+  e.gain.exponentialRampToValueAtTime(0.0001, when + dur + 0.02);
+  o.connect(e); e.connect(dest); o.start(when); o.stop(when + dur + 0.04);
+}
+
+// 공유 그루브 엔진 — 정박을 깬 실험적 인더스트리얼(찌그러진 드럼·싱코페이션·글리치).
+// 타이틀/선택 화면이 함께 쓴다. kitsch=true면 위에 키치 효과음을 흩뿌린다.
+function industrialGroove(out, { kitsch = false } = {}) {
+  // 드럼/베이스 디스토션 버스(찌그러짐). 리드/효과음은 깔끔한 out로 보내 대비.
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = distCurve(55); shaper.oversample = '4x';
+  const drive = ctx.createGain(); drive.gain.value = 0.9;
+  drive.connect(shaper); shaper.connect(out);
+
+  const root = 33;                 // A1(55Hz)
+  const bpm = 138;
+  const step = 60 / bpm / 4;       // 16분음표 길이(초)
+  const swing = 0.18;              // 홀수 16분을 뒤로 밀어 그루브를 비튼다
+
+  // 부서진 싱코페이션 패턴들 — 마디마다 무작위로 갈아끼워 예측 불가하게.
+  const KICKS = [
+    [1,0,0,1,0,1,0,0, 1,0,1,0,0,0,1,0],
+    [1,0,1,0,0,1,0,1, 0,0,1,0,1,0,0,1],
+    [1,0,0,0,1,0,1,1, 0,1,0,0,1,0,1,0],
+  ];
+  const SNARES = [
+    [0,0,0,0,1,0,0,0, 0,0,1,0,0,0,0,1],
+    [0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0],
+  ];
+  const BASSDEG = [0, 0, 3, -2, 7, 0, 10, 5];
+  const LEAD = [0, 3, 5, 10, 12, 15];
+
+  let i = 0, kp = KICKS[0], sp = SNARES[0];
+  let next = ctx.currentTime + 0.06;
+  return setInterval(() => {
+    const t = ctx.currentTime;
+    while (next < t + 0.12) {
+      const s = i % 16;
+      if (s === 0) {                 // 새 마디마다 패턴 셔플
+        kp = KICKS[(Math.random() * KICKS.length) | 0];
+        sp = SNARES[(Math.random() * SNARES.length) | 0];
+      }
+      // 스윙 + 미세 흔들림(휴머나이즈)으로 정박을 무너뜨린다.
+      const sw = (s % 2 === 1) ? step * swing : 0;
+      const at = next + sw + (Math.random() - 0.5) * 0.012;
+
+      if (kp[s]) kick8(at, drive, 1.0 + Math.random() * 0.35);
+      else if (Math.random() < 0.12) kick8(at, drive, 0.4);          // 유령 킥
+      if (sp[s]) {
+        snare8(at, drive, 0.5);
+        if (Math.random() < 0.28)                                    // 글리치 스터터(32분 롤)
+          for (let k = 1; k <= 3; k++) snare8(at + step * 0.25 * k, drive, 0.3);
+      } else if (Math.random() < 0.10) snare8(at, drive, 0.18);      // 유령 스네어
+      if (Math.random() < 0.6) hat8(at, drive, 0.03 + Math.random() * 0.04);  // 불규칙 하이햇
+      // 찌그러진 톱니 베이스 — 싱코페이션으로 띄엄띄엄.
+      if (s === 0 || Math.random() < 0.28)
+        pluck8(mtof(root + BASSDEG[i % BASSDEG.length]), at, step * 1.8, 0.5, 'sawtooth', drive);
+      // 리드(깔끔한 채널) — 드물게 튀어나오는 광기 포인트.
+      if (Math.random() < 0.12)
+        pluck8(mtof(root + 24 + LEAD[(Math.random() * LEAD.length) | 0]), at, step * 0.9, 0.09, 'square', out);
+      // 키치 효과음 — 가끔 흩뿌린다(선택 화면 전용).
+      if (kitsch && Math.random() < 0.07) kitschFx(at, out);
+
+      i++; next += step;
+    }
+  }, 22);
+}
+
+// 타이틀 인트로 — 리버스 딜레이/리버스 리버브풍 메아리.
+// 작은 음량으로 시작해 ~10초간 점점 커지며, 두 목소리(완전5도)가
+// 점점 가까이·자주·크게 메아리치다 마지막에 "커넥션"으로 만난다.
+export const TITLE_INTRO_SEC = 10;
 export function startTitleMusic() {
   if (!ctx || titleSeq) return;
   if (ctx.state === 'suspended') ctx.resume();
   ensureReverb();
   const now = ctx.currentTime;
+  const DUR = TITLE_INTRO_SEC;
 
-  // --- 후경: 셰퍼드 글리산도 (낮은 음량으로 뒤에 깐다) ---
-  const back = ctx.createGain(); back.gain.value = 0.0001;
-  back.connect(master);
-  back.gain.setTargetAtTime(0.3, now, 1.4);
-  const verb = ctx.createGain(); verb.gain.value = 0.55;   // 몽환적으로 리버브 듬뿍
-  back.connect(verb); verb.connect(reverb);
+  // 전체 스웰 — 작게 시작해 10초간 점점 커진다.
+  const swell = ctx.createGain();
+  swell.gain.setValueAtTime(0.03, now);
+  swell.gain.exponentialRampToValueAtTime(0.9, now + DUR);
+  swell.connect(master);
 
-  const fMin = 55, fMax = 55 * Math.pow(2, 5);             // A1~A6 (5옥타브)
-  const logMin = Math.log2(fMin), logMax = Math.log2(fMax);
-  const span = logMax - logMin;
-  const N = 7;
-  const voices = [];
-  for (let i = 0; i < N; i++) {
-    const o = ctx.createOscillator(); o.type = 'sine';
-    const g = ctx.createGain(); g.gain.value = 0;
-    o.connect(g); g.connect(back);
-    const p = logMin + (i / N) * span;                     // 로그-피치 균등 배치
-    o.frequency.value = Math.pow(2, p);
-    o.start(now);
-    voices.push({ o, g, p });
+  // 리버스 딜레이(메아리) — 피드백 에코 + 리버브 듬뿍.
+  const delay = ctx.createDelay(1.0); delay.delayTime.value = 0.42;
+  const fb = ctx.createGain(); fb.gain.value = 0.55;
+  delay.connect(fb); fb.connect(delay);
+  const wet = ctx.createGain(); wet.gain.value = 0.85;
+  delay.connect(wet); wet.connect(swell);
+  const verb = ctx.createGain(); verb.gain.value = 0.7;
+  wet.connect(verb); verb.connect(reverb);
+
+  // 리버스 스웰 한 방울 — 진폭이 0→피크로 천천히 차오르는(역재생) 엔벨로프.
+  function swellDrop(when, freq, dur, peak) {
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(peak, when + dur * 0.92);   // 천천히 차오름(리버스)
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);        // 끝에서 톡 사라짐
+    o.connect(g); g.connect(delay);                                 // 딜레이(메아리)로 보냄
+    o.start(when); o.stop(when + dur + 0.05);
   }
-  // 종 모양 음량창: 중역에서 가장 크고 양 끝(고·저)에서 0 → 무한 상승 이음매 숨김
-  const ampFor = (p) => Math.sin(Math.PI * ((p - logMin) / span)) * 0.15;
 
-  // 연속 상승: 작은 폭을 자주 갱신해 "끊기지 않고" 매끄럽게 글라이드.
-  const cycleSec = 20;                  // 5옥타브를 천천히 가로지르는 시간 → 끝없이
-  const tick = 0.06;
-  const perTick = span * (tick / cycleSec);
-  const timer = setInterval(() => {
-    const t = ctx.currentTime;
-    voices.forEach((v) => {
-      v.p += perTick;
-      if (v.p > logMax) v.p -= span;     // 천장 넘으면 바닥으로 되돌려 끝없이
-      const f = Math.pow(2, v.p);
-      v.o.frequency.setTargetAtTime(f, t, tick * 0.9);     // 부드럽게 이어짐
-      v.g.gain.setTargetAtTime(ampFor(v.p), t, tick * 0.9);
-    });
-  }, tick * 1000);
+  // 커넥션 모티프 — 두 목소리가 점점 가까이·크게 메아리친다(미리 스케줄).
+  const A = mtof(45), B = mtof(52);   // 두 목소리(완전5도)
+  let t = now + 0.1, gap = 1.6, peak = 0.05;
+  while (t < now + DUR) {
+    swellDrop(t, A, gap * 0.9, peak);
+    swellDrop(t + gap * 0.45, B, gap * 0.7, peak * 0.9);
+    t += gap;
+    gap = Math.max(0.2, gap * 0.82);          // 점점 간격 좁힘(다가옴), 최소 0.2초 하한 → 루프가 끝까지 도달
+    peak = Math.min(0.35, peak * 1.28);       // 점점 커짐
+  }
+  // 마지막 "커넥션" — 두 음이 함께 피크로 만나는 한 방.
+  swellDrop(now + DUR, A, 1.4, 0.42);
+  swellDrop(now + DUR + 0.02, B, 1.4, 0.42);
 
-  // --- 전경: 숨소리 ---
-  const fore = ctx.createGain(); fore.gain.value = 0.0001;
-  fore.connect(master);
-  fore.gain.setTargetAtTime(0.6, now, 1.0);
-  const foreVerb = ctx.createGain(); foreVerb.gain.value = 0.18;
-  fore.connect(foreVerb); foreVerb.connect(reverb);
-  const breath = makeBreathLayer(fore);
-
-  // --- 바닥: 잔잔한 저음 베드 ---
-  const bed = makeAmbienceBed(back);
-
-  titleSeq = { back, fore, voices, timer, bed, breath };
+  titleSeq = { out: swell, timer: null };
 }
 
 export function stopTitleMusic() {
   if (!titleSeq) return;
   const t = titleSeq; titleSeq = null;
   clearInterval(t.timer);
-  const end = ctx.currentTime + 1.6;
-  t.back.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
-  t.fore.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
-  t.voices.forEach((v) => { try { v.o.stop(end); } catch (e) {} });
-  t.breath.stop();
-  stopBed(t.bed);
+  t.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
 }
 
 // ============================================================
@@ -1204,53 +1411,162 @@ export function stopTitleMusic() {
 // ============================================================
 let selectSeq = null;
 
-export function startSelectTone() {
-  if (!ctx || selectSeq) return;
-  if (ctx.state === 'suspended') ctx.resume();
-  const out = ctx.createGain(); out.gain.value = 0.0001;
-  out.connect(master);
-  out.gain.setTargetAtTime(0.32, ctx.currentTime, 0.3);
-
-  const root = 57;                          // A3
-  const PENTA = [0, 2, 4, 7, 9];            // 장5음계 — 밝은 8비트
-  const BASS = [0, 0, 7, 5, 0, 9, 7, 4];    // 마디별 베이스 음정(반음)
-  const ARP = [0, 2, 4, 7, 9, 7, 4, 2];     // 아르페지오 진행
-  const step = 0.15;                        // 16분음표 (~100 BPM의 16분)
-  let i = 0;
-  let next = ctx.currentTime + 0.06;
-  const timer = setInterval(() => {
-    const now = ctx.currentTime;
-    while (next < now + 0.12) {
-      const bar = Math.floor(i / 8);
-      // 리드(square) — 매 스텝 아르페지오, 가끔 한 옥타브 위로
-      if (Math.random() < 0.92) {
-        const deg = ARP[i % ARP.length];
-        const oct = (i % 16 < 8) ? 12 : 24;
-        pluck8(mtof(root + oct + deg), next, step * 1.4, 0.12, 'square', out);
-      }
-      // 베이스(triangle) — 4스텝마다
-      if (i % 4 === 0) {
-        pluck8(mtof(root - 12 + BASS[bar % BASS.length]), next, step * 3.2, 0.22, 'triangle', out);
-      }
-      // 하이햇풍 짧은 고음 칩 — 2스텝마다 옅게
-      if (i % 2 === 1) {
-        pluck8(mtof(root + 36 + PENTA[(i * 3) % PENTA.length]), next, step * 0.5, 0.04, 'square', out);
-      }
-      i++;
-      next += step;
-    }
-  }, 25);
-
-  const bed = makeAmbienceBed(out);
-  selectSeq = { out, timer, bed };
-}
+// 캐릭터 선택(룰렛) 화면 — 비트 없음. 룰렛 스핀(또로로로롱)·틱·착지 소리만 들린다.
+export function startSelectTone() {}
 
 export function stopSelectTone() {
   if (!selectSeq) return;
   const s = selectSeq; selectSeq = null;
   clearInterval(s.timer);
-  s.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.2);
-  stopBed(s.bed);
+  s.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
+}
+
+// ============================================================
+//  플레이(대화) 화면 — 카운트다운 박에 맞춘 힙합/트랩 비트.
+//  라운드마다 템포가 빨라진다(가속). 박마다 beatKick()이 불려 부밍 808 킥 +
+//  백비트 클랩 + 빠른 하이햇 롤을 깐다. 퍼포머의 타이핑이 그 위 탑라인.
+// ============================================================
+// 부밍 808 킥 — 깊은 서브로 글라이드하며 길게 울린다(트랩).
+function kick808(when, dest, gain = 1.0) {
+  const o = ctx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(120, when);
+  o.frequency.exponentialRampToValueAtTime(40, when + 0.12);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(gain, when + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.5);
+  o.connect(g); g.connect(dest);
+  o.start(when); o.stop(when + 0.55);
+  // 클릭 어택(펀치)
+  const n = ctx.createBufferSource(); n.buffer = drumNoise();
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(gain * 0.5, when);
+  ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.02);
+  n.connect(hp); hp.connect(ng); ng.connect(dest);
+  n.start(when); n.stop(when + 0.03);
+}
+// 트랩 클랩/스네어 — 짧은 노이즈 버스트 여러 개로 '짝'.
+function clap8(when, dest, gain = 0.4) {
+  for (let k = 0; k < 3; k++) {
+    const t = when + k * 0.008;
+    const n = ctx.createBufferSource(); n.buffer = drumNoise();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    n.connect(bp); bp.connect(g); g.connect(dest);
+    n.start(t); n.stop(t + 0.14);
+  }
+}
+
+// 룰렛 '또로록' 틱 — 밴드패스 노이즈 짧은 클릭(스피닝 릴 질감).
+function ratchetTick(when, dest, gain = 0.03) {
+  const n = ctx.createBufferSource(); n.buffer = drumNoise();
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 4200; bp.Q.value = 2.5;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, when);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.03);
+  n.connect(bp); bp.connect(g); g.connect(dest);
+  n.start(when); n.stop(when + 0.04);
+}
+
+let playBeat = null;
+export function startPlayBeat() {
+  if (!ctx || playBeat) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const out = ctx.createGain(); out.gain.value = 0.7;   // 808은 존재감 있게, 타이핑이 그 위 탑라인
+  out.connect(master);
+  // 타자 밑에 깔리는 룰렛 스핀 베드 — 조용한 릴 틱을 계속 굴린다.
+  const ratchet = setInterval(() => {
+    if (!playBeat || !ctx) return;
+    ratchetTick(ctx.currentTime, out, 0.022);
+  }, 82);
+  playBeat = { out, ratchet };
+}
+
+export function stopPlayBeat() {
+  if (!playBeat) return;
+  const p = playBeat; playBeat = null;
+  clearInterval(p.ratchet);
+  p.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.2);
+}
+
+// 박마다 호출 — 트랩 한 박: 808 킥 + (백비트)클랩 + 빠른 하이햇 롤.
+// beatSec = 이 박의 길이(초). heat(0..1) = 고조 — 라운드가 갈수록
+// 킥이 세지고, 햇 롤이 촘촘해지고, 오프비트 킥·더블 클랩이 끼어든다.
+export function beatKick(strong = false, beatSec = 0.5, snare = false, heat = 0) {
+  if (!playBeat) return;
+  const dest = playBeat.out;
+  const now = ctx.currentTime;
+  kick808(now, dest, (strong ? 1.0 : 0.82) * (1 + heat * 0.45));
+  if (heat > 0.3 && Math.random() < heat * 0.6) kick808(now + beatSec * 0.5, dest, 0.4 + heat * 0.3);  // 오프비트 킥
+  if (snare) {
+    clap8(now, dest, 0.38 + heat * 0.2);
+    if (heat > 0.5 && Math.random() < 0.5) clap8(now + beatSec * 0.25, dest, 0.2);   // 더블 클랩
+  }
+  // 하이햇 — 박을 4등분, 고조될수록 32분 롤 확률·음량 상승(트랩 특유).
+  const sub = 4;
+  for (let i = 0; i < sub; i++) {
+    const ht = now + (i / sub) * beatSec;
+    if (i === 0 || Math.random() < 0.75 + heat * 0.25) hat8(ht, dest, (i === 0 ? 0.055 : 0.03) * (1 + heat));
+    if (Math.random() < 0.22 + heat * 0.5) hat8(ht + (beatSec / sub) * 0.5, dest, 0.022 * (1 + heat));  // 32분 롤
+  }
+}
+
+// 예비박 4·3·2·1 틱 — 라운드가 갈수록(level) 업그레이드된다:
+// 피치가 점점 높아지고, 옥타브 더블링·상승 슬라이드·반짝임이 층층이 붙는다.
+export function countTick(n, level = 0) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.value = 1; out.connect(master);
+  const baseMidi = 76 + (4 - n) * 2 + Math.min(12, level * 2);   // 갈수록·다가올수록 높게
+  pluck8(mtof(baseMidi), now, 0.12, 0.2 + level * 0.03, 'square', out);
+  if (level >= 1) pluck8(mtof(baseMidi + 12), now, 0.1, 0.1, 'square', out);              // 옥타브 더블링
+  if (level >= 2) slideTone(now, mtof(baseMidi), mtof(baseMidi + 7), 0.12, 'triangle', 0.12, out);  // 위로 쓱
+  if (level >= 3 && n === 1) [0, 4, 7, 12].forEach((d, k) =>                              // 마지막 '1' 반짝
+    pluck8(mtof(baseMidi + d), now + k * 0.03, 0.1, 0.1, 'square', out));
+}
+
+// ============================================================
+//  슬롯(룰렛) 스핀 사운드 — 키치한 '또로로로롱'.
+//  점점 빨라지고 높아지는 아르페지오로 긴장을 쌓다가(정신없게),
+//  착지 때 밝은 화음으로 확 풀어준다(이완). 코르티스풍 하이퍼팝 텐션.
+// ============================================================
+export function slotSpin(dur = 1.5) {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const now = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.value = 0.55; out.connect(master);
+  const verb = ctx.createGain(); verb.gain.value = 0.28; out.connect(verb); verb.connect(reverb);
+
+  const scale = [0, 2, 4, 7, 9];      // 장5음계 — 밝고 키치하게
+  const baseMidi = 74;                // 높은 음역(또로록 삑삑)
+  let t = now, step = 0.052, i = 0;
+  while (t < now + dur) {
+    const prog = (t - now) / dur;                       // 0→1 진행
+    const deg = scale[i % scale.length];
+    const oct = (Math.floor(i / scale.length) % 3) * 12; // 굴러 올라가며 옥타브 상승(긴장)
+    const f = mtof(baseMidi + deg + oct);
+    pluck8(f, t, step * 1.7, 0.12 + prog * 0.1, 'square', out);      // 점점 커짐
+    if (Math.random() < 0.5) pluck8(f * 2, t + step * 0.5, step * 0.8, 0.05, 'square', out); // 정신없는 옥타브 칩
+    i++;
+    t += step;
+    step = Math.max(0.026, step * 0.93);               // 점점 빨라짐(가속=긴장), 하한으로 루프 종료 보장
+  }
+}
+
+// 착지 — 밝은 장화음 '팅~'으로 이완(릴리스).
+export function slotLand() {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const now = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.value = 0.5; out.connect(master);
+  const verb = ctx.createGain(); verb.gain.value = 0.3; out.connect(verb); verb.connect(reverb);
+  [0, 4, 7, 12].forEach((d, k) => pluck8(mtof(74 + d), now + k * 0.02, 0.6, 0.14, 'triangle', out));
 }
 
 // ============================================================
