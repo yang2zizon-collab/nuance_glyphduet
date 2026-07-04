@@ -311,15 +311,15 @@ function drawIntroScene(t) {
   const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
   if (!introCanvas) { introCanvas = document.createElement('canvas'); introCtx = introCanvas.getContext('2d', { willReadFrequently: true }); }
   if (introCanvas.width !== pw || introCanvas.height !== ph) { introCanvas.width = pw; introCanvas.height = ph; }
+  // 캐릭터(컬러) 레이어는 풀해상도 — 저해상 디더를 거치지 않아 픽셀아트가 또렷하다
   if (!introColorCanvas) { introColorCanvas = document.createElement('canvas'); introColorCtx = introColorCanvas.getContext('2d'); }
-  if (introColorCanvas.width !== pw || introColorCanvas.height !== ph) { introColorCanvas.width = pw; introColorCanvas.height = ph; }
+  if (introColorCanvas.width !== W || introColorCanvas.height !== H) { introColorCanvas.width = W; introColorCanvas.height = H; }
   const ctx = introCtx;
   ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
   ctx.imageSmoothingEnabled = true;
   const cctx = introColorCtx;
-  cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, pw, ph);
-  cctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
-  cctx.imageSmoothingEnabled = true;
+  cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, W, H);
+  cctx.imageSmoothingEnabled = false;
 
   const s = (performance.now() - introScene.start) / 1000;
   const kind = introScene.kind;
@@ -365,34 +365,86 @@ function drawIntroScene(t) {
     sg.addColorStop(0, lo); sg.addColorStop(0.55, '#7a7a7a'); sg.addColorStop(1, hi);
     ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   };
-  // 옛날 다이얼 전화기 — dark=false면 밝은 몸체(어두운 배경용)
+  // 옛날 다이얼 전화기 — 현실적인 비례: 사다리꼴 몸체·크래들·다이얼(손가락 구멍 10개)·수화기.
+  // dark=true면 검정 몸체(밝은 배경용), false면 밝은 몸체(어두운 배경용).
   const rotary = (x, y, k, dark) => {
-    const bw = S * 0.62 * k, bh = S * 0.46 * k;
-    const body = dark ? '#141414' : '#e9e9e9', det = dark ? '#efefef' : '#141414';
+    const bw = S * 0.78 * k, bh = S * 0.52 * k;
+    const body = dark ? '#141414' : '#e9e9e9';
+    const det = dark ? '#efefef' : '#141414';
+    const mid = dark ? '#3a3a3a' : '#bdbdbd';
+    ctx.save();
+    // 받침 발 두 개
+    ctx.fillStyle = body;
+    ctx.fillRect(x - bw * 0.42, y - bh * 0.05, bw * 0.12, bh * 0.08);
+    ctx.fillRect(x + bw * 0.30, y - bh * 0.05, bw * 0.12, bh * 0.08);
+    // 몸체 — 어깨가 둥근 사다리꼴(아래 넓고 위 좁음)
     ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.moveTo(x - bw / 2, y); ctx.lineTo(x + bw / 2, y);
-    ctx.lineTo(x + bw * 0.36, y - bh); ctx.lineTo(x - bw * 0.36, y - bh);
+    ctx.moveTo(x - bw / 2, y);
+    ctx.lineTo(x + bw / 2, y);
+    ctx.quadraticCurveTo(x + bw * 0.48, y - bh * 0.55, x + bw * 0.30, y - bh * 0.82);
+    ctx.quadraticCurveTo(x + bw * 0.16, y - bh, x, y - bh);
+    ctx.quadraticCurveTo(x - bw * 0.16, y - bh, x - bw * 0.30, y - bh * 0.82);
+    ctx.quadraticCurveTo(x - bw * 0.48, y - bh * 0.55, x - bw / 2, y);
     ctx.closePath(); ctx.fill();
-    // 다이얼(구멍 링)
-    const dy = y - bh * 0.4, dr = bh * 0.34;
-    ctx.fillStyle = det; ctx.beginPath(); ctx.arc(x, dy, dr, 0, 7); ctx.fill();
-    ctx.fillStyle = body;
-    for (let i = 0; i < 6; i++) {
-      const a = -0.5 + i * 0.75;
-      ctx.beginPath(); ctx.arc(x + Math.cos(a) * dr * 0.68, dy + Math.sin(a) * dr * 0.68, dr * 0.14, 0, 7); ctx.fill();
+    // 몸체 하이라이트(왼쪽 어깨 결)
+    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = Math.max(1.5, S * 0.02 * k);
+    ctx.beginPath();
+    ctx.moveTo(x - bw * 0.4, y - bh * 0.2);
+    ctx.quadraticCurveTo(x - bw * 0.36, y - bh * 0.62, x - bw * 0.2, y - bh * 0.84);
+    ctx.stroke();
+    // 다이얼 — 바깥 링 + 손가락 구멍 10개 + 중심 캡
+    const dy = y - bh * 0.42, dr = bh * 0.36;
+    ctx.fillStyle = det;
+    ctx.beginPath(); ctx.arc(x, dy, dr, 0, 7); ctx.fill();
+    ctx.fillStyle = mid;
+    ctx.beginPath(); ctx.arc(x, dy, dr * 0.82, 0, 7); ctx.fill();
+    ctx.fillStyle = dark ? '#0a0a0a' : '#f4f4f4';
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI * 0.38 + i * (Math.PI * 1.52 / 9);
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * dr * 0.62, dy + Math.sin(a) * dr * 0.62, dr * 0.115, 0, 7);
+      ctx.fill();
     }
-    ctx.beginPath(); ctx.arc(x, dy, dr * 0.22, 0, 7); ctx.fill();
-    // 수화기(위에 얹힘)
-    handset(x, y - bh - S * 0.1 * k, k, dark);
+    ctx.fillStyle = det;
+    ctx.beginPath(); ctx.arc(x, dy, dr * 0.24, 0, 7); ctx.fill();
+    // 손가락 멈춤쇠(오른쪽 아래 작은 갈고리)
+    ctx.strokeStyle = det; ctx.lineWidth = Math.max(2, dr * 0.14); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, dy, dr * 0.94, Math.PI * 0.12, Math.PI * 0.3); ctx.stroke();
+    // 크래들(수화기 받침 뿔 두 개)
+    ctx.fillStyle = body;
+    ctx.fillRect(x - bw * 0.34, y - bh * 1.12, bw * 0.09, bh * 0.16);
+    ctx.fillRect(x + bw * 0.25, y - bh * 1.12, bw * 0.09, bh * 0.16);
+    ctx.restore();
+    // 수화기 — 크래들 위에 눕는다
+    handset(x, y - bh * 1.16, k, dark);
   };
+  // 수화기 — 양끝 컵(귀·입) + 완만한 손잡이 바
   const handset = (x, y, k, dark) => {
     const col = dark ? '#141414' : '#e9e9e9';
-    ctx.strokeStyle = col; ctx.lineWidth = S * 0.085 * k; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(x, y + S * 0.16 * k, S * 0.22 * k, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+    const hw = S * 0.56 * k;
+    ctx.save();
+    ctx.strokeStyle = col; ctx.lineWidth = S * 0.075 * k; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - hw * 0.34, y - S * 0.02 * k);
+    ctx.quadraticCurveTo(x, y - S * 0.13 * k, x + hw * 0.34, y - S * 0.02 * k);
+    ctx.stroke();
     ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(x - S * 0.2 * k, y + S * 0.06 * k, S * 0.095 * k, 0, 7); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + S * 0.2 * k, y + S * 0.06 * k, S * 0.095 * k, 0, 7); ctx.fill();
+    // 양끝 컵 — 바깥으로 벌어진 원뿔형
+    [[-1, 0], [1, 0]].forEach(([sgn]) => {
+      const cx2 = x + sgn * hw * 0.42;
+      ctx.beginPath();
+      ctx.ellipse(cx2, y + S * 0.015 * k, S * 0.115 * k, S * 0.135 * k, sgn * 0.35, 0, 7);
+      ctx.fill();
+    });
+    // 스피커 구멍 힌트(반대색 점 3개)
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+    [[-1], [1]].forEach(([sgn]) => {
+      const cx2 = x + sgn * hw * 0.42;
+      ctx.beginPath(); ctx.arc(cx2, y + S * 0.015 * k, S * 0.02 * k, 0, 7); ctx.fill();
+    });
+    ctx.restore();
   };
   // 꼬불꼬불 전화선
   const cord = (x0, y0, x1, y1, col) => {
@@ -612,10 +664,44 @@ function drawIntroScene(t) {
     g = ctx.createLinearGradient(0, floorY, 0, H);
     g.addColorStop(0, '#bdbdbd'); g.addColorStop(1, '#606060');
     ctx.fillStyle = g; ctx.fillRect(0, floorY, W, H - floorY);
-    // 싱크대(오른쪽 실루엣) + 창문 빛(왼쪽)
-    ctx.fillStyle = '#161616';
-    ctx.fillRect(W * 0.8, H * 0.12, W * 0.2, floorY - H * 0.12);
-    ctx.fillRect(W * 0.77, H * 0.4, W * 0.23, S * 0.14);   // 카운터 턱
+    // ── 부엌 ── 위 찬장 + 타일 백스플래시 + 조리대(싱크·수도꼭지) + 아래 수납장
+    // 위 찬장(오른쪽 절반)
+    ctx.fillStyle = '#1b1b1b';
+    ctx.fillRect(W * 0.52, H * 0.06, W * 0.46, H * 0.2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+    ctx.strokeRect(W * 0.545, H * 0.08, W * 0.2, H * 0.16);    // 찬장 문 두 짝
+    ctx.strokeRect(W * 0.765, H * 0.08, W * 0.19, H * 0.16);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(W * 0.735, H * 0.15, W * 0.012, H * 0.03);    // 손잡이
+    ctx.fillRect(W * 0.775, H * 0.15, W * 0.012, H * 0.03);
+    // 백스플래시 타일(찬장~조리대 사이)
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.2;
+    for (let ty = H * 0.26; ty <= H * 0.46; ty += H * 0.05) {
+      ctx.beginPath(); ctx.moveTo(W * 0.52, ty); ctx.lineTo(W * 0.98, ty); ctx.stroke();
+    }
+    for (let tx = W * 0.52; tx <= W * 0.98; tx += W * 0.045) {
+      ctx.beginPath(); ctx.moveTo(tx, H * 0.26); ctx.lineTo(tx, H * 0.46); ctx.stroke();
+    }
+    // 조리대 상판 + 아래 수납장
+    ctx.fillStyle = '#dedede';
+    ctx.fillRect(W * 0.5, H * 0.46, W * 0.5, S * 0.12);        // 상판(밝게)
+    ctx.fillStyle = '#141414';
+    ctx.fillRect(W * 0.52, H * 0.46 + S * 0.12, W * 0.46, floorY - (H * 0.46 + S * 0.12));
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2;
+    ctx.strokeRect(W * 0.545, H * 0.5 + S * 0.12, W * 0.19, floorY - H * 0.52 - S * 0.12);   // 수납장 문
+    ctx.strokeRect(W * 0.755, H * 0.5 + S * 0.12, W * 0.2, floorY - H * 0.52 - S * 0.12);
+    // 싱크볼(상판에 파인 홈) + 수도꼭지
+    ctx.fillStyle = '#8e8e8e';
+    ctx.fillRect(W * 0.66, H * 0.462, W * 0.14, S * 0.07);
+    ctx.strokeStyle = '#0d0d0d'; ctx.lineWidth = S * 0.045; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.73, H * 0.455);
+    ctx.lineTo(W * 0.73, H * 0.385);
+    ctx.quadraticCurveTo(W * 0.73, H * 0.36, W * 0.705, H * 0.36);
+    ctx.lineTo(W * 0.69, H * 0.36);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W * 0.69, H * 0.36); ctx.lineTo(W * 0.69, H * 0.375); ctx.stroke();   // 물 나오는 입
+    // 창문(왼쪽) + 빛
     const wx = W * 0.1, wy = H * 0.1, ww = W * 0.13, wh = H * 0.28;
     ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillRect(wx, wy, ww, wh);
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
@@ -726,33 +812,33 @@ function drawIntroScene(t) {
     if (broomIn > 0) {
       // 스윙 — 자루 위쪽(손 근처)을 축으로 좌우로 쓸어낸다
       const swing = s > 4.5 ? Math.sin((s - 4.5) * 3.2) * 0.16 * (1 - seg2(s, 6.6, 7.4)) : 0;
-      const hx = W * (1.02 - broomIn * 0.24), hy = floorY - H * 0.52;   // 축(손 위치)
-      const bLen = H * 0.58;                                            // 자루 길이
+      const hx = W * (1.04 - broomIn * 0.3), hy = floorY - H * 0.78;    // 축(손 위치) — 더 높이
+      const bLen = H * 0.86;                                            // 자루 길이 — 큼직하게
       const ang = Math.PI * 0.62 + swing;                               // 기울기
       const bx2 = hx + Math.cos(ang) * bLen, by2 = hy + Math.sin(ang) * bLen;   // 빗살 목
       ctx.save();
       // 자루 — 가늘고 긴 나무 막대(밝은 결 한 줄)
-      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = S * 0.07; ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(hx, hy - S * 0.3); ctx.lineTo(bx2, by2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = S * 0.018;
-      ctx.beginPath(); ctx.moveTo(hx - S * 0.012, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.012, by2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = S * 0.028;
+      ctx.beginPath(); ctx.moveTo(hx - S * 0.02, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.02, by2); ctx.stroke();
       // 페룰(빗살 묶는 띠)
       ctx.save();
       ctx.translate(bx2, by2); ctx.rotate(ang - Math.PI / 2);
       ctx.fillStyle = '#e0e0e0';
-      ctx.fillRect(-S * 0.13, -S * 0.02, S * 0.26, S * 0.14);
-      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1.6;
-      ctx.strokeRect(-S * 0.13, -S * 0.02, S * 0.26, S * 0.14);
-      // 빗살 — 부챗살로 퍼지는 결(끝이 바닥에 닿아 살짝 휜다)
-      const tipY = Math.max(S * 0.5, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.92);
-      for (let i = 0; i < 15; i++) {
-        const u = i / 14 - 0.5;
+      ctx.fillRect(-S * 0.22, -S * 0.03, S * 0.44, S * 0.2);
+      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2;
+      ctx.strokeRect(-S * 0.22, -S * 0.03, S * 0.44, S * 0.2);
+      // 빗살 — 부챗살로 퍼지는 결(끝이 바닥에 닿아 살짝 휜다) — 큼직하게
+      const tipY = Math.max(S * 0.8, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.94);
+      for (let i = 0; i < 21; i++) {
+        const u = i / 20 - 0.5;
         const g2 = 0.35 + ((i * 13) % 5) * 0.1;
         ctx.strokeStyle = `rgba(${20 + ((i * 37) % 40)},${18 + ((i * 29) % 40)},${16 + ((i * 41) % 40)},${g2 + 0.45})`;
-        ctx.lineWidth = 2 + (i % 2);
+        ctx.lineWidth = 2.6 + (i % 2);
         ctx.beginPath();
-        ctx.moveTo(u * S * 0.2, S * 0.1);
-        ctx.quadraticCurveTo(u * S * 0.5, tipY * 0.6, u * S * 0.72 + swing * S * 1.6, tipY + ((i * 7) % 3) * 2);
+        ctx.moveTo(u * S * 0.36, S * 0.16);
+        ctx.quadraticCurveTo(u * S * 0.8, tipY * 0.6, u * S * 1.15 + swing * S * 1.8, tipY + ((i * 7) % 3) * 2.5);
         ctx.stroke();
       }
       ctx.restore();
