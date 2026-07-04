@@ -377,6 +377,13 @@ html, body { background: #ffffff; color: var(--ink); }
   100% { opacity: 0;   transform: translate(var(--dx, 0), -64vh) scale(0.9) rotate(var(--rot, 0deg)); }
 }
 
+/* 아스키아트 전환 — 글자들이 날아가는 동안 스코어판·캐릭터 열·입력칸을 숨긴다 */
+.theme-score.ascii-time #score-panel,
+.theme-score.ascii-time .pick-col,
+.theme-score.ascii-time #input-bar,
+.theme-score.ascii-time #round-gauge,
+.theme-score.ascii-time #gift-bar { visibility: hidden; }
+
 /* 관객 폰 참여 QR — 오른쪽 위 모서리 카드 */
 #mark-qr {
   position: fixed; right: 22px; top: 22px; z-index: 20;

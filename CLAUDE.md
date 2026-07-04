@@ -49,6 +49,8 @@ serve.py                로컬 서버
   남색(#3a4fa0)·새 귤색(#ff9d3b)·생쥐 연보라(#b9a6e8). `silhouetteDraw`가 `characterColor(idx)`로
   픽셀 단위 채색(silhouetteFill rgb 파라미터). CSS의 brightness(0) 필터는 제거됨(다시 넣으면 색이 죽는다).
   컷신에선 캐릭터를 별도 컬러 레이어(introColorCanvas)에 그려 디더링을 통과하지 않는다.
+  **컬러는 소개 컷신에서만** — silhouetteDraw 기본은 검정(마지막 color 인자를 넘길 때만 색).
+  룰렛·픽 열·듀엣·댄서 등 컷신 밖은 전부 흑백.
 - **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
   **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
   선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
@@ -93,6 +95,17 @@ serve.py                로컬 서버
   - **폰 접속 주소**: 같은 와이파이면 `/config`의 LAN 주소 QR. 데이터(셀룰러)로도 받으려면
     `cloudflared tunnel --url http://localhost:8777`로 공개주소를 만들고 메인을
     `?pub=<공개주소>`로 열면 QR이 그 주소를 가리킨다. 터널 없으면 LAN으로 폴백.
+- **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
+  말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
+- **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→`startAsciiArt()`. 최다 득표 부호(winningNuance)의
+  그림 마스크(`asciiMaskDraw`: ~=파도3겹 · !=번개 · .=지평선 위 해 · …=세 점 · ?/;=거대 글자)를 샘플링해,
+  스코어에 타이핑된 글자들이 원래 자리에서 "슈우우" 날아가(easeInOutCubic, ASCII_FLY=2.4s) 화면 가득
+  그림을 만들고 ASCII_HOLD=5s 머문 뒤 `endAsciiToEnding()`→엔딩. `body.ascii-time`으로 스코어판/열/입력칸 숨김.
+  POST `/ascii {mark,chars}`→SSE로 폰도 같은 그림을 폰 규격으로 렌더(tap.html artMaskDraw/renderArt,
+  라운드/idle에서 내려감).
+- **컷신 3D 연출**: 카메라 푸시인(zoom 1.05→1.18)+미세 흔들림(applyCam, 배경·컬러 레이어 동시),
+  perspFloor(소실점 원근 바닥) — 토마토(들판+깊이별 크기+긴 그림자+먼 토마토), 전화(구름 시차+원근 물결),
+  생쥐(마룻바닥 원근+거대 다리 전경 확대).
 - **캐릭터 소개 컷신(select 화면)**: 룰렛 착지 750ms 후 캐릭터별 컷신이 풀스크린(캔버스,
   흰 바탕·검정 실루엣)으로 재생 — `startIntroScene/drawIntroScene/endIntroScene`, `introScene`
   상태, 재생 중 슬롯머신 DOM 숨김(visibility)·레버 잠금(pullSlot 가드). 끝나면 슬롯 복귀.

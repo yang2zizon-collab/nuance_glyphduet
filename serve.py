@@ -86,6 +86,8 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return self.handle_phase()
         if path == '/gift':
             return self.handle_gift()
+        if path == '/ascii':
+            return self.handle_ascii()
         self.send_error(404)
 
     def _body_json(self):
@@ -104,6 +106,16 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'ok': False, 'error': 'bad phase'})
         current_phase['v'] = phase
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
+        return self._json(200, {'ok': True})
+
+    # 메인이 아스키아트(승자 부호 + 사용 글자들)를 알림 → 폰이 같은 그림을 그린다.
+    def handle_ascii(self):
+        data = self._body_json()
+        mark = str(data.get('mark', ''))
+        chars = str(data.get('chars', ''))[:800]
+        if mark not in MARKS or not chars:
+            return self._json(400, {'ok': False, 'error': 'bad ascii'})
+        broadcast(json.dumps({'type': 'ascii', 'mark': mark, 'chars': chars}))
         return self._json(200, {'ok': True})
 
     # 폰이 선물을 보냄(주는이→받는이) → 메인 화면이 받아 적용.
