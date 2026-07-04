@@ -5,6 +5,7 @@ import { initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, pla
          stopAmbience, playMark, applyNuanceEffect, resetNuanceEffect,
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
          startPlayBeat, stopPlayBeat, beatKick, countTick, slotSpin, slotLand,
+         giftChime, startGiftAmbience, stopGiftAmbience, playEndingMusic,
          playScreenWav, stopScreenWav, resumeAudio, setGift, clearGifts } from './audio.js';
 import { renderDisplay, isAlienLook } from './language.js';
 import { glyphForCode, glyphForChar, toAlien } from './glyphs.js';
@@ -2087,7 +2088,7 @@ function show(name) {
   for (const k in screens) { if (screens[k]) screens[k].classList.toggle('active', k === name); }
   // 이전 화면의 음악/사운드 정리
   if (prev !== name) {
-    if (prev === 'play') { stopAmbience(); stopPlayBeat(); }
+    if (prev === 'play') { stopAmbience(); stopPlayBeat(); stopGiftAmbience(); clearShowTimers(); marksOn = false; }
     if (prev === 'title') stopTitleMusic();
     if (prev === 'select') stopSelectTone();
     stopScreenWav();   // 이전 화면의 배경 WAV(있다면) 페이드 아웃
@@ -2605,7 +2606,7 @@ function giveSpecificGift(recip, giver) {
   highlightGifts();
   updateGiftBadge(recip);
   showGiftPopup(recip, giver, item);
-  uiClick(0.7);
+  giftChime();   // 리버브 잔뜩 먹인 하이텐션 벨이 울려 퍼진다
   // 받은 즉시 그 목소리로 짧게 울려 리버브를 들려준다.
   speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.16, ch: 'o' }], characterVoice(recip), 'happy');
 }
@@ -2703,11 +2704,23 @@ function postPhase(phase) {
   try { fetch('/phase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phase }) }).catch(() => {}); } catch (e) { /* 정적 서버 — 무시 */ }
 }
 
+// ===== 공연 타임라인 =====
+// 시작 30초(타이틀) → 캐릭터 선택(수동) → 대화 3분(타이핑만) →
+// 기호 인터랙션 5분(패드·QR 등장) → 선물 2분 → 악보화 ~3분30초.
+const SHOW = { talkMs: 180000, marksMs: 300000, giftMs: 120000, endTargetSec: 150, orchCapSec: 60 };
+let marksOn = false;         // 기호 인터랙션 단계 진입 여부(3분 전엔 투표 무시)
+let showTimers = [];
+function clearShowTimers() { showTimers.forEach(clearTimeout); showTimers = []; }
+
 // 사이클 시작 — startPlay에서 호출. 첫 라운드(32초) 예비박부터.
 function startCycle() {
   cycleOn = true;
   roundIndex = 0;
   bpm = BPM_START;             // 템포 초기화(라운드마다 가속)
+  // 공연 타이머 — 대화+기호 인터랙션은 처음부터 함께(총 8분), 8분 뒤 자동으로 선물 단계.
+  clearShowTimers();
+  marksOn = true;              // 투표는 처음부터 열려 있다
+  showTimers.push(setTimeout(() => { if (cycleOn) endCycle(); }, SHOW.talkMs + SHOW.marksMs));
   resetVotes();
   resetNuanceEffect();
   document.body.classList.remove('gift-time');   // 라운드 동안 선물 숨김
@@ -2795,6 +2808,7 @@ function tickCycle() {
 
 // 부호 한 표 — 퍼포머(버튼) / 관객(폰 SSE) 공통 진입점. 예비박·라운드 둘 다 투표 가능.
 function castVote(kind, who = 'perf') {
+  if (!marksOn) return;   // 대화 3분 동안은 기호 인터랙션 잠금
   if (!cycleOn || (state.phase !== 'round' && state.phase !== 'countin') || !MARK_GLYPH[kind]) return;
   nuanceVotes[kind] = (nuanceVotes[kind] || 0) + 1;
   spawnHeart(kind, who);
@@ -2841,7 +2855,8 @@ function updateTally() {
   for (const k of NUANCES) {
     const b = document.querySelector(`.mark-key[data-mark="${k}"]`);
     if (!b) continue;
-    const ct = b.querySelector('.mk-ct'); if (ct) ct.textContent = String(nuanceVotes[k] || 0);
+    const v = nuanceVotes[k] || 0;
+    const ct = b.querySelector('.mk-ct'); if (ct) ct.textContent = String(v);
     b.classList.toggle('lead', k === lead);
   }
 }
@@ -2850,6 +2865,11 @@ function updateTally() {
 function endCycle() {
   if (!cycleOn) return;
   cycleOn = false;          // 먼저 잠가 재진입 방지(commit→scoreFull→endCycle 루프 차단)
+  clearShowTimers();
+  marksOn = false;
+  showTimers.push(setTimeout(() => {   // 선물 2분 뒤 자동으로 엔딩 진행(▶ 수동도 가능)
+    if (document.body.classList.contains('gift-time')) giftDoneToEnding();
+  }, SHOW.giftMs));
   commitPendingInput();     // 마치는 순간 치던 입력도 자동 전송
   state.phase = 'gift';
   if (hidden) hidden.blur();
@@ -2862,6 +2882,8 @@ function endCycle() {
   const hl = $('#heart-layer'); if (hl) hl.innerHTML = '';   // 기호(하트)도 모두 제거
   // 선물 단계 — 이제야 선물이 보인다(라운드 동안 숨김). 폰도 선물 화면으로.
   document.body.classList.add('gift-time');
+  stopPlayBeat();          // 트랩 비트는 멈추고
+  startGiftAmbience();     // 뾱뾱거리는 그래뉼러 방울 배경으로
   postPhase('gift');
   const gb = $('#gift-bar');
   if (gb) {
@@ -2876,9 +2898,11 @@ function endCycle() {
 
 // 선물 단계 종료 → 아스키아트(글자들이 날아가 부호 그림) → 엔딩 연주.
 function giftDoneToEnding() {
+  clearShowTimers();
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
   document.body.classList.remove('gift-time');
+  stopGiftAmbience();
   startAsciiArt();
 }
 
@@ -4201,35 +4225,25 @@ function ensembleRhythms() {
 
 // 1단계 — 순차 듀엣: 두 사람이 말한 순서대로 한 줄 악보로 연주한다(현행).
 //          이게 끝나면 onDone에서 2단계(오케스트라 합주)로 넘어간다.
+let endingBeatTimer = null;   // 엔딩 → 오케스트라 전환 타이머
+let endingMusic = null;       // 엔딩 음악(엠비언트+리듬 멜로디) 핸들
 function startEndingScore() {
   stopEndingScore();
   resumeAudio();   // 긴 플레이로 컨텍스트가 멈춰 있어도 엔딩 소리가 나오게
   endingPhase = 1;
   orchestraScore = null;
   endingScore = buildScore();   // 그리기(악보 시각화)는 그대로 이 데이터로
-  // 1단계 소리 — 라이브에서 아껴둔 "원래 읽어주는 소리"로 대화를 악보처럼 차례로 재생하고,
-  // 각 문장 끝에 그때 투표된 문장부호(뉘앙스)를 발음한다. 이것이 곧 악보화다.
+  // 소리 — 비트 없이 엠비언트(드론+코드 패드)가 깔리고, 키보드로 친 리듬이
+  // 코드의 화음 톤을 캐릭터 목소리로 노래한다. 부호는 조용히, 리버브 은은히.
   const msgs = state.messages.filter((m) => m.rhythm && m.rhythm.length);
-  const timers = [];
-  let tSec = 0.2;
-  const SOLO_SPEED = 2;                                // 독주(순차 듀엣) 배속 — 2배 빠르게
-  const GAP = 0.3;                                     // 문장 사이 숨(배속에 맞춰 촘촘히)
-  msgs.forEach((m) => {
-    const fast = m.rhythm.map((e) => ({ ...e, rel: e.rel / SOLO_SPEED }));   // 리듬 압축
-    const last = fast[fast.length - 1];
-    const dur = (last ? last.rel : 0) + 0.35;          // 이 발화의 실제 길이(배속 반영)
-    timers.push(setTimeout(() => speakVoiceEvents(fast, m.voiceId, m.mood), tSec * 1000));
-    timers.push(setTimeout(() => playMark(m.nuance || 'period', 0, 0.9), (tSec + dur) * 1000));  // 문장부호
-    tSec += dur + GAP;
-  });
-  scoreTotalMs = Math.max(1000, tSec * 1000);          // 그리기 진행도 재생 길이에 맞춤
+  endingMusic = playEndingMusic(msgs, SHOW.endTargetSec);   // 1부 ~2분30초로 스트레치(+ 합주 최대 1분 = 총 ~3분30초)
+  scoreTotalMs = Math.max(1000, endingMusic.totalSec * 1000);   // 그리기 진행도 음악 길이에 맞춤
   scoreStartWall = performance.now() + 200;
   // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
-  timers.push(setTimeout(() => {
+  endingBeatTimer = setTimeout(() => {
     if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase();
-  }, scoreTotalMs + 400));
-  stopScore = () => timers.forEach(clearTimeout);
-  // 승자 뉘앙스 이펙트(applyNuanceEffect)는 목소리 버스에 걸려 있어 발화에 입혀진다.
+  }, scoreTotalMs + 400);
+  stopScore = () => { if (endingMusic) { endingMusic.stop(); endingMusic = null; } };
   // 실제 그리기는 메인 loop()의 ending 분기에서 매 프레임 수행한다.
 }
 
@@ -4246,7 +4260,7 @@ function startOrchestraPhase() {
   orchestraT0 = performance.now();
   document.body.classList.add('score-invert');
   const spb = 60 / SCORE_TEMPO;
-  scoreTotalMs = orchestraScore.totalBeats * spb * 1000;
+  scoreTotalMs = Math.min(orchestraScore.totalBeats * spb * 1000, SHOW.orchCapSec * 1000);   // 합주는 최대 1분
   scoreStartWall = performance.now() + 150;
   // 파트마다 실제 리듬을 트랙으로 — startBeat(랜덤 입장)을 offset(초)으로 준다.
   const tracks = orchestraScore.parts.map((p) => ({
@@ -4268,6 +4282,7 @@ function stopEndingScore() {
   if (stopScore) { stopScore(); stopScore = null; }
   if (stopEnsemble) { stopEnsemble(); stopEnsemble = null; }
   if (scoreAnim) { cancelAnimationFrame(scoreAnim); scoreAnim = null; }
+  if (endingBeatTimer) { clearTimeout(endingBeatTimer); endingBeatTimer = null; }
   endingPhase = 0;
   orchestraScore = null;
   orchestraT0 = 0;

@@ -369,7 +369,7 @@ html, body { background: #ffffff; color: var(--ink); }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   color: #000; background: #fff; border: 2px solid #000;
   box-shadow: 3px 3px 0 #000; cursor: pointer; user-select: none;
-  transition: transform .06s ease, box-shadow .06s ease, background .1s ease;
+  transition: transform .22s cubic-bezier(.3, 1.5, .5, 1), box-shadow .15s ease, background .2s ease;
 }
 .theme-score .mark-key .mk-sym { font-family: 'Datatype', monospace; font-size: clamp(24px, 2.8vw, 36px); font-weight: 700; line-height: 1; }
 .theme-score .mark-key .mk-ct { font-family: 'Datatype', monospace; font-size: 13px; color: #777; line-height: 1; }
@@ -378,9 +378,13 @@ html, body { background: #ffffff; color: var(--ink); }
   transform: translate(3px, 3px); box-shadow: none; background: #000; color: #fff;
 }
 .theme-score .mark-key.hit .mk-ct { color: #ccc; }
-/* 현재 최다 득표 — 굵게 채워 강조 */
-.theme-score .mark-key.lead { background: #000; color: #fff; box-shadow: 5px 5px 0 #888; }
-.theme-score .mark-key.lead .mk-ct { color: #ccc; }
+/* 현재 최다 득표 — 반투명하게 차오르며 살짝 커져서 강조 */
+.theme-score .mark-key.lead {
+  background: rgba(0, 0, 0, 0.18);
+  transform: scale(1.16);
+  box-shadow: 4px 4px 0 #000;
+}
+.theme-score .mark-key.lead .mk-ct { color: #333; }
 
 /* 선물 단계 바 — 라운드 종료 후, 패드 자리에 안내 + ▶ */
 .theme-score #gift-bar {

@@ -1347,7 +1347,7 @@ function industrialGroove(out, { kitsch = false } = {}) {
 // 타이틀 인트로 — 리버스 딜레이/리버스 리버브풍 메아리.
 // 작은 음량으로 시작해 ~10초간 점점 커지며, 두 목소리(완전5도)가
 // 점점 가까이·자주·크게 메아리치다 마지막에 "커넥션"으로 만난다.
-export const TITLE_INTRO_SEC = 10;
+export const TITLE_INTRO_SEC = 28;   // 공연 타임라인 — 시작 화면 ~30초(28초 스웰 + 여운)
 export function startTitleMusic() {
   if (!ctx || titleSeq) return;
   if (ctx.state === 'suspended') ctx.resume();
@@ -1384,13 +1384,13 @@ export function startTitleMusic() {
 
   // 커넥션 모티프 — 두 목소리가 점점 가까이·크게 메아리친다(미리 스케줄).
   const A = mtof(45), B = mtof(52);   // 두 목소리(완전5도)
-  let t = now + 0.1, gap = 1.6, peak = 0.05;
+  let t = now + 0.1, gap = 3.0, peak = 0.04;
   while (t < now + DUR) {
     swellDrop(t, A, gap * 0.9, peak);
     swellDrop(t + gap * 0.45, B, gap * 0.7, peak * 0.9);
     t += gap;
-    gap = Math.max(0.2, gap * 0.82);          // 점점 간격 좁힘(다가옴), 최소 0.2초 하한 → 루프가 끝까지 도달
-    peak = Math.min(0.35, peak * 1.28);       // 점점 커짐
+    gap = Math.max(0.32, gap * 0.9);          // 28초에 걸쳐 천천히 조여온다(하한 → 루프 종료 보장)
+    peak = Math.min(0.35, peak * 1.14);       // 점점 커짐
   }
   // 마지막 "커넥션" — 두 음이 함께 피크로 만나는 한 방.
   swellDrop(now + DUR, A, 1.4, 0.42);
@@ -1556,6 +1556,215 @@ export function slotSpin(dur = 1.5) {
     t += step;
     step = Math.max(0.026, step * 0.93);               // 점점 빨라짐(가속=긴장), 하한으로 루프 종료 보장
   }
+}
+
+// 선물 차임 — 리버브를 잔뜩 먹인 하이텐션 벨이 울려 퍼진다.
+// 높은 음역의 상승 아르페지오 + 반짝임을 거의 웻(wet)으로 보낸다.
+export function giftChime() {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const now = ctx.currentTime;
+  const dry = ctx.createGain(); dry.gain.value = 0.22; dry.connect(master);          // 원음은 살짝만
+  const wet = ctx.createGain(); wet.gain.value = 1.15; dry.connect(wet); wet.connect(reverb);  // 리버브 듬뿍
+  // 하이텐션 상승 아르페지오(장화음 + 9th) — 빠르게 치고 올라간다.
+  [0, 4, 7, 12, 14, 19, 24].forEach((d, k) =>
+    pluck8(mtof(88 + d), now + k * 0.045, 0.5, 0.16, 'triangle', dry));
+  // 꼭대기 반짝임 — 아주 높은 두 음이 길게 여운.
+  pluck8(mtof(112), now + 0.36, 1.2, 0.08, 'sine', dry);
+  pluck8(mtof(107), now + 0.42, 1.4, 0.07, 'sine', dry);
+}
+
+// 선물 단계 배경 — 프리즈+리버브 워시("샤아아앙~").
+// 높은 메이저틱 클러스터(C·E·G·B·D)가 얼어붙은 듯 지속되며 목소리마다
+// 서로 다른 주기로 천천히 숨 쉰다. 거의 웻(리버브) 위주 — 화성 진행 없음.
+let giftAmb = null;
+export function startGiftAmbience() {
+  if (!ctx || giftAmb) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const out = ctx.createGain(); out.gain.value = 0.0001;
+  out.connect(master);                                       // 드라이는 아주 살짝
+  out.gain.setTargetAtTime(0.2, ctx.currentTime, 0.8);
+  const verb = ctx.createGain(); verb.gain.value = 1.25;     // 리버브 듬뿍 — 샤아아앙
+  out.connect(verb); verb.connect(reverb);
+
+  const NOTES = [72, 76, 79, 83, 86, 91];                    // C5 E5 G5 B5 D6 G6 — 밝지만 화성 진행 없이 정지
+  let alive = true;
+  const voices = NOTES.map((m) => {
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.value = mtof(m) * (1 + (Math.random() - 0.5) * 0.004);   // 미세 디튠 — 천천히 일렁임
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    o.connect(g); g.connect(out); o.start();
+    let timer = null;
+    const breathe = () => {                                  // 목소리마다 다른 주기로 부풀었다 스러짐
+      if (!alive) return;
+      const t = ctx.currentTime;
+      const peak = 0.02 + Math.random() * 0.05;
+      const rise = 1.5 + Math.random() * 2.5;
+      g.gain.setTargetAtTime(peak, t, rise * 0.5);
+      g.gain.setTargetAtTime(0.004, t + rise, 1.6);
+      timer = setTimeout(breathe, (rise + 1.5 + Math.random() * 2.5) * 1000);
+    };
+    timer = setTimeout(breathe, Math.random() * 1800);
+    return { o, g, get timer() { return timer; } };
+  });
+  // 아주 낮은 몸통 한 음 — 바닥이 비지 않게.
+  const low = ctx.createOscillator(); low.type = 'sine'; low.frequency.value = mtof(48);
+  const lg = ctx.createGain(); lg.gain.value = 0.0001;
+  low.connect(lg); lg.connect(out); low.start();
+  lg.gain.setTargetAtTime(0.035, ctx.currentTime, 2);
+
+  giftAmb = {
+    out,
+    stop() {
+      alive = false;
+      out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.6);
+      const end = ctx.currentTime + 2.5;
+      voices.forEach((v) => { clearTimeout(v.timer); try { v.o.stop(end); } catch (e) {} });
+      try { low.stop(end); } catch (e) {}
+    },
+  };
+}
+export function stopGiftAmbience() {
+  if (!giftAmb) return;
+  const g = giftAmb; giftAmb = null;
+  g.stop();
+}
+
+// ============================================================
+//  엔딩 악보화 — 키보드로 친 리듬을 바탕으로 한 "음악".
+//  비트 없이: 낮은 드론+느린 코드 패드(엠비언트)가 깔리고, 각 발화의
+//  타이핑 리듬이 그 코드의 화음 톤을 캐릭터 목소리로 노래한다.
+//  리버브는 은은하게만. 마지막은 으뜸화음 스웰로 해결(이완).
+// ============================================================
+export function playEndingMusic(msgs, targetSec = 0) {
+  if (!ctx) return { totalSec: 1, stop() {} };
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const bin = [];        // 정지용 — 예약된 모든 소스를 모아둔다
+  const out = ctx.createGain(); out.gain.value = 0.9; out.connect(master);
+  const verb = ctx.createGain(); verb.gain.value = 0.15;   // 리버브는 은은하게만
+  out.connect(verb); verb.connect(reverb);
+
+  const root = 48;   // C3 기준
+  // C → Am → F → G 순환, 마지막은 C로 해결 — 흐름이 생긴다.
+  const PROG = [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]];
+  const t0 = ctx.currentTime + 0.25;
+
+  // 낮은 드론(루트+5도) — 엔딩 내내 깔리는 엠비언트 바닥.
+  const drones = [36, 43].map((m) => {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = mtof(m);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.07, t0 + 2.5);
+    o.connect(g); g.connect(out); o.start(t0);
+    bin.push(o);
+    return { o, g };
+  });
+
+  // 코드 패드 한 장 — 느리게 차오르고 스러진다.
+  const pad = (chord, when, dur) => {
+    chord.forEach((d) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = mtof(root + d);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(0.06, when + Math.min(1.4, dur * 0.4));
+      g.gain.setTargetAtTime(0.0001, when + dur * 0.75, 0.8);
+      o.connect(g); g.connect(out); o.start(when); o.stop(when + dur + 3);
+      bin.push(o);
+    });
+  };
+
+  // 캐릭터 음역 근처의 코드 톤으로 스냅 — 목소리마다 자기 높이에서 노래한다.
+  const snapTone = (chord, prof, ch) => {
+    const tones = [...chord, ...chord.map((d) => d + 12)];
+    const deg = tones[(ch ? ch.charCodeAt(0) : (Math.random() * 99) | 0) % tones.length];
+    const voiceMidi = Math.max(48, Math.min(84, Math.round(69 + 12 * Math.log2((prof.f0 || 220) / 440))));
+    return 48 + deg + 12 * Math.round((voiceMidi - 48 - deg) / 12);
+  };
+
+  const arc = (p) => (p < 0.7 ? p / 0.7 : 1 - (p - 0.7) / 0.3);   // 긴장-이완 아치
+  const voiceIds = [...new Set(msgs.map((m) => m.voiceId))];       // 등장한 캐릭터들
+  // 한 목소리가 리듬 조각을 노래한다 — 주고받기·합창의 공통 부품.
+  const sing = (voiceId, chord, events, when, squeeze, gain, durNote = 0.28) => {
+    const prof = speakProfile(voiceId);
+    const base = events.length ? events[0].rel : 0;
+    events.forEach((ev) => {
+      if (ev.ch === ' ' || ev.ch === '\n') return;
+      const midi = snapTone(chord, prof, ev.ch);
+      const vowel = TYPE_VOWELS[ev.ch ? ev.ch.charCodeAt(0) % TYPE_VOWELS.length : 0];
+      speakNote(prof, mtof(midi), vowel, when + (ev.rel - base) * squeeze, durNote,
+                gain * (prof.gain || 0.4) / 0.4, out, bin, true);
+    });
+  };
+
+  // 1패스 — 발화 길이와 쉼(가변)을 미리 계산해, 목표 길이에 맞게 쉼만 늘였다 줄인다.
+  const plan = msgs.map((m, i) => {
+    const p = msgs.length > 1 ? i / (msgs.length - 1) : 0;
+    const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
+    const squeeze = lastRel > 4 ? 4 / lastRel : 1;                // 길게 친 리듬은 4초 안으로
+    const dur = lastRel * squeeze + 0.8;
+    let respSpan = 0;
+    if (voiceIds.length > 1 && m.rhythm.length > 1) {
+      const frag = m.rhythm.slice(-Math.min(4, m.rhythm.length));
+      respSpan = (frag[frag.length - 1].rel - frag[0].rel) * squeeze * 0.9 + 0.3;
+    }
+    const gap = Math.max(0.2, 0.35 + (1 - arc(p)) * 1.5 + (Math.random() - 0.5) * 0.3)
+              + (i === msgs.length - 1 && msgs.length > 2 ? 1.4 : 0);   // 마지막 발화 전 침묵 포함
+    return { squeeze, dur, respSpan, gap };
+  });
+  const fixedSum = plan.reduce((s, x) => s + x.dur + x.respSpan * 0.5, 0);
+  const gapSum = plan.reduce((s, x) => s + x.gap, 0) || 1;
+  // 목표 길이가 있으면 쉼을 스케일(0.6~6배) — 발화 리듬 자체는 그대로 둔다.
+  const g = targetSec > 0
+    ? Math.max(0.6, Math.min(6, (targetSec - 0.4 - fixedSum - 8.5) / gapSum))
+    : 1;
+
+  let tSec = 0.4;
+  msgs.forEach((m, i) => {
+    const { squeeze, dur, respSpan, gap } = plan[i];
+    if (i === msgs.length - 1 && msgs.length > 2) tSec += 1.4 * g; // 정점 뒤 숨 — 마지막 발화 전 침묵
+    const chord = PROG[i % PROG.length];
+    pad(chord, t0 + tSec, dur + 1.2 + gap * g * 0.5);             // 이 발화의 화성(쉼까지 감싼다)
+    sing(m.voiceId, chord, m.rhythm, t0 + tSec, squeeze, 0.4);    // 친 리듬 그대로 — 코드 톤을 노래
+    playMark(m.nuance || 'period', tSec + dur - 0.2, 0.45);       // 문장부호는 조용히
+    // 주고받기 — 다른 캐릭터가 프레이즈 꼬리를 되받아 나직이 답한다.
+    if (respSpan > 0) {
+      const others = voiceIds.filter((v) => v !== m.voiceId);
+      const respId = others[(Math.random() * others.length) | 0];
+      const frag = m.rhythm.slice(-Math.min(4, m.rhythm.length));  // 끝 조각을 메아리처럼
+      sing(respId, chord, frag, t0 + tSec + dur * 0.8, squeeze * 0.9, 0.26, 0.24);
+    }
+    // 긴장일수록 다음 발화가 바짝, 이완이면 길게 쉼(응답 여유 포함).
+    tSec += dur + respSpan * 0.5 + (gap - (i === msgs.length - 1 && msgs.length > 2 ? 1.4 : 0)) * g;
+  });
+
+  // 합창 — 마지막 리듬을 모두가 함께, 각자 다른 화음 톤으로 쌓아 부른다.
+  if (msgs.length && voiceIds.length) {
+    const lastRhythm = msgs[msgs.length - 1].rhythm.slice(0, 8);
+    const span = lastRhythm.length > 1 ? lastRhythm[lastRhythm.length - 1].rel - lastRhythm[0].rel : 0.6;
+    const sq = span > 3 ? 3 / span : 1;
+    const CHORUS = [0, 4, 7, 12];                                 // 으뜸화음을 성부별로 나눠 갖는다
+    tSec += 0.5;                                                  // 합창 전 반 박 숨
+    voiceIds.forEach((vid, vi) =>
+      sing(vid, [CHORUS[vi % CHORUS.length]], lastRhythm, t0 + tSec, sq, 0.34, 0.34));
+    tSec += span * sq + 1.0;
+  }
+
+  // 마무리 — 으뜸화음(C) 스웰로 해결.
+  pad([0, 4, 7, 12], t0 + tSec, 4);
+  tSec += 3.2;
+  drones.forEach((d) => d.g.gain.setTargetAtTime(0.0001, t0 + tSec, 1.2));
+
+  return {
+    totalSec: tSec + 1,
+    stop() {
+      out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
+      const end = ctx.currentTime + 0.8;
+      bin.forEach((s) => { try { s.stop(end); } catch (e) { /* 이미 멈춤 */ } });
+    },
+  };
 }
 
 // 착지 — 밝은 장화음 '팅~'으로 이완(릴리스).
