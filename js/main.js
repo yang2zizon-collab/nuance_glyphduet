@@ -152,13 +152,16 @@ let slotTickIdx = -1;                // 스핀 틱 사운드용
 
 function resetSlot() {
   slotIndex = 0; slotSpinning = false; slotDisplay = -1; slotScroll = 0; slotLandAt = -1;
+  introScene = null;
+  if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = '';
   const nm = $('#slot-name'); if (nm) { nm.textContent = ''; nm.classList.remove('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `0 / ${N}`;
   const st = $('#slot-start'); if (st) st.classList.remove('ready');
 }
 
 function pullSlot() {
-  if (!SCORE || slotSpinning || slotIndex >= N) return;
+  if (!SCORE || slotSpinning || slotIndex >= N || introScene) return;
   slotTarget = (SLOT_ORDER[slotIndex] != null) ? SLOT_ORDER[slotIndex] : slotIndex;
   const CH = dexStage ? dexStage.width : 128;
   const span = N * CH;
@@ -175,14 +178,20 @@ function pullSlot() {
   if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 430); }
 }
 
-// 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신, 다 끝나면 시작 버튼 노출.
+// 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신 + 소개 컷신 시작.
+// 토마토(0)=따돌림 / 새(2)=심해어와 공동 '전화' / 생쥐(3)=치즈와 사람 발. 심해어(1)는 착지만.
 function onSlotLanded() {
   const nm = $('#slot-name'); if (nm) { nm.textContent = characterName(slotDisplay); nm.classList.add('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `${slotIndex} / ${N}`;
   const win = $('#slot-window'); if (win) { win.classList.remove('land'); void win.offsetWidth; win.classList.add('land'); }
   uiClick(0.85);   // 착지 딩
   speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');
-  if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
+  const kind = slotDisplay === 0 ? 'tomato' : slotDisplay === 2 ? 'phone' : slotDisplay === 3 ? 'mouse' : null;
+  if (kind) {
+    introTimer = setTimeout(() => { introTimer = null; startIntroScene(kind); }, 750);
+  } else if (slotIndex >= N) {
+    const st = $('#slot-start'); if (st) st.classList.add('ready');
+  }
 }
 
 function drawSlotWindow(t) {
@@ -231,6 +240,235 @@ function drawSlotWindow(t) {
     const centerIdx = ((Math.round(slotScroll / CH) % N) + N) % N;
     if (centerIdx !== slotTickIdx) { slotTickIdx = centerIdx; uiClick(0.22); }
   }
+}
+
+// ===== 캐릭터 소개 컷신 =====
+// 룰렛 착지 → 그 캐릭터의 소개 애니메이션이 풀스크린(흰 배경·검정 잉크)으로 재생되고,
+// 끝나면 슬롯머신이 돌아와 다음 룰렛을 돌린다. 재생 중엔 레버 잠금.
+//  tomato: 동그란 토마토들 사이에서 혼자 모양이 달라 따돌림받는 미운오리새끼.
+//  phone : (심해어+새 공동) 바다 끝 심해어와 하늘의 새가 전화기를 발견해 서로 전화 — 친구가 될 수 있을까?
+//  mouse : 도시의 집, 치즈 부스러기를 먹다 커다란 사람 발에 내쫓긴다.
+let introScene = null;    // { kind, start, dur, fx:{} }
+let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
+
+const INTRO_DUR = { tomato: 7000, phone: 8500, mouse: 7000 };
+
+function startIntroScene(kind) {
+  if (state.screen !== 'select') return;
+  introScene = { kind, start: performance.now(), dur: INTRO_DUR[kind] || 7000, fx: {} };
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = 'hidden';
+}
+
+function endIntroScene() {
+  introScene = null;
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = '';
+  if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
+}
+
+// 한 번만 울리는 컷신 효과음.
+function fxOnce(key, fn) { if (!introScene.fx[key]) { introScene.fx[key] = true; fn(); } }
+const easeIO = (u) => u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u);
+// 구간 진행도: 시각 s에서 [a,b] 구간을 0..1로.
+const seg = (s, a, b) => easeIO((s - a) / (b - a));
+
+function drawIntroMark(ctx, ch, x, y, px, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#000';
+  ctx.font = `${Math.round(px)}px Datatype, Galmuri11, monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(ch, x, y);
+  ctx.restore();
+}
+
+function drawIntroScene(t) {
+  const W = window.innerWidth, H = window.innerHeight;
+  const s = (performance.now() - introScene.start) / 1000;   // 경과 초
+  const kind = introScene.kind;
+  const S = Math.min(W, H) * 0.17;    // 캐릭터 크기
+  const ink = '#000';
+  const ctx = sctx;
+  // 등장/퇴장 페이드(흰 화면이므로 알파만)
+  const fade = Math.min(1, s / 0.5, (introScene.dur / 1000 - s) / 0.5);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, fade);
+
+  if (kind === 'tomato') {
+    // ── 핑크토마토 — 동그란 토마토들 무리에서 혼자 다른 모양 ──
+    const gy = H * 0.60;
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W * 0.08, gy + S * 0.52); ctx.lineTo(W * 0.92, gy + S * 0.52); ctx.stroke();
+    // 다가가기 → 무리가 흠칫 → 우르르 피하기 → 혼자 남기
+    const approach = seg(s, 0.2, 1.8);
+    const flee = seg(s, 3.0, 4.8);
+    const px = W * (0.16 + 0.16 * approach);
+    const bob = Math.sin(t * 3) * 4;
+    // 동그란 토마토 무리(단순 원+꼭지 — 우리 애랑 모양이 다르다)
+    for (let i = 0; i < 4; i++) {
+      const bx = W * (0.46 + i * 0.09 + flee * 0.22);
+      const hop = flee > 0 && flee < 1 ? Math.abs(Math.sin((flee * 3 + i * 0.4) * Math.PI)) * 10 : 0;
+      const r = S * 0.30;
+      const by = gy + S * 0.2 - hop + Math.sin(t * 2.4 + i) * 2;
+      ctx.fillStyle = ink;
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(bx, by - r); ctx.lineTo(bx + 4, by - r - 8); ctx.stroke();
+    }
+    // 흠칫 "!" (무리 위)
+    if (s > 2.0 && s < 3.0) drawIntroMark(ctx, '!', W * 0.6, gy - S * 0.55, S * 0.42, seg(s, 2.0, 2.3) * (1 - seg(s, 2.7, 3.0)));
+    fxOnce('gasp', () => setTimeout(() => uiClick(0.9), Math.max(0, (2.0 - s) * 1000)));
+    // 우리 핑크토마토(모양이 다른 아이)
+    silhouetteDraw(ctx, 0, px - S / 2, gy - S / 2 + bob * 0.4, S, t, false, s > 4.6 ? 'sad' : 'neutral', false);
+    // 혼자 남아 "…"
+    if (s > 5.0) {
+      drawIntroMark(ctx, '…', px, gy - S * 0.72, S * 0.4, seg(s, 5.0, 5.5));
+      fxOnce('sad', () => speakVoiceEvents([{ rel: 0, ch: 'u' }, { rel: 0.35, ch: 'u' }], characterVoice(0), 'sad'));
+    }
+  } else if (kind === 'phone') {
+    // ── 심해어+새 공동 — 바다 끝과 하늘, 전화기 둘, 첫 통화 ──
+    const seaY = H * 0.52;
+    // 바다 표면(왼쪽 절반) — 물결
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x = W * 0.04; x <= W * 0.55; x += 6) {
+      const y = seaY + Math.sin(x * 0.04 + t * 2) * 4;
+      x === W * 0.04 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // 깊은 물결 두 줄(아래로 갈수록 옅게)
+    [0.68, 0.84].forEach((fy, i) => {
+      ctx.strokeStyle = `rgba(0,0,0,${0.16 - i * 0.06})`;
+      ctx.beginPath();
+      for (let x = W * 0.04; x <= W * 0.5; x += 8) {
+        const y = H * fy + Math.sin(x * 0.03 + t * 1.4 + i) * 3;
+        x === W * 0.04 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+    // 하늘(오른쪽 위) — 선 구름 둘
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+    [[0.62, 0.16], [0.8, 0.10]].forEach(([fx2, fy2]) => {
+      const cx2 = W * fx2 + Math.sin(t * 0.5 + fx2 * 9) * 6, cy2 = H * fy2;
+      ctx.beginPath(); ctx.moveTo(cx2 - 40, cy2); ctx.lineTo(cx2 + 40, cy2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx2 - 22, cy2 - 9); ctx.lineTo(cx2 + 26, cy2 - 9); ctx.stroke();
+    });
+    const fishX = W * 0.22, fishY = H * 0.80 + Math.sin(t * 1.6) * 5;
+    const birdX = W * 0.76, birdY = H * 0.26 + Math.sin(t * 2.1) * 4;
+    silhouetteDraw(ctx, 1, fishX - S / 2, fishY - S / 2, S, t, s > 5 && Math.sin(t * 6) > 0, 'neutral', true);
+    silhouetteDraw(ctx, 2, birdX - S / 2, birdY - S / 2, S, t + 1, s > 5.6 && Math.sin(t * 6 + 3) > 0, 'neutral', false);
+    // 전화기 발견 — 수화기 모양(ㄷ자) 둘
+    const phoneA = seg(s, 1.2, 1.8);
+    if (phoneA > 0) {
+      ctx.save(); ctx.globalAlpha *= phoneA;
+      const ph = (x, y) => {
+        ctx.strokeStyle = ink; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(x, y, S * 0.16, Math.PI * 0.15, Math.PI * 0.85, false); ctx.stroke();
+        ctx.fillStyle = ink;
+        ctx.beginPath(); ctx.arc(x - S * 0.15, y + S * 0.05, S * 0.06, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + S * 0.15, y + S * 0.05, S * 0.06, 0, 7); ctx.fill();
+      };
+      ph(fishX + S * 0.62, fishY - S * 0.1);
+      ph(birdX - S * 0.62, birdY + S * 0.1);
+      ctx.restore();
+    }
+    // 발견 "!"
+    if (s > 1.6 && s < 2.6) {
+      const a = seg(s, 1.6, 1.9) * (1 - seg(s, 2.3, 2.6));
+      drawIntroMark(ctx, '!', fishX + S * 0.62, fishY - S * 0.5, S * 0.36, a);
+      drawIntroMark(ctx, '!', birdX - S * 0.62, birdY - S * 0.42, S * 0.36, a);
+      fxOnce('found', () => { uiClick(0.8); setTimeout(() => uiClick(0.55), 180); });
+    }
+    // 통화선 — 두 수화기를 잇는 점선이 벨소리처럼 흐른다
+    const lineA = seg(s, 2.6, 3.4);
+    if (lineA > 0) {
+      ctx.save(); ctx.globalAlpha *= lineA * 0.8;
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.6;
+      ctx.setLineDash([7, 9]); ctx.lineDashOffset = -t * 60;
+      ctx.beginPath();
+      ctx.moveTo(fishX + S * 0.62, fishY - S * 0.1);
+      ctx.quadraticCurveTo(W * 0.5, H * 0.5 - S * 0.4, birdX - S * 0.62, birdY + S * 0.1);
+      ctx.stroke(); ctx.setLineDash([]);
+      ctx.restore();
+      fxOnce('ring', () => { [0, 700, 1400].forEach((d) => setTimeout(() => { uiClick(0.95); uiClick(0.7); }, d)); });
+    }
+    // 서로 "?" — 대화가 될까? 친구가 될 수 있을까?
+    if (s > 5.0) {
+      drawIntroMark(ctx, '?', fishX, fishY - S * 0.75, S * 0.4, seg(s, 5.0, 5.4));
+      fxOnce('q1', () => speakVoiceEvents([{ rel: 0, ch: 'o' }, { rel: 0.25, ch: 'i' }], characterVoice(1), 'confused'));
+    }
+    if (s > 5.9) {
+      drawIntroMark(ctx, '?', birdX, birdY - S * 0.72, S * 0.4, seg(s, 5.9, 6.3));
+      fxOnce('q2', () => speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.22, ch: 'e' }], characterVoice(2), 'confused'));
+    }
+    if (s > 6.9) {
+      const a = seg(s, 6.9, 7.4);
+      drawIntroMark(ctx, '♪', W * 0.5, H * 0.44, S * 0.5, a);
+      fxOnce('duet', () => { speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(1), 'happy'); speakVoiceEvents([{ rel: 0.3, ch: 'a' }], characterVoice(2), 'happy'); });
+    }
+  } else if (kind === 'mouse') {
+    // ── 생쥐 — 도시의 집, 치즈 부스러기, 커다란 사람 발 ──
+    const gy = H * 0.66;
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(W * 0.06, gy + S * 0.5); ctx.lineTo(W * 0.94, gy + S * 0.5); ctx.stroke();
+    // 벽 모서리(오른쪽) + 걸레받이
+    ctx.beginPath(); ctx.moveTo(W * 0.94, gy + S * 0.5); ctx.lineTo(W * 0.94, H * 0.2); ctx.stroke();
+    // 치즈 조각(구멍 난 세모) + 부스러기 점들 — 야금야금 사라진다
+    const cheeseX = W * 0.60, cheeseY = gy + S * 0.34;
+    const eaten = seg(s, 0.4, 2.4);   // 야금야금
+    if (s < 2.9) {
+      ctx.save(); ctx.globalAlpha *= (1 - seg(s, 2.5, 2.9));
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.moveTo(cheeseX - S * 0.34 * (1 - eaten * 0.5), cheeseY);
+      ctx.lineTo(cheeseX + S * 0.30, cheeseY);
+      ctx.lineTo(cheeseX + S * 0.30, cheeseY - S * 0.30 * (1 - eaten * 0.4));
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cheeseX + S * 0.12, cheeseY - S * 0.09, S * 0.045, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+    [0.42, 0.47, 0.52].forEach((fx2, i) => {
+      if (s < 0.5 + i * 0.7) {
+        ctx.fillStyle = ink;
+        ctx.beginPath(); ctx.arc(W * fx2, gy + S * 0.42, 3, 0, 7); ctx.fill();
+      }
+    });
+    if (s < 2.4) fxOnce('nib' + Math.floor(s / 0.5), () => typeKey('m', 0.3, characterVoice(3)));
+    // 생쥐 — 갉아먹다가 → 발 등장에 왼쪽으로 줄행랑 → 구석에서 빼꼼
+    const dash = seg(s, 3.1, 4.0);
+    const mx = W * (0.52 - dash * 0.38);
+    const nib = s < 2.6 ? Math.abs(Math.sin(t * 7)) * 4 : 0;
+    silhouetteDraw(ctx, 3, mx - S / 2, gy - S / 2 + nib * 0.3, S, t, s < 2.6 && Math.sin(t * 9) > 0, dash > 0 ? 'sad' : 'neutral', dash > 0);
+    if (s > 2.9 && s < 3.9) drawIntroMark(ctx, '!', mx, gy - S * 0.72, S * 0.42, seg(s, 2.9, 3.15) * (1 - seg(s, 3.6, 3.9)));
+    // 커다란 사람 발(신발 실루엣) — 위에서 쿵 내려온다
+    const stomp = seg(s, 2.6, 3.0);
+    const lift = s > 4.4 ? Math.abs(Math.sin((s - 4.4) * 2.4 * Math.PI)) * (seg(s, 4.4, 4.7)) * 26 * (1 - seg(s, 5.6, 6.0)) : 0;
+    if (stomp > 0) {
+      const footY = gy + S * 0.5 - (1 - stomp) * H * 0.55 - lift;
+      const fw = S * 1.7, fh = S * 1.05;
+      const fx3 = W * 0.66;
+      ctx.fillStyle = ink;
+      // 다리(위로 뻗는 기둥) + 신발(둥근 앞코)
+      ctx.fillRect(fx3 - fw * 0.12, footY - fh - H, fw * 0.42, H);
+      ctx.beginPath();
+      ctx.moveTo(fx3 - fw * 0.12, footY - fh);
+      ctx.lineTo(fx3 - fw * 0.12, footY);
+      ctx.lineTo(fx3 - fw * 0.55, footY);
+      ctx.arc(fx3 - fw * 0.55, footY - fh * 0.28, fh * 0.28, Math.PI * 0.5, Math.PI * 1.5, false);
+      ctx.lineTo(fx3 + fw * 0.3, footY - fh);
+      ctx.closePath(); ctx.fill();
+      fxOnce('stomp', () => setTimeout(() => { playMark('period', 0, 1.6); uiClick(0.12); }, Math.max(0, (3.0 - s) * 1000)));
+      if (s > 4.4) fxOnce('tap', () => setTimeout(() => { playMark('period', 0, 1.1); }, 200));
+    }
+    // 구석에서 "…"
+    if (s > 5.6) {
+      drawIntroMark(ctx, '…', W * 0.14, gy - S * 0.7, S * 0.38, seg(s, 5.6, 6.1));
+      fxOnce('phew', () => speakVoiceEvents([{ rel: 0, ch: 'u' }], characterVoice(3), 'sad'));
+    }
+  }
+
+  ctx.restore();
+  if (s * 1000 >= introScene.dur) endIntroScene();
 }
 
 // 숨겨진 입력기 (한글 IME 대응)
@@ -344,8 +582,9 @@ function loop(now) {
   } else if (state.screen === 'select') {
     if (MINIMAL || SCORE) drawMinimalBg(W, H); else drawBackground(t, W, H);
     if (SCORE) {
-      // 슬롯머신 창 — 릴 회전/착지 애니메이션
-      drawSlotWindow(t);
+      // 소개 컷신 재생 중이면 풀스크린 컷신, 아니면 슬롯머신 창(릴 회전/착지)
+      if (introScene) drawIntroScene(t);
+      else drawSlotWindow(t);
     } else {
       drawDuo(t, W, H, false);
       pickCanvases.forEach((cv, p) => {
@@ -1440,16 +1679,20 @@ function noteWorld(d, phase, lo, span) {
     const cs = (cp + 1) * 31.7;
     const cth = hash01(cs * 1.1) * 6.2831853;
     const cphi = Math.acos(2 * hash01(cs * 1.7 + 2.3) - 1);
-    const cr = SPH * (0.3 + 0.65 * hash01(cs * 2.9 + 5.1));   // 클러스터마다 중심까지 거리 다름(불균등)
+    const cr = SPH * (0.12 + 1.05 * hash01(cs * 2.9 + 5.1));  // 거리 편차 큼 — 바깥에 튀는 덩어리도, 중심 가까이도
     const cst = Math.sin(cphi);
     const center = { x: cr * cst * Math.cos(cth), y: cr * Math.cos(cphi), z: cr * cst * Math.sin(cth) };
-    const tight = 0.7 + 1.3 * hash01(cs * 3.7 + 8.8);         // 덩어리 반경(뭉침 정도) 제각각
+    const tight = 0.7 + 1.5 * hash01(cs * 3.7 + 8.8);         // 덩어리 반경(뭉침 정도) 제각각
     const sd = d.beat * 7.7 + d.midi * 1.3;
     const lt = hash01(sd * 1.1) * 6.2831853;
     const lp = Math.acos(2 * hash01(sd * 1.7 + 3.1) - 1);
     const lr = tight * Math.cbrt(hash01(sd * 2.3 + 7.7));     // cbrt → 중심에 더 모여 밀도감
     const lst = Math.sin(lp);
-    return { x: center.x + lr * lst * Math.cos(lt), y: center.y + lr * Math.cos(lp), z: center.z + lr * lst * Math.sin(lt) };
+    const fx = center.x + lr * lst * Math.cos(lt);
+    const fy = center.y + lr * Math.cos(lp);
+    const fz = center.z + lr * lst * Math.sin(lt);
+    // 비대칭 스케일 — 구를 깨 울퉁불퉁한 덩어리로(회전하면 폭이 변한다).
+    return { x: fx * 1.45, y: fy * 0.7, z: fz * 1.05 };
   }
   const sd = d.beat * 13.13 + d.midi * 0.77 + d.lane * 4.7;
   return {
