@@ -153,13 +153,16 @@ let slotTickIdx = -1;                // 스핀 틱 사운드용
 
 function resetSlot() {
   slotIndex = 0; slotSpinning = false; slotDisplay = -1; slotScroll = 0; slotLandAt = -1;
+  introScene = null;
+  if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = '';
   const nm = $('#slot-name'); if (nm) { nm.textContent = ''; nm.classList.remove('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `0 / ${N}`;
   const st = $('#slot-start'); if (st) st.classList.remove('ready');
 }
 
 function pullSlot() {
-  if (!SCORE || slotSpinning || slotIndex >= N) return;
+  if (!SCORE || slotSpinning || slotIndex >= N || introScene) return;
   slotTarget = (SLOT_ORDER[slotIndex] != null) ? SLOT_ORDER[slotIndex] : slotIndex;
   const CH = dexStage ? dexStage.width : 128;
   const span = N * CH;
@@ -177,8 +180,8 @@ function pullSlot() {
   if (lever) { lever.classList.add('pulled'); setTimeout(() => lever.classList.remove('pulled'), 430); }
 }
 
-// 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신, 다 끝나면 시작 버튼 노출.
-// (소개 컷신은 추후 레퍼런스 기반으로 새로 제작 예정 — 지금은 착지만.)
+// 릴이 멈춰 한 캐릭터에 착지했을 때 — 이름·카운트 갱신 + 소개 컷신 시작.
+// 토마토(0)=덩굴밭 줌인 / 새(2)=심해어와 공동 '전화 발견' / 생쥐(3)=부엌 발·빗자루. 심해어(1)는 착지만.
 function onSlotLanded() {
   const nm = $('#slot-name'); if (nm) { nm.textContent = characterName(slotDisplay); nm.classList.add('show'); }
   const cnt = $('#slot-count'); if (cnt) cnt.textContent = `${slotIndex} / ${N}`;
@@ -186,7 +189,12 @@ function onSlotLanded() {
   uiClick(0.85);   // 착지 딩
   slotLand();      // 밝은 화음으로 이완(릴리스)
   speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(slotDisplay), 'happy');
-  if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
+  const kind = slotDisplay === 0 ? 'tomato' : slotDisplay === 2 ? 'phone' : slotDisplay === 3 ? 'mouse' : null;
+  if (kind) {
+    introTimer = setTimeout(() => { introTimer = null; startIntroScene(kind); }, 750);
+  } else if (slotIndex >= N) {
+    const st = $('#slot-start'); if (st) st.classList.add('ready');
+  }
 }
 
 function drawSlotWindow(t) {
@@ -237,6 +245,455 @@ function drawSlotWindow(t) {
   }
 }
 
+
+// ===== 캐릭터 소개 컷신 (스토리보드 기반 재제작) =====
+// 룰렛 착지 → 그 캐릭터의 소개 영상이 풀스크린 디더링(도트)으로 재생.
+// 캐릭터만 컬러(별도 레이어), 배경은 흑백 망점. 재생 중 레버 잠금.
+//  tomato: 토마토 덩굴밭 — 핑크토마토에게 서서히 줌인, 눈물 그렁그렁.
+//  phone : (새+심해어 공동, 3비트) 새가 나무로 날아와 전화기 발견 →
+//          심해어도 어두운 심해에서 폰 발견 → 둘이 수화기를 들고 "?" — 연결.
+//  mouse : 부엌, 부스러기를 따라 쫄쫄쫄 → 커다란 발과 빗자루 등장, 줄행랑.
+let introScene = null;    // { kind, start, dur, fx:{} }
+let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
+
+const INTRO_DUR = { tomato: 8000, phone: 11000, mouse: 8000 };
+const INTRO_PX = 3.2;     // 도트 한 알의 크기(CSS px)
+let introCanvas = null, introCtx = null;
+let introColorCanvas = null, introColorCtx = null;   // 캐릭터(컬러) 레이어
+const BAYER8 = [
+  [0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26],
+  [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22],
+  [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25],
+  [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21],
+];
+function ditherIntroCanvas() {
+  const w = introCanvas.width, h = introCanvas.height;
+  const img = introCtx.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let y = 0; y < h; y++) {
+    const row = BAYER8[y & 7];
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const v = (d[i] + d[i + 1] + d[i + 2]) / 765;
+      const c = v > (row[x & 7] + 0.5) / 64 ? 255 : 0;
+      d[i] = d[i + 1] = d[i + 2] = c; d[i + 3] = 255;
+    }
+  }
+  introCtx.putImageData(img, 0, 0);
+}
+
+function startIntroScene(kind) {
+  if (state.screen !== 'select') return;
+  introScene = { kind, start: performance.now(), dur: INTRO_DUR[kind] || 8000, fx: {} };
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = 'hidden';
+}
+function endIntroScene() {
+  introScene = null;
+  const sm = $('#slot-machine'); if (sm) sm.style.visibility = '';
+  if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
+}
+function fxOnce(key, fn) { if (!introScene.fx[key]) { introScene.fx[key] = true; fn(); } }
+const easeIO = (u) => u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u);
+const seg2 = (s, a, b) => easeIO((s - a) / (b - a));
+
+function drawIntroMark(ctx, ch, x, y, px, alpha = 1, color = '#000') {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.font = `${Math.round(px)}px Datatype, Galmuri11, monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(ch, x, y);
+  ctx.restore();
+}
+
+function drawIntroScene(t) {
+  const W = window.innerWidth, H = window.innerHeight;
+  const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
+  if (!introCanvas) { introCanvas = document.createElement('canvas'); introCtx = introCanvas.getContext('2d', { willReadFrequently: true }); }
+  if (introCanvas.width !== pw || introCanvas.height !== ph) { introCanvas.width = pw; introCanvas.height = ph; }
+  if (!introColorCanvas) { introColorCanvas = document.createElement('canvas'); introColorCtx = introColorCanvas.getContext('2d'); }
+  if (introColorCanvas.width !== pw || introColorCanvas.height !== ph) { introColorCanvas.width = pw; introColorCanvas.height = ph; }
+  const ctx = introCtx;
+  ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  const cctx = introColorCtx;
+  cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, pw, ph);
+  cctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+  cctx.imageSmoothingEnabled = true;
+
+  const s = (performance.now() - introScene.start) / 1000;
+  const kind = introScene.kind;
+  const durS = introScene.dur / 1000;
+  const S = Math.min(W, H) * 0.17;
+  const ink = '#000';
+
+  // 흰 배경
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+
+  // 부드러운 바닥 그림자
+  const shadow = (x, y, rx, ry, k = 0.4) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    g.addColorStop(0, `rgba(0,0,0,${k})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx); ctx.translate(-x, -y);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rx, 0, 7); ctx.fill(); ctx.restore();
+  };
+
+  // ── 카메라 — 토마토는 강한 줌인(스토리보드 "서서히 줌인되기"), 나머진 잔잔한 푸시인 ──
+  let zoom, ox, oy;
+  if (kind === 'tomato') { zoom = 1.0 + easeIO(s / durS) * 1.05; ox = W * 0.5; oy = H * 0.56; }
+  else { zoom = 1.04 + Math.min(1, s / durS) * 0.10; ox = W / 2; oy = H * 0.55; }
+  const camX = Math.sin(t * 0.4) * 5, camY = Math.cos(t * 0.31) * 4;
+  const applyCam = (c) => { c.translate(ox + camX, oy + camY); c.scale(zoom, zoom); c.translate(-ox, -oy); };
+  applyCam(ctx); applyCam(cctx);
+
+  // 음영 구체(동그란 토마토·바위)
+  const sphere = (x, y, r, lo = '#e6e6e6', hi = '#141414') => {
+    const sg = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    sg.addColorStop(0, lo); sg.addColorStop(0.55, '#7a7a7a'); sg.addColorStop(1, hi);
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  };
+  // 옛날 다이얼 전화기 — dark=false면 밝은 몸체(어두운 배경용)
+  const rotary = (x, y, k, dark) => {
+    const bw = S * 0.62 * k, bh = S * 0.46 * k;
+    const body = dark ? '#141414' : '#e9e9e9', det = dark ? '#efefef' : '#141414';
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(x - bw / 2, y); ctx.lineTo(x + bw / 2, y);
+    ctx.lineTo(x + bw * 0.36, y - bh); ctx.lineTo(x - bw * 0.36, y - bh);
+    ctx.closePath(); ctx.fill();
+    // 다이얼(구멍 링)
+    const dy = y - bh * 0.4, dr = bh * 0.34;
+    ctx.fillStyle = det; ctx.beginPath(); ctx.arc(x, dy, dr, 0, 7); ctx.fill();
+    ctx.fillStyle = body;
+    for (let i = 0; i < 6; i++) {
+      const a = -0.5 + i * 0.75;
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * dr * 0.68, dy + Math.sin(a) * dr * 0.68, dr * 0.14, 0, 7); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, dy, dr * 0.22, 0, 7); ctx.fill();
+    // 수화기(위에 얹힘)
+    handset(x, y - bh - S * 0.1 * k, k, dark);
+  };
+  const handset = (x, y, k, dark) => {
+    const col = dark ? '#141414' : '#e9e9e9';
+    ctx.strokeStyle = col; ctx.lineWidth = S * 0.085 * k; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, y + S * 0.16 * k, S * 0.22 * k, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x - S * 0.2 * k, y + S * 0.06 * k, S * 0.095 * k, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + S * 0.2 * k, y + S * 0.06 * k, S * 0.095 * k, 0, 7); ctx.fill();
+  };
+  // 꼬불꼬불 전화선
+  const cord = (x0, y0, x1, y1, col) => {
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+    const n2 = 9;
+    for (let i = 0; i <= n2; i++) {
+      const u = i / n2;
+      const x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u + Math.sin(u * Math.PI * 1.2) * 10;
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.stroke();
+    }
+  };
+
+  if (kind === 'tomato') {
+    // ── ① 토마토 덩굴밭 — 핑크토마토에게 서서히 줌인 ──
+    const groundY = H * 0.78;
+    let g = ctx.createLinearGradient(0, 0, 0, groundY);
+    g.addColorStop(0, '#b9b9b9'); g.addColorStop(1, '#f0f0f0');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, groundY);
+    g = ctx.createLinearGradient(0, groundY, 0, H);
+    g.addColorStop(0, '#cfcfcf'); g.addColorStop(1, '#8a8a8a');
+    ctx.fillStyle = g; ctx.fillRect(0, groundY, W, H - groundY);
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+    // 덩굴 커튼(좌우) — 세로 물결 줄기들(스케치의 빗금 덤불)
+    const vines = (x0, x1, seed) => {
+      for (let i = 0; i < 26; i++) {
+        const fx2 = x0 + ((i * 37 + seed) % 100) / 100 * (x1 - x0);
+        const sway = Math.sin(t * 0.7 + i) * 3;
+        const dark = 0.28 + ((i * 17) % 40) / 100;
+        ctx.strokeStyle = `rgba(0,0,0,${dark})`; ctx.lineWidth = 1.6 + (i % 3);
+        ctx.beginPath();
+        for (let y = -10; y <= groundY + 6; y += 12) {
+          const xx = fx2 + Math.sin(y * 0.02 + i * 1.7) * 9 + sway;
+          y <= -10 ? ctx.moveTo(xx, y) : ctx.lineTo(xx, y);
+        }
+        ctx.stroke();
+      }
+      // 잎 뭉치
+      for (let i = 0; i < 7; i++) {
+        const fx2 = x0 + ((i * 53 + seed * 3) % 100) / 100 * (x1 - x0);
+        const fy2 = ((i * 31 + seed) % 70) / 100 * groundY;
+        ctx.fillStyle = `rgba(0,0,0,${0.5 + (i % 3) * 0.12})`;
+        ctx.beginPath(); ctx.ellipse(fx2, fy2, S * 0.22, S * 0.13, i, 0, 7); ctx.fill();
+      }
+    };
+    vines(-W * 0.02, W * 0.32, 11);
+    vines(W * 0.68, W * 1.02, 47);
+    // 덩굴에 매달린 동그란 토마토들(음영 구체 + 꼭지)
+    [[0.12, 0.3, 0.75], [0.24, 0.52, 1.0], [0.2, 0.14, 0.55], [0.82, 0.24, 0.8], [0.76, 0.5, 1.05], [0.9, 0.42, 0.7]].forEach(([fx2, fy2, k]) => {
+      const bx = W * fx2, by = H * fy2, r = S * 0.24 * k;
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(bx, by - r - S * 0.12); ctx.lineTo(bx + 3, by - r); ctx.stroke();
+      sphere(bx, by, r);
+    });
+    // 핑크토마토(컬러) — 가운데, 줌인의 목적지. 그렁그렁한 눈물.
+    const px2 = W * 0.5, py2 = H * 0.56;
+    shadow(px2, groundY + 4, S * 0.55, S * 0.14, 0.45);
+    silhouetteDraw(cctx, 0, px2 - S * 0.6, py2 - S * 0.6, S * 1.2, t, false, 'sad', false, characterColor(0));
+    // 눈물 방울 — 볼을 타고 또르르(검정 방울이 흘러내림)
+    if (s > 3.2) {
+      const drop = (sd, side) => {
+        const cyc = ((s - sd) % 1.6) / 1.6;
+        if (s < sd || cyc > 0.85) return;
+        const dx2 = px2 + side * S * 0.22;
+        const dy2 = py2 + S * 0.02 + cyc * S * 0.5;
+        ctx.fillStyle = `rgba(0,0,0,${0.85 * (1 - cyc)})`;
+        ctx.beginPath(); ctx.ellipse(dx2, dy2, 3.2, 4.6, 0, 0, 7); ctx.fill();
+      };
+      drop(3.2, -1); drop(4.0, 1);
+      fxOnce('sniff', () => speakVoiceEvents([{ rel: 0, ch: 'u' }, { rel: 0.4, ch: 'u' }], characterVoice(0), 'sad'));
+    }
+    if (s > 6.0) drawIntroMark(ctx, '…', px2, py2 - S * 0.95, S * 0.4, seg2(s, 6.0, 6.5));
+    fxOnce('wind', () => uiClick(0.28));
+  } else if (kind === 'phone') {
+    // ── ② 새+심해어 공동(3비트): 나무의 전화기 → 심해의 폰 → 연결 ──
+    const beat = s < 3.6 ? 1 : s < 7.0 ? 2 : 3;
+    if (beat === 1) {
+      // b1 — 새가 나무로 날아와 전화기 발견
+      let g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#a8a8a8'); g.addColorStop(0.7, '#efefef'); g.addColorStop(1, '#d5d5d5');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // 나무 — 왼쪽 굵은 줄기 + 수관 + 가지
+      const trunkX = W * 0.14, branchY = H * 0.5;
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath();
+      ctx.moveTo(trunkX - S * 0.4, H); ctx.lineTo(trunkX - S * 0.22, H * 0.25);
+      ctx.lineTo(trunkX + S * 0.22, H * 0.25); ctx.lineTo(trunkX + S * 0.4, H);
+      ctx.closePath(); ctx.fill();
+      const cg = ctx.createRadialGradient(trunkX + S * 0.3, H * 0.16, 0, trunkX + S * 0.3, H * 0.16, S * 1.6);
+      cg.addColorStop(0, '#4a4a4a'); cg.addColorStop(1, 'rgba(30,30,30,0)');
+      ctx.fillStyle = cg; ctx.fillRect(trunkX - S * 1.4, -S, S * 3.4, H * 0.45);
+      ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = S * 0.12; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(trunkX, branchY); ctx.quadraticCurveTo(W * 0.4, branchY - S * 0.14, W * 0.66, branchY); ctx.stroke();
+      // 가지 위 옛날 전화기
+      rotary(W * 0.44, branchY - S * 0.05, 1, true);
+      // 새(귤색) — 오른쪽 위에서 날아와 착지
+      const fly = seg2(s, 0.2, 2.2);
+      const bx = W * (1.06 - 0.46 * fly), by = H * (0.16 + 0.26 * fly) - Math.sin(fly * Math.PI) * H * 0.1;
+      const flap = fly < 1 ? Math.sin(t * 16) * S * 0.06 : 0;
+      shadow(bx, branchY + S * 0.1, S * 0.4 * fly, S * 0.08 * fly, 0.3);
+      silhouetteDraw(cctx, 2, bx - S / 2, by - S / 2 + flap, S, t, false, 'neutral', false, characterColor(2));
+      fxOnce('flap1', () => { [0, 300, 600, 900].forEach((d) => setTimeout(() => typeKey('f', 0.6, characterVoice(2)), d)); });
+      if (fly >= 1) fxOnce('land', () => uiClick(0.7));
+      if (s > 2.5) {
+        drawIntroMark(ctx, '!', bx, by - S * 0.75, S * 0.4, seg2(s, 2.5, 2.8) * (1 - seg2(s, 3.3, 3.6)));
+        fxOnce('found1', () => uiClick(0.92));
+      }
+    } else if (beat === 2) {
+      // b2 — 심해어도 어두운 심해에서 폰 발견
+      let g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#6e6e6e'); g.addColorStop(0.5, '#3a3a3a'); g.addColorStop(1, '#101010');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // 빛기둥 둘
+      [[0.28, 0.5], [0.6, 0.3]].forEach(([fx2, k]) => {
+        const lg = ctx.createLinearGradient(0, 0, 0, H * 0.9);
+        lg.addColorStop(0, `rgba(255,255,255,${0.22 * k + 0.1})`); lg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = lg;
+        ctx.beginPath();
+        ctx.moveTo(W * fx2 - S * 0.2, 0); ctx.lineTo(W * fx2 + S * 0.2, 0);
+        ctx.lineTo(W * fx2 + S * 0.9, H * 0.95); ctx.lineTo(W * fx2 - S * 0.9, H * 0.95);
+        ctx.closePath(); ctx.fill();
+      });
+      // 해저 바닥 + 바위 둔덕들(스케치의 둥근 돌)
+      ctx.fillStyle = '#0c0c0c'; ctx.fillRect(0, H * 0.82, W, H * 0.18);
+      sphere(W * 0.66, H * 0.8, S * 0.62, '#9a9a9a', '#0f0f0f');
+      sphere(W * 0.84, H * 0.84, S * 0.5, '#8a8a8a', '#0d0d0d');
+      sphere(W * 0.52, H * 0.86, S * 0.36, '#7a7a7a', '#0c0c0c');
+      // 폰 — 바위 앞 해저에(밝은 몸체라 어둠 속에서 보인다)
+      rotary(W * 0.6, H * 0.9, 0.95, false);
+      // 심해어(남색) — 왼쪽에서 유영해 들어옴, 광륜
+      const swim = seg2(s, 3.8, 5.6);
+      const fx3 = W * (-0.12 + 0.5 * swim), fy3 = H * (0.55 + 0.1 * swim) + Math.sin(t * 1.8) * 6;
+      const glowK = 0.7 + 0.3 * Math.sin(t * 3);
+      const fg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, S * 1.4);
+      fg.addColorStop(0, `rgba(255,255,255,${0.85 * glowK})`); fg.addColorStop(0.5, `rgba(255,255,255,${0.35 * glowK})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = fg; ctx.fillRect(fx3 - S * 1.6, fy3 - S * 1.6, S * 3.2, S * 3.2);
+      silhouetteDraw(cctx, 1, fx3 - S / 2, fy3 - S / 2, S, t, false, 'neutral', true, characterColor(1));
+      fxOnce('sonar', () => { [0, 500].forEach((d) => setTimeout(() => uiClick(0.35), d)); });
+      if (s > 6.0) {
+        drawIntroMark(ctx, '!', fx3, fy3 - S * 0.75, S * 0.4, seg2(s, 6.0, 6.3) * (1 - seg2(s, 6.7, 7.0)), '#fff');
+        fxOnce('found2', () => uiClick(0.5));
+      }
+    } else {
+      // b3 — 위 하늘의 새, 아래 심해의 심해어 — 수화기를 들고 "?" 연결
+      const splitY = H * 0.5;
+      let g = ctx.createLinearGradient(0, 0, 0, splitY);
+      g.addColorStop(0, '#9d9d9d'); g.addColorStop(1, '#efefef');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, splitY);
+      g = ctx.createLinearGradient(0, splitY, 0, H);
+      g.addColorStop(0, '#5a5a5a'); g.addColorStop(1, '#121212');
+      ctx.fillStyle = g; ctx.fillRect(0, splitY, W, H - splitY);
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 7) {
+        const y = splitY + Math.sin(x * 0.035 + t * 2) * 4;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      const bx = W * 0.72, by = H * 0.26 + Math.sin(t * 2.1) * 4;
+      const fx3 = W * 0.28, fy3 = H * 0.76 + Math.sin(t * 1.7) * 5;
+      // 심해어 광륜
+      const glowK = 0.7 + 0.3 * Math.sin(t * 3);
+      const fg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, S * 1.3);
+      fg.addColorStop(0, `rgba(255,255,255,${0.8 * glowK})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = fg; ctx.fillRect(fx3 - S * 1.5, fy3 - S * 1.5, S * 3, S * 3);
+      // 캐릭터 + 수화기(귀에 든 모양) + 꼬불선(화면 밖으로)
+      silhouetteDraw(cctx, 2, bx - S / 2, by - S / 2, S, t + 1, Math.sin(t * 6) > 0 && s > 8.2, 'neutral', false, characterColor(2));
+      silhouetteDraw(cctx, 1, fx3 - S / 2, fy3 - S / 2, S, t, Math.sin(t * 6 + 2) > 0 && s > 9.0, 'neutral', true, characterColor(1));
+      ctx.save();
+      handset(bx - S * 0.55, by - S * 0.05, 0.9, true);
+      cord(bx - S * 0.55, by + S * 0.15, W * 1.04, by + S * 0.6, '#141414');
+      handset(fx3 + S * 0.55, fy3 - S * 0.05, 0.9, false);
+      cord(fx3 + S * 0.55, fy3 + S * 0.15, -W * 0.04, fy3 + S * 0.6, '#e9e9e9');
+      ctx.restore();
+      // 벨 울림 "( ( (" — 흰 호가 퍼진다
+      if (s > 7.3 && s < 8.6) {
+        const rp = ((s - 7.3) % 0.65) / 0.65;
+        ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - rp)})`; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(fx3 + S * 0.55, fy3 - S * 0.05, S * (0.3 + rp * 0.5), -1.2, 1.2); ctx.stroke();
+        fxOnce('ring', () => { [0, 650].forEach((d) => setTimeout(() => { uiClick(0.95); uiClick(0.7); }, d)); });
+      }
+      if (s > 8.3) {
+        drawIntroMark(ctx, '?', bx, by - S * 0.78, S * 0.4, seg2(s, 8.3, 8.7));
+        fxOnce('q1', () => speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.25, ch: 'e' }], characterVoice(2), 'confused'));
+      }
+      if (s > 9.1) {
+        drawIntroMark(ctx, '?', fx3, fy3 - S * 0.78, S * 0.4, seg2(s, 9.1, 9.5), '#fff');
+        fxOnce('q2', () => speakVoiceEvents([{ rel: 0, ch: 'o' }, { rel: 0.25, ch: 'i' }], characterVoice(1), 'confused'));
+      }
+      if (s > 10.1) {
+        drawIntroMark(ctx, '♪', W * 0.5, splitY - S * 0.15, S * 0.5, seg2(s, 10.1, 10.6));
+        fxOnce('duet', () => { speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(1), 'happy'); speakVoiceEvents([{ rel: 0.3, ch: 'a' }], characterVoice(2), 'happy'); });
+      }
+    }
+    // 비트 전환 화이트 플래시
+    [3.6, 7.0].forEach((cut) => {
+      const f = 1 - Math.min(1, Math.abs(s - cut) / 0.22);
+      if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
+    });
+  } else if (kind === 'mouse') {
+    // ── ③ 부엌의 생쥐 — 부스러기 쫄쫄쫄 → 커다란 발 + 빗자루 ──
+    const floorY = H * 0.68;
+    let g = ctx.createLinearGradient(0, 0, 0, floorY);
+    g.addColorStop(0, '#8f8f8f'); g.addColorStop(1, '#dedede');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, floorY);
+    g = ctx.createLinearGradient(0, floorY, 0, H);
+    g.addColorStop(0, '#bdbdbd'); g.addColorStop(1, '#606060');
+    ctx.fillStyle = g; ctx.fillRect(0, floorY, W, H - floorY);
+    // 싱크대(오른쪽 실루엣) + 창문 빛(왼쪽)
+    ctx.fillStyle = '#161616';
+    ctx.fillRect(W * 0.8, H * 0.12, W * 0.2, floorY - H * 0.12);
+    ctx.fillRect(W * 0.77, H * 0.4, W * 0.23, S * 0.14);   // 카운터 턱
+    const wx = W * 0.1, wy = H * 0.1, ww = W * 0.13, wh = H * 0.28;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillRect(wx, wy, ww, wh);
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+    ctx.strokeRect(wx, wy, ww, wh);
+    ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.stroke();
+    const lg2 = ctx.createLinearGradient(wx, wy + wh, wx + ww * 1.6, H);
+    lg2.addColorStop(0, 'rgba(255,255,255,0.5)'); lg2.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lg2;
+    ctx.beginPath();
+    ctx.moveTo(wx, wy + wh); ctx.lineTo(wx + ww, wy + wh);
+    ctx.lineTo(wx + ww * 2.3, H * 0.96); ctx.lineTo(wx - ww * 0.3, H * 0.96);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(W, floorY); ctx.stroke();
+    // 부스러기 길 — 오른쪽(싱크대 밑)에서 왼쪽으로 점점이
+    const crumbs = [];
+    for (let i = 0; i < 9; i++) crumbs.push([W * (0.76 - i * 0.055), floorY + S * 0.32 + Math.sin(i * 2.1) * S * 0.07]);
+    // 생쥐(연보라) — 부스러기를 따라 쫄쫄쫄(멈칫멈칫)
+    const runU = Math.min(1, (s < 1.4 ? seg2(s, 0.2, 1.4) * 0.45 : s < 1.9 ? 0.45 : 0.45 + seg2(s, 1.9, 3.1) * 0.55));
+    const dashOut = seg2(s, 3.5, 4.3);
+    const mx = W * (0.78 - runU * 0.36) - dashOut * W * 0.55;
+    const my = floorY + S * 0.18;
+    const nib = (s > 1.35 && s < 1.95) || (s > 2.9 && s < 3.4) ? Math.abs(Math.sin(t * 9)) * 3 : 0;
+    crumbs.forEach(([cx2, cy2], i) => {
+      if (cx2 < mx - S * 0.2 || s > 5.4) return;   // 먹었거나 빗자루가 쓸어감
+      ctx.fillStyle = ink;
+      ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, 7); ctx.fill();
+    });
+    if (mx > -S) {
+      shadow(mx, floorY + S * 0.42, S * 0.5, S * 0.12, 0.4);
+      silhouetteDraw(cctx, 3, mx - S / 2, my - S / 2 + nib * 0.3, S, t, nib > 0 && Math.sin(t * 10) > 0, dashOut > 0 ? 'sad' : 'neutral', false, characterColor(3));
+    }
+    if (s < 3.2) fxOnce('nib' + Math.floor(s / 0.45), () => typeKey('m', 0.3, characterVoice(3)));
+    // 커다란 발 — 위에서 쿵
+    const stomp = seg2(s, 3.0, 3.35);
+    if (stomp > 0) {
+      const footY = floorY + S * 0.5 - (1 - stomp) * H * 0.5;
+      const fw = S * 2.0, fh = S * 1.25, fx4 = W * 0.62;
+      ctx.save();
+      shadow(fx4 - fw * 0.15, floorY + S * 0.48, fw * 0.6, fh * 0.14, 0.5 * stomp);
+      const legG = ctx.createLinearGradient(fx4 - fw * 0.12, 0, fx4 + fw * 0.3, 0);
+      legG.addColorStop(0, '#4a4a4a'); legG.addColorStop(0.35, '#101010'); legG.addColorStop(1, '#000');
+      ctx.fillStyle = legG;
+      ctx.fillRect(fx4 - fw * 0.12, footY - fh - H, fw * 0.42, H);
+      ctx.beginPath();
+      ctx.moveTo(fx4 - fw * 0.12, footY - fh);
+      ctx.lineTo(fx4 - fw * 0.12, footY);
+      ctx.lineTo(fx4 - fw * 0.55, footY);
+      ctx.arc(fx4 - fw * 0.55, footY - fh * 0.28, fh * 0.28, Math.PI * 0.5, Math.PI * 1.5, false);
+      ctx.lineTo(fx4 + fw * 0.3, footY - fh);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(fx4 - fw * 0.72, footY - 4); ctx.lineTo(fx4 + fw * 0.28, footY - 4); ctx.stroke();
+      ctx.restore();
+      fxOnce('stomp', () => setTimeout(() => { playMark('period', 0, 1.6); uiClick(0.12); }, Math.max(0, (3.35 - s) * 1000)));
+    }
+    // 빗자루 — 오른쪽에서 들어와 바닥을 쓸어낸다(스윽스윽)
+    const broomIn = seg2(s, 3.9, 4.5);
+    if (broomIn > 0) {
+      const sweep = s > 4.5 ? Math.sin((s - 4.5) * 3.4) * W * 0.06 * (1 - seg2(s, 6.6, 7.4)) : 0;
+      const bx2 = W * (1.05 - broomIn * 0.33) + sweep, by2 = floorY + S * 0.45;
+      ctx.save();
+      ctx.strokeStyle = '#101010'; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(bx2 + S * 1.5, by2 - H * 0.62); ctx.lineTo(bx2 + S * 0.12, by2 - S * 0.5); ctx.stroke();
+      // 빗자루 머리(빗살)
+      ctx.fillStyle = '#161616';
+      ctx.beginPath();
+      ctx.moveTo(bx2 - S * 0.3, by2); ctx.lineTo(bx2 + S * 0.42, by2);
+      ctx.lineTo(bx2 + S * 0.3, by2 - S * 0.52); ctx.lineTo(bx2 - S * 0.12, by2 - S * 0.52);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.4;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath(); ctx.moveTo(bx2 - S * 0.22 + i * S * 0.13, by2 - S * 0.05); ctx.lineTo(bx2 - S * 0.16 + i * S * 0.13, by2 - S * 0.4); ctx.stroke();
+      }
+      ctx.restore();
+      fxOnce('sweep', () => { [0, 550, 1100].forEach((d) => setTimeout(() => uiClick(0.18), d)); });
+    }
+    if (s > 3.2 && s < 4.0) drawIntroMark(ctx, '!', mx, my - S * 0.8, S * 0.42, seg2(s, 3.2, 3.45) * (1 - seg2(s, 3.7, 4.0)));
+    // 왼쪽 구석에서 빼꼼 — '…'
+    if (s > 6.2) {
+      const peek = seg2(s, 6.2, 6.8);
+      silhouetteDraw(cctx, 3, -S * 0.55 + peek * S * 0.35, floorY - S * 0.2, S * 0.9, t, false, 'neutral', false, characterColor(3));
+      if (s > 6.8) drawIntroMark(ctx, '…', S * 0.75, floorY - S * 0.45, S * 0.38, seg2(s, 6.8, 7.3));
+      fxOnce('phew', () => speakVoiceEvents([{ rel: 0, ch: 'u' }], characterVoice(3), 'sad'));
+    }
+  }
+
+  // 등장/퇴장 페이드(도트 밀도가 차오르고 흩어진다)
+  const fade = Math.min(1, s / 0.5, (durS - s) / 0.5);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (fade < 1) { ctx.fillStyle = `rgba(255,255,255,${1 - Math.max(0, fade)})`; ctx.fillRect(0, 0, pw, ph); }
+
+  ditherIntroCanvas();
+  sctx.save();
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(introCanvas, 0, 0, W, H);
+  sctx.globalAlpha = Math.max(0, fade);
+  sctx.drawImage(introColorCanvas, 0, 0, W, H);
+  sctx.restore();
+
+  if (s * 1000 >= introScene.dur) endIntroScene();
+}
 
 // 숨겨진 입력기 (한글 IME 대응)
 const hidden = document.createElement('textarea');
@@ -368,8 +825,9 @@ function loop(now) {
   } else if (state.screen === 'select') {
     if (MINIMAL || SCORE) drawMinimalBg(W, H); else drawBackground(t, W, H);
     if (SCORE) {
-      // 슬롯머신 창 — 릴 회전/착지 애니메이션
-      drawSlotWindow(t);
+      // 소개 컷신 재생 중이면 풀스크린 컷신, 아니면 슬롯머신 창(릴 회전/착지)
+      if (introScene) drawIntroScene(t);
+      else drawSlotWindow(t);
     } else {
       drawDuo(t, W, H, false);
       pickCanvases.forEach((cv, p) => {
@@ -438,7 +896,10 @@ function silhouetteFill(ctx, w, h, rgb = [0, 0, 0]) {
   for (let i = 0; i < n; i++) {
     const o = i * 4;
     if (outside[i]) { d[o + 3] = 0; }
-    else { d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255; }
+    else if (d[o + 3] > A && d[o] + d[o + 1] + d[o + 2] > 620) {
+      // 흰 디테일(눈·별 꼭지·이빨)은 흰색 그대로 비워 둔다
+      d[o] = d[o + 1] = d[o + 2] = 255; d[o + 3] = 255;
+    } else { d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255; }
   }
   ctx.putImageData(img, 0, 0);
 }

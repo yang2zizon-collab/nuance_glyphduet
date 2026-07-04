@@ -120,49 +120,96 @@ function slimFace(g, cx, eyeY, mouthY, mood, talking) {
 }
 
 // 인덱스 순서는 CHARACTERS와 동일.
-// 음식·사물은 몸 없이 형태 그대로 + 얼굴, 동물은 실제 그 동물의 몸 형태.
+// 스케치 레퍼런스 기반 실루엣 — 몸은 검정 통짜, 디테일(눈·꼭지·이빨)은 흰색으로 비운다.
+// (silhouetteFill이 흰 픽셀을 보존한다 — 검정은 캐릭터 색으로 칠해질 수 있다)
+const K = '#000';
+const W = '#fff';
+
+// 흰 별(꼭지) — 8방향 반짝 별
+function starW(g, cx, cy) {
+  g.seg(cx, cy - 3, cx, cy + 3, W);
+  g.seg(cx - 3, cy, cx + 3, cy, W);
+  g.seg(cx - 2, cy - 2, cx + 2, cy + 2, W);
+  g.seg(cx - 2, cy + 2, cx + 2, cy - 2, W);
+  g.px(cx, cy, W);
+}
+
 const MINI_DRAW = [
-  // 0 핑크토마토 — 열매 그대로(몸 없음) + 줄기/잎
+  // 0 핑크토마토 — 울퉁불퉁한 열매(굴곡), 흰 별 꼭지 + 흰 눈·세모 입
   (g, t, talking, mood) => {
-    g.ringDisc(16, 18, 9, 2, INK);
-    g.seg(16, 9, 16, 4, INK);
-    g.seg(16, 6, 12, 3, INK); g.seg(16, 6, 20, 3, INK);
-    slimFace(g, 16, 17, 21, mood, talking);
+    // 몸 — 겹친 원으로 울퉁불퉁하게(위 두 봉우리, 아래 퍼짐)
+    g.disc(11, 14, 6, K); g.disc(21, 14, 6, K);
+    g.disc(9, 20, 6, K); g.disc(23, 20, 6, K);
+    g.disc(16, 19, 9, K);
+    g.ellipse(16, 16, 10, 6, K);
+    // 흰 별 꼭지(왼쪽 위)
+    starW(g, 13, 10);
+    // 흰 눈(깜박임) + 입
+    const blink = (Math.floor(t * 1.3) % 7) === 0;
+    if (blink) { g.rect(12, 17, 2, 1, W); g.rect(19, 17, 2, 1, W); }
+    else { g.rect(12, 16, 2, 2, W); g.rect(19, 16, 2, 2, W); }
+    if (talking) g.ellipse(16, 22, 2, 2, W);
+    else if (mood === 'sad') { g.px(15, 22, W); g.px(16, 22, W); g.px(14, 23, W); g.px(17, 23, W); }
+    else { g.px(15, 22, W); g.px(16, 21, W); g.px(17, 22, W); g.px(16, 22, W); }   // 세모 입
   },
-  // 1 심해어 — 가로로 긴 물고기 몸 + 지느러미 + 발광체
+  // 1 심해어(아귀) — 큰 머리·벌린 입에 삐죽 이빨, 더듬이 발광체, 눈만 희게
   (g, t, talking, mood) => {
-    const glow = 0.5 + 0.5 * Math.sin(t * 3);
-    g.ringEllipse(15, 17, 11, 6, 2, INK);
-    g.seg(26, 14, 30, 11, INK); g.seg(26, 20, 30, 23, INK); g.seg(30, 11, 30, 23, INK); // 꼬리
-    g.seg(12, 11, 16, 8, INK); g.seg(16, 8, 19, 11, INK);   // 등지느러미
-    g.seg(13, 23, 16, 26, INK); g.seg(16, 26, 19, 23, INK); // 배지느러미
-    g.seg(8, 12, 5, 6, INK); g.ringDisc(5, 5, 2, 1, `rgba(205,235,212,${0.55 + glow * 0.45})`); // 발광체
-    g.px(10, 16, INK);                                       // 눈
-    g.seg(4, 19, 11, 19, INK);
-    if (talking) g.seg(4, 20, 11, 20, INK);
+    // 몸 — 앞(왼쪽) 크고 뒤로 갈수록 좁아진다
+    g.ellipse(18, 18, 11, 8, K);
+    g.disc(11, 16, 8, K);
+    // 꼬리
+    g.seg(29, 14, 31, 11, K); g.seg(29, 22, 31, 25, K); g.seg(31, 11, 31, 25, K);
+    g.ellipse(30, 18, 1, 5, K);
+    // 더듬이 + 발광체(깜박)
+    g.seg(11, 8, 8, 5, K); g.seg(8, 5, 6, 5, K);
+    g.disc(5, 4, 2, K);
+    if (Math.sin(t * 3) > 0) g.px(5, 4, W);
+    // 벌린 입 — 흰 쐐기 + 검정 삐죽 이빨
+    const open = talking ? 1 : 0;
+    g.ellipse(8, 21 + open, 6, 4 + open, W);
+    g.px(5, 19, K); g.px(7, 20, K); g.px(9, 19, K); g.px(11, 20, K);   // 윗니
+    g.px(6, 24 + open, K); g.px(9, 24 + open, K);                       // 아랫니
+    // 흰 눈(하트 느낌 — 위 두 점 + 아래 한 점)
+    g.px(14, 12, W); g.px(16, 12, W);
+    g.rect(14, 13, 3, 2, W);
+    g.px(15, 15, W);
   },
-  // 2 새 — 옆모습 새 몸통 + 머리 + 부리 + 날개 + 꼬리 + 가는 다리
+  // 2 새 — 서 있는 옆모습, 위로 든 부리(지저귐), 눈만 희게
   (g, t, talking, mood) => {
-    g.ringEllipse(16, 18, 8, 6, 2, INK);                     // 몸통
-    g.ringDisc(10, 10, 4, 2, INK);                           // 머리
-    g.seg(6, 9, 2, 10, INK); g.seg(6, 12, 2, 10, INK); g.seg(6, 9, 6, 12, INK); // 부리
-    if (talking) g.seg(3, 10, 5, 11, INK);
-    g.px(9, 9, INK);                                         // 눈
-    g.seg(24, 15, 30, 13, INK); g.seg(24, 21, 30, 23, INK); g.seg(30, 13, 30, 23, INK); // 꼬리
-    g.seg(15, 15, 20, 18, INK); g.seg(20, 18, 15, 20, INK);  // 날개
-    g.seg(14, 24, 14, 28, INK); g.seg(12, 29, 16, 29, INK);  // 다리
-    g.seg(19, 24, 19, 28, INK); g.seg(17, 29, 21, 29, INK);
+    const hop = Math.abs(Math.sin(t * 2.2)) * 1;
+    // 몸(가슴 불룩) + 머리(위로 살짝 든)
+    g.ellipse(17, 19 - hop * 0.3, 8, 6, K);
+    g.disc(11, 11, 5, K);
+    // 부리 — 위로 벌린 두 갈래
+    g.seg(7, 8, 3, 5, K); g.seg(7, 10, 4, 9, K);
+    if (talking) g.seg(6, 9, 3, 7, K);
+    // 꼬리(뒤로 뾰족)
+    g.seg(24, 17, 29, 14, K); g.seg(24, 20, 29, 19, K); g.seg(29, 14, 29, 19, K);
+    g.ellipse(25, 18, 2, 3, K);
+    // 다리 + 발
+    g.seg(14, 25, 14, 29, K); g.seg(12, 29, 16, 29, K);
+    g.seg(19, 25, 19, 29, K); g.seg(17, 29, 21, 29, K);
+    // 흰 눈
+    g.rect(10, 10, 2, 2, W);
   },
-  // 3 생쥐 — 둥근 쥐 몸 + 큰 귀 + 수염 + 긴 꼬리 + 작은 발
+  // 3 생쥐 — 큰 귀 + 뾰족 코 + 길게 휘어지는 꼬리, 눈만 희게
   (g, t, talking, mood) => {
-    const tail = Math.round(Math.sin(t * 3) * 2);
-    g.ringDisc(15, 17, 8, 2, INK);                           // 몸
-    g.ringDisc(9, 8, 3, 1, INK); g.ringDisc(19, 8, 3, 1, INK); // 귀
-    g.px(12, 15, INK); g.px(18, 15, INK);                    // 눈
-    g.px(15, 19, INK);                                       // 코
-    g.seg(8, 19, 3, 18, INK); g.seg(22, 19, 27, 18, INK);    // 수염
-    g.seg(22, 21, 28, 19 + tail, INK); g.seg(28, 19 + tail, 30, 23 + tail, INK); // 꼬리
-    g.seg(12, 24, 12, 27, INK); g.seg(18, 24, 18, 27, INK);  // 발
+    const tail = Math.round(Math.sin(t * 2.5) * 2);
+    // 큰 귀(앞) + 작은 귀(뒤)
+    g.disc(11, 9, 5, K);
+    g.disc(17, 8, 3, K);
+    // 머리(왼쪽 뾰족 코) + 몸
+    g.ellipse(11, 16, 7, 5, K);
+    g.seg(4, 16, 2, 17, K); g.px(3, 17, K);
+    g.ellipse(19, 19, 9, 6, K);
+    // 길게 휘어지는 꼬리 — 몸 뒤에서 크게 스윽
+    g.seg(27, 21, 30, 17 + tail, K);
+    g.seg(30, 17 + tail, 31, 22 + tail, K);
+    g.seg(31, 22 + tail, 27, 26 + tail, K);
+    // 발
+    g.seg(14, 24, 14, 27, K); g.seg(21, 24, 21, 27, K);
+    // 흰 눈
+    g.rect(8, 14, 2, 2, W);
   },
 ];
 
