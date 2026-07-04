@@ -135,22 +135,21 @@ function starW(g, cx, cy) {
 }
 
 const MINI_DRAW = [
-  // 0 핑크토마토 — 울퉁불퉁한 열매(굴곡), 흰 별 꼭지 + 흰 눈·세모 입
+  // 0 핑크토마토 — 매끈한 토마토(위 가운데 옴폭 + 은은한 굴곡), 흰 별 꼭지 + 큰 흰 눈·세모 입
   (g, t, talking, mood) => {
-    // 몸 — 겹친 원으로 울퉁불퉁하게(위 두 봉우리, 아래 퍼짐)
-    g.disc(11, 14, 6, K); g.disc(21, 14, 6, K);
-    g.disc(9, 20, 6, K); g.disc(23, 20, 6, K);
-    g.disc(16, 19, 9, K);
-    g.ellipse(16, 16, 10, 6, K);
-    // 흰 별 꼭지(왼쪽 위)
-    starW(g, 13, 10);
-    // 흰 눈(깜박임) + 입
+    // 몸 — 위 두 봉긋(가운데 옴폭), 본체는 매끈한 타원, 옆·아래는 아주 은은한 굴곡만
+    g.disc(12, 12, 6, K); g.disc(20, 12, 6, K);
+    g.ellipse(16, 18, 11, 8, K);
+    g.ellipse(16, 21, 10, 6, K);
+    // 흰 별 꼭지 — 위 옴폭 한가운데
+    starW(g, 16, 11);
+    // 크고 동그란 흰 눈(깜박) + 세모 입
     const blink = (Math.floor(t * 1.3) % 7) === 0;
-    if (blink) { g.rect(12, 17, 2, 1, W); g.rect(19, 17, 2, 1, W); }
-    else { g.rect(12, 16, 2, 2, W); g.rect(19, 16, 2, 2, W); }
-    if (talking) g.ellipse(16, 22, 2, 2, W);
-    else if (mood === 'sad') { g.px(15, 22, W); g.px(16, 22, W); g.px(14, 23, W); g.px(17, 23, W); }
-    else { g.px(15, 22, W); g.px(16, 21, W); g.px(17, 22, W); g.px(16, 22, W); }   // 세모 입
+    if (blink) { g.rect(10, 18, 3, 1, W); g.rect(19, 18, 3, 1, W); }
+    else { g.disc(11, 18, 1.5, W); g.disc(20, 18, 1.5, W); }
+    if (talking) g.ellipse(16, 23, 2, 2, W);
+    else if (mood === 'sad') { g.px(14, 24, W); g.px(15, 23, W); g.px(16, 23, W); g.px(17, 24, W); }
+    else { g.rect(15, 22, 3, 1, W); g.px(16, 23, W); }   // 아래로 뾰족한 세모 입
   },
   // 1 심해어(아귀) — 큰 머리·벌린 입에 삐죽 이빨, 더듬이 발광체, 눈만 희게
   (g, t, talking, mood) => {
