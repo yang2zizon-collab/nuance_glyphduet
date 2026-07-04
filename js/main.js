@@ -538,39 +538,41 @@ function drawIntroScene(t) {
         x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       }
       ctx.stroke();
-      const bx = W * 0.72, by = H * 0.26 + Math.sin(t * 2.1) * 4;
-      const fx3 = W * 0.28, fy3 = H * 0.76 + Math.sin(t * 1.7) * 5;
+      // 클로즈업 — 스토리보드처럼 두 캐릭터를 크게(화면을 나눠 가까이서)
+      const S3 = S * 2.2;
+      const bx = W * 0.68, by = H * 0.24 + Math.sin(t * 2.1) * 5;
+      const fx3 = W * 0.32, fy3 = H * 0.78 + Math.sin(t * 1.7) * 6;
       // 심해어 광륜
       const glowK = 0.7 + 0.3 * Math.sin(t * 3);
-      const fg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, S * 1.3);
+      const fg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, S3 * 1.2);
       fg.addColorStop(0, `rgba(255,255,255,${0.8 * glowK})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = fg; ctx.fillRect(fx3 - S * 1.5, fy3 - S * 1.5, S * 3, S * 3);
+      ctx.fillStyle = fg; ctx.fillRect(fx3 - S3 * 1.4, fy3 - S3 * 1.4, S3 * 2.8, S3 * 2.8);
       // 캐릭터 + 수화기(귀에 든 모양) + 꼬불선(화면 밖으로)
-      silhouetteDraw(cctx, 2, bx - S / 2, by - S / 2, S, t + 1, Math.sin(t * 6) > 0 && s > 8.2, 'neutral', false, characterColor(2));
-      silhouetteDraw(cctx, 1, fx3 - S / 2, fy3 - S / 2, S, t, Math.sin(t * 6 + 2) > 0 && s > 9.0, 'neutral', true, characterColor(1));
+      silhouetteDraw(cctx, 2, bx - S3 / 2, by - S3 / 2, S3, t + 1, Math.sin(t * 6) > 0 && s > 8.2, 'neutral', false, characterColor(2));
+      silhouetteDraw(cctx, 1, fx3 - S3 / 2, fy3 - S3 / 2, S3, t, Math.sin(t * 6 + 2) > 0 && s > 9.0, 'neutral', true, characterColor(1));
       ctx.save();
-      handset(bx - S * 0.55, by - S * 0.05, 0.9, true);
-      cord(bx - S * 0.55, by + S * 0.15, W * 1.04, by + S * 0.6, '#141414');
-      handset(fx3 + S * 0.55, fy3 - S * 0.05, 0.9, false);
-      cord(fx3 + S * 0.55, fy3 + S * 0.15, -W * 0.04, fy3 + S * 0.6, '#e9e9e9');
+      handset(bx - S3 * 0.52, by - S3 * 0.03, 1.9, true);
+      cord(bx - S3 * 0.52, by + S3 * 0.18, W * 1.05, by + S3 * 0.55, '#141414');
+      handset(fx3 + S3 * 0.52, fy3 - S3 * 0.03, 1.9, false);
+      cord(fx3 + S3 * 0.52, fy3 + S3 * 0.18, -W * 0.05, fy3 + S3 * 0.55, '#e9e9e9');
       ctx.restore();
       // 벨 울림 "( ( (" — 흰 호가 퍼진다
       if (s > 7.3 && s < 8.6) {
         const rp = ((s - 7.3) % 0.65) / 0.65;
-        ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - rp)})`; ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.arc(fx3 + S * 0.55, fy3 - S * 0.05, S * (0.3 + rp * 0.5), -1.2, 1.2); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - rp)})`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(fx3 + S3 * 0.52, fy3 - S3 * 0.03, S3 * (0.28 + rp * 0.45), -1.2, 1.2); ctx.stroke();
         fxOnce('ring', () => { [0, 650].forEach((d) => setTimeout(() => { uiClick(0.95); uiClick(0.7); }, d)); });
       }
       if (s > 8.3) {
-        drawIntroMark(ctx, '?', bx, by - S * 0.78, S * 0.4, seg2(s, 8.3, 8.7));
+        drawIntroMark(ctx, '?', bx + S3 * 0.42, by - S3 * 0.6, S * 0.62, seg2(s, 8.3, 8.7));
         fxOnce('q1', () => speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.25, ch: 'e' }], characterVoice(2), 'confused'));
       }
       if (s > 9.1) {
-        drawIntroMark(ctx, '?', fx3, fy3 - S * 0.78, S * 0.4, seg2(s, 9.1, 9.5), '#fff');
+        drawIntroMark(ctx, '?', fx3 - S3 * 0.42, fy3 - S3 * 0.6, S * 0.62, seg2(s, 9.1, 9.5), '#fff');
         fxOnce('q2', () => speakVoiceEvents([{ rel: 0, ch: 'o' }, { rel: 0.25, ch: 'i' }], characterVoice(1), 'confused'));
       }
       if (s > 10.1) {
-        drawIntroMark(ctx, '♪', W * 0.5, splitY - S * 0.15, S * 0.5, seg2(s, 10.1, 10.6));
+        drawIntroMark(ctx, '♪', W * 0.5, splitY, S * 0.62, seg2(s, 10.1, 10.6));
         fxOnce('duet', () => { speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(1), 'happy'); speakVoiceEvents([{ rel: 0.3, ch: 'a' }], characterVoice(2), 'happy'); });
       }
     }
