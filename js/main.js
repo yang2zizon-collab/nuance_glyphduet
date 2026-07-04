@@ -664,11 +664,11 @@ window.addEventListener('keydown', ensureAudio);
 
 // 타이틀 인트로(리버스 스웰)가 끝나면 자동으로 캐릭터 선택 화면으로 넘어간다.
 // 인트로 ~10초 + 마지막 "커넥션" 피크 여운까지 들려준 뒤 전환.
-let introTimer = null;
+let titleIntroTimer = null;   // (친구의 컷신용 introTimer와 별개)
 function scheduleIntroAdvance() {
-  clearTimeout(introTimer);
-  introTimer = setTimeout(() => {
-    introTimer = null;
+  clearTimeout(titleIntroTimer);
+  titleIntroTimer = setTimeout(() => {
+    titleIntroTimer = null;
     if (state.screen === 'title') { updateSelectUI(); show('select'); }
   }, 10500);
 }
@@ -2538,7 +2538,7 @@ document.body.addEventListener('click', (e) => {
     // 경우엔 화면을 넘기지 않고 인트로를 들려준다(끝나면 자동 전환).
     if (!audioReady || performance.now() - audioWokenAt < 600) { ensureAudio(); return; }
     // 인트로 도중 다시 누르면 건너뛰고 바로 캐릭터 선택으로.
-    clearTimeout(introTimer); introTimer = null;
+    clearTimeout(titleIntroTimer); titleIntroTimer = null;
     updateSelectUI(); show('select');
   }
   else if (act === 'random') { uiClick(Math.random()); randomMatch(); }
