@@ -339,10 +339,23 @@ function drawIntroScene(t) {
   };
 
   // ── 카메라 — 토마토는 강한 줌인(스토리보드 "서서히 줌인되기"), 나머진 잔잔한 푸시인 ──
-  let zoom, ox, oy;
+  let zoom, ox, oy, panX = 0;
   if (kind === 'tomato') { zoom = 1.0 + easeIO(s / durS) * 1.05; ox = W * 0.5; oy = H * 0.56; }
+  else if (kind === 'mouse') {
+    // 도망가는 생쥐를 따라가다가, 마지막엔 왼쪽에서 빼꼼하는 얼굴로 줌인
+    const floorY0 = H * 0.68;
+    const runU0 = Math.min(1, (s < 1.4 ? seg2(s, 0.2, 1.4) * 0.45 : s < 1.9 ? 0.45 : 0.45 + seg2(s, 1.9, 3.1) * 0.55));
+    const dashOut0 = seg2(s, 3.5, 4.3);
+    const mx0 = W * (0.78 - runU0 * 0.36) - dashOut0 * W * 0.55;
+    const track = Math.max(W * 0.2, Math.min(W * 0.72, mx0));
+    const peekT = seg2(s, 5.0, 6.3);
+    ox = track * (1 - peekT) + S * 0.62 * peekT;             // 빼꼼 얼굴 위치로
+    oy = (floorY0 + S * 0.1) * (1 - peekT) + (floorY0 - S * 0.18) * peekT;
+    zoom = 1.05 + seg2(s, 3.5, 4.5) * 0.3 + peekT * 0.85;   // 도망에 살짝, 빼꼼에 크게
+    panX = peekT * W * 0.17;                                 // 왼쪽 끝 얼굴을 화면 안쪽으로
+  }
   else { zoom = 1.04 + Math.min(1, s / durS) * 0.10; ox = W / 2; oy = H * 0.55; }
-  const camX = Math.sin(t * 0.4) * 5, camY = Math.cos(t * 0.31) * 4;
+  const camX = Math.sin(t * 0.4) * 5 + panX, camY = Math.cos(t * 0.31) * 4;
   const applyCam = (c) => { c.translate(ox + camX, oy + camY); c.scale(zoom, zoom); c.translate(-ox, -oy); };
   applyCam(ctx); applyCam(cctx);
 
@@ -430,9 +443,18 @@ function drawIntroScene(t) {
     // 덩굴에 매달린 동그란 토마토들(음영 구체 + 꼭지)
     [[0.12, 0.3, 0.75], [0.24, 0.52, 1.0], [0.2, 0.14, 0.55], [0.82, 0.24, 0.8], [0.76, 0.5, 1.05], [0.9, 0.42, 0.7]].forEach(([fx2, fy2, k]) => {
       const bx = W * fx2, by = H * fy2, r = S * 0.24 * k;
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(bx, by - r - S * 0.12); ctx.lineTo(bx + 3, by - r); ctx.stroke();
+      // 덩굴에서 내려오는 줄기
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = Math.max(2, r * 0.13); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(bx, by - r - S * 0.14); ctx.lineTo(bx + 2, by - r * 0.8); ctx.stroke();
       sphere(bx, by, r);
+      // 꼭지 — 열매 위에 별 모양 꽃받침 잎 4장
+      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = Math.max(2, r * 0.15);
+      [[-0.55, 0.05], [-0.22, 0.22], [0.22, 0.22], [0.55, 0.05]].forEach(([lx, ly]) => {
+        ctx.beginPath();
+        ctx.moveTo(bx, by - r * 0.88);
+        ctx.quadraticCurveTo(bx + r * lx * 0.6, by - r * (0.95 - ly * 0.3), bx + r * lx, by - r * (0.78 - ly));
+        ctx.stroke();
+      });
     });
     // 핑크토마토(컬러) — 가운데, 줌인의 목적지. 그렁그렁한 눈물.
     const px2 = W * 0.5, py2 = H * 0.56;
@@ -631,42 +653,116 @@ function drawIntroScene(t) {
     const stomp = seg2(s, 3.0, 3.35);
     if (stomp > 0) {
       const footY = floorY + S * 0.5 - (1 - stomp) * H * 0.5;
-      const fw = S * 2.0, fh = S * 1.25, fx4 = W * 0.62;
+      const fw = S * 2.0, fh = S * 0.9, fx4 = W * 0.62;
       ctx.save();
-      shadow(fx4 - fw * 0.15, floorY + S * 0.48, fw * 0.6, fh * 0.14, 0.5 * stomp);
-      const legG = ctx.createLinearGradient(fx4 - fw * 0.12, 0, fx4 + fw * 0.3, 0);
-      legG.addColorStop(0, '#4a4a4a'); legG.addColorStop(0.35, '#101010'); legG.addColorStop(1, '#000');
+      shadow(fx4 - fw * 0.15, floorY + S * 0.48, fw * 0.62, fh * 0.16, 0.5 * stomp);
+      // 바짓단 — 위로 뻗는 기둥, 아래로 살짝 벌어지고 밑단 접힘
+      const legG = ctx.createLinearGradient(fx4 - fw * 0.05, 0, fx4 + fw * 0.36, 0);
+      legG.addColorStop(0, '#3f3f3f'); legG.addColorStop(0.4, '#161616'); legG.addColorStop(1, '#050505');
       ctx.fillStyle = legG;
-      ctx.fillRect(fx4 - fw * 0.12, footY - fh - H, fw * 0.42, H);
       ctx.beginPath();
-      ctx.moveTo(fx4 - fw * 0.12, footY - fh);
-      ctx.lineTo(fx4 - fw * 0.12, footY);
-      ctx.lineTo(fx4 - fw * 0.55, footY);
-      ctx.arc(fx4 - fw * 0.55, footY - fh * 0.28, fh * 0.28, Math.PI * 0.5, Math.PI * 1.5, false);
-      ctx.lineTo(fx4 + fw * 0.3, footY - fh);
+      ctx.moveTo(fx4 - fw * 0.02, footY - fh - H);
+      ctx.lineTo(fx4 - fw * 0.06, footY - fh * 1.55);
+      ctx.lineTo(fx4 + fw * 0.34, footY - fh * 1.55);
+      ctx.lineTo(fx4 + fw * 0.3, footY - fh - H);
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(fx4 - fw * 0.72, footY - 4); ctx.lineTo(fx4 + fw * 0.28, footY - 4); ctx.stroke();
+      ctx.fillRect(fx4 - fw * 0.08, footY - fh * 1.62, fw * 0.44, fh * 0.14);   // 밑단 접힘
+      // 양말 — 발목의 밝은 띠
+      ctx.fillStyle = '#c9c9c9';
+      ctx.fillRect(fx4 - fw * 0.04, footY - fh * 1.5, fw * 0.36, fh * 0.22);
+      // 신발 본체 — 발등이 앞코로 흘러내리는 곡선(옆모습, 앞코 왼쪽)
+      const shoeG = ctx.createLinearGradient(fx4 - fw * 0.6, footY - fh, fx4 + fw * 0.3, footY);
+      shoeG.addColorStop(0, '#2e2e2e'); shoeG.addColorStop(0.5, '#101010'); shoeG.addColorStop(1, '#000');
+      ctx.fillStyle = shoeG;
+      ctx.beginPath();
+      ctx.moveTo(fx4 + fw * 0.36, footY - fh * 1.32);                            // 뒤꿈치 위(발목 뒤)
+      ctx.quadraticCurveTo(fx4 + fw * 0.42, footY - fh * 0.5, fx4 + fw * 0.38, footY - fh * 0.12);  // 뒤꿈치 곡선
+      ctx.lineTo(fx4 - fw * 0.52, footY - fh * 0.12);                            // 밑창 위선
+      ctx.quadraticCurveTo(fx4 - fw * 0.72, footY - fh * 0.14, fx4 - fw * 0.68, footY - fh * 0.38); // 둥근 앞코
+      ctx.quadraticCurveTo(fx4 - fw * 0.6, footY - fh * 0.62, fx4 - fw * 0.28, footY - fh * 0.78);  // 발등 내리막
+      ctx.quadraticCurveTo(fx4 - fw * 0.05, footY - fh * 0.92, fx4 + fw * 0.02, footY - fh * 1.32); // 발목 앞
+      ctx.closePath(); ctx.fill();
+      // 앞코 캡 하이라이트
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(fx4 - fw * 0.5, footY - fh * 0.16);
+      ctx.quadraticCurveTo(fx4 - fw * 0.62, footY - fh * 0.3, fx4 - fw * 0.5, footY - fh * 0.52);
+      ctx.stroke();
+      // 신발끈 — 발등에 흰 사선 세 줄
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2.6;
+      [[-0.34, -0.62, -0.16, -0.74], [-0.26, -0.5, -0.06, -0.64], [-0.18, -0.38, 0.02, -0.54]].forEach(([a1, b1, a2, b2]) => {
+        ctx.beginPath();
+        ctx.moveTo(fx4 + fw * a1, footY + fh * b1);
+        ctx.lineTo(fx4 + fw * a2, footY + fh * b2);
+        ctx.stroke();
+      });
+      // 밑창 — 두툼한 밝은 슬랩 + 트레드 눈금
+      ctx.fillStyle = '#d6d6d6';
+      ctx.beginPath();
+      ctx.moveTo(fx4 - fw * 0.7, footY - fh * 0.12);
+      ctx.lineTo(fx4 + fw * 0.4, footY - fh * 0.12);
+      ctx.lineTo(fx4 + fw * 0.38, footY);
+      ctx.lineTo(fx4 - fw * 0.66, footY);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1.6;
+      for (let i = 0; i < 7; i++) {
+        const tx = fx4 - fw * 0.58 + i * fw * 0.15;
+        ctx.beginPath(); ctx.moveTo(tx, footY - 2); ctx.lineTo(tx + fw * 0.04, footY - fh * 0.1); ctx.stroke();
+      }
       ctx.restore();
+      // 쿵 — 착지 먼지
+      if (stomp >= 1 && s < 3.9) {
+        const dust = 1 - seg2(s, 3.35, 3.9);
+        ctx.fillStyle = `rgba(255,255,255,${0.45 * dust})`;
+        for (let i = 0; i < 6; i++) {
+          const dx2 = fx4 - fw * 0.75 - i * 12 - (1 - dust) * 26;
+          ctx.beginPath(); ctx.arc(dx2, floorY + S * 0.42 - (i % 2) * 7, 5 + (i % 3) * 3, 0, 7); ctx.fill();
+        }
+      }
       fxOnce('stomp', () => setTimeout(() => { playMark('period', 0, 1.6); uiClick(0.12); }, Math.max(0, (3.35 - s) * 1000)));
     }
     // 빗자루 — 오른쪽에서 들어와 바닥을 쓸어낸다(스윽스윽)
     const broomIn = seg2(s, 3.9, 4.5);
     if (broomIn > 0) {
-      const sweep = s > 4.5 ? Math.sin((s - 4.5) * 3.4) * W * 0.06 * (1 - seg2(s, 6.6, 7.4)) : 0;
-      const bx2 = W * (1.05 - broomIn * 0.33) + sweep, by2 = floorY + S * 0.45;
+      // 스윙 — 자루 위쪽(손 근처)을 축으로 좌우로 쓸어낸다
+      const swing = s > 4.5 ? Math.sin((s - 4.5) * 3.2) * 0.16 * (1 - seg2(s, 6.6, 7.4)) : 0;
+      const hx = W * (1.02 - broomIn * 0.24), hy = floorY - H * 0.52;   // 축(손 위치)
+      const bLen = H * 0.58;                                            // 자루 길이
+      const ang = Math.PI * 0.62 + swing;                               // 기울기
+      const bx2 = hx + Math.cos(ang) * bLen, by2 = hy + Math.sin(ang) * bLen;   // 빗살 목
       ctx.save();
-      ctx.strokeStyle = '#101010'; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(bx2 + S * 1.5, by2 - H * 0.62); ctx.lineTo(bx2 + S * 0.12, by2 - S * 0.5); ctx.stroke();
-      // 빗자루 머리(빗살)
-      ctx.fillStyle = '#161616';
-      ctx.beginPath();
-      ctx.moveTo(bx2 - S * 0.3, by2); ctx.lineTo(bx2 + S * 0.42, by2);
-      ctx.lineTo(bx2 + S * 0.3, by2 - S * 0.52); ctx.lineTo(bx2 - S * 0.12, by2 - S * 0.52);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.4;
-      for (let i = 0; i < 5; i++) {
-        ctx.beginPath(); ctx.moveTo(bx2 - S * 0.22 + i * S * 0.13, by2 - S * 0.05); ctx.lineTo(bx2 - S * 0.16 + i * S * 0.13, by2 - S * 0.4); ctx.stroke();
+      // 자루 — 가늘고 긴 나무 막대(밝은 결 한 줄)
+      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = S * 0.07; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(hx, hy - S * 0.3); ctx.lineTo(bx2, by2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = S * 0.018;
+      ctx.beginPath(); ctx.moveTo(hx - S * 0.012, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.012, by2); ctx.stroke();
+      // 페룰(빗살 묶는 띠)
+      ctx.save();
+      ctx.translate(bx2, by2); ctx.rotate(ang - Math.PI / 2);
+      ctx.fillStyle = '#e0e0e0';
+      ctx.fillRect(-S * 0.13, -S * 0.02, S * 0.26, S * 0.14);
+      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1.6;
+      ctx.strokeRect(-S * 0.13, -S * 0.02, S * 0.26, S * 0.14);
+      // 빗살 — 부챗살로 퍼지는 결(끝이 바닥에 닿아 살짝 휜다)
+      const tipY = Math.max(S * 0.5, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.92);
+      for (let i = 0; i < 15; i++) {
+        const u = i / 14 - 0.5;
+        const g2 = 0.35 + ((i * 13) % 5) * 0.1;
+        ctx.strokeStyle = `rgba(${20 + ((i * 37) % 40)},${18 + ((i * 29) % 40)},${16 + ((i * 41) % 40)},${g2 + 0.45})`;
+        ctx.lineWidth = 2 + (i % 2);
+        ctx.beginPath();
+        ctx.moveTo(u * S * 0.2, S * 0.1);
+        ctx.quadraticCurveTo(u * S * 0.5, tipY * 0.6, u * S * 0.72 + swing * S * 1.6, tipY + ((i * 7) % 3) * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // 쓸릴 때 먼지·부스러기 튐
+      if (Math.abs(swing) > 0.08) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        for (let i = 0; i < 4; i++) {
+          const dx2 = bx2 - S * 0.6 - i * 14 - swing * S * 2;
+          ctx.beginPath(); ctx.arc(dx2, floorY + S * 0.4 - (i % 2) * 6, 2.2, 0, 7); ctx.fill();
+        }
       }
       ctx.restore();
       fxOnce('sweep', () => { [0, 550, 1100].forEach((d) => setTimeout(() => uiClick(0.18), d)); });
@@ -675,8 +771,8 @@ function drawIntroScene(t) {
     // 왼쪽 구석에서 빼꼼 — '…'
     if (s > 6.2) {
       const peek = seg2(s, 6.2, 6.8);
-      silhouetteDraw(cctx, 3, -S * 0.55 + peek * S * 0.35, floorY - S * 0.2, S * 0.9, t, false, 'neutral', false, characterColor(3));
-      if (s > 6.8) drawIntroMark(ctx, '…', S * 0.75, floorY - S * 0.45, S * 0.38, seg2(s, 6.8, 7.3));
+      silhouetteDraw(cctx, 3, -S * 0.75 + peek * S * 0.9, floorY - S * 0.42, S * 1.15, t, false, 'neutral', true, characterColor(3));
+      if (s > 6.8) drawIntroMark(ctx, '…', S * 1.25, floorY - S * 0.85, S * 0.42, seg2(s, 6.8, 7.3));
       fxOnce('phew', () => speakVoiceEvents([{ rel: 0, ch: 'u' }], characterVoice(3), 'sad'));
     }
   }
