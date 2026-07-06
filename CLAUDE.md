@@ -52,10 +52,8 @@ serve.py                로컬 서버
   남색(#3a4fa0)·새 귤색(#ff9d3b)·생쥐 연보라(#b9a6e8). `silhouetteDraw`가 `characterColor(idx)`로
   픽셀 단위 채색(silhouetteFill rgb 파라미터). CSS의 brightness(0) 필터는 제거됨(다시 넣으면 색이 죽는다).
   **현재 전부 흑백** — silhouetteDraw 기본 검정(마지막 color 인자를 넘길 때만 색, 컷신 재제작 시 사용).
-  **예외 — 토마토 B컷(상자)은 사용자 요청으로 풀컬러**: `buildTomBColor(W,H,S)`가 초록 밭·나무 상자·
-  빨간 토마토를 W×H 컬러 캔버스로 1회 굽고(크기별 캐시 tomBColorCv), B 분기에서 흑백 하프톤 ctx 대신
-  **컬러 레이어 cctx에 통째로 blit**(imageSmoothingEnabled=true). 이 컷만 dither 파이프라인을 우회한다.
-  전환 화이트 플래시도 cctx에 같이 그려야 함(컬러 레이어가 위를 덮으므로).
+  토마토 A·B컷은 **둘 다 흑백 도트(하프톤)**. 배경을 흑백 ctx에 그리면 끝에서 dither→도트아트가 된다.
+  B컷 폴백은 `buildTomBColor(W,H,S)`(컬러 상자 합성, 크기별 캐시)를 ctx에 blit → dither가 명도만 남겨 흑백 도트로.
 - **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
   **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
   선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
@@ -122,6 +120,10 @@ serve.py                로컬 서버
   ASCII_HOLD=7s 후 `endAsciiToEnding()`→엔딩. `body.ascii-time`으로 스코어판/열/입력칸 숨김.
   POST `/ascii {mark,chars}`(점 제외 실제 글자만)→SSE로 폰도 같은 밀도 필드+움직임을 렌더
   (tap.html artMaskDraw/artMotion/renderArt — RAF 30fps, 라운드/idle에서 내려감).
+- **소개 컷신 배경 사진 필터(사용자 제공 이미지)**: `assets/intro/tomato-a.(jpg|png|jpeg)` /
+  `tomato-b.*`가 있으면 토마토 A/B컷 배경으로 쓴다 — `loadIntroPhoto`로 프리로드, `drawPhotoCover`가
+  커버핏으로 흑백 ctx에 그려 dither→도트아트, 그 위에 핑토를 얹는다. 파일이 없으면 손그림 폴백.
+  **저작권 있는 스톡 사진(워터마크/미구매)은 넣지 말 것 — 본인 촬영·정식 라이선스·CC0만.** (assets/intro/README.md)
 - **캐릭터 소개 컷신(스토리보드 기반 재제작)**: 룰렛 착지 750ms 후 재생, 디더링(도트)+컬러 레이어.
   사용자 스케치(IMG_0519)·스토리보드(IMG_0520) 기반. `INTRO_PX=2.0`(촘촘한 도트=실사 톤),
   전 장면 공통 필름 비네트(카메라 변환 밖, 화면 고정). **실사 톤 기법**: `ctx.filter='blur(Npx)'`로

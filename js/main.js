@@ -512,6 +512,27 @@ function buildTomBColor(W, H, S) {
   return cv;
 }
 
+// 소개 컷신 배경 사진 — 사용자가 직접 넣은 사진(권리 보유분)을 흑백 도트로 필터링해 배경으로 쓴다.
+//   assets/intro/tomato-a.(jpg|png) → 토마토 A컷, tomato-b.(jpg|png) → B컷.
+//   파일이 없으면 손그림 폴백(현재 배경)을 그대로 쓴다. 저작권 있는 스톡 사진은 넣지 말 것.
+const introPhotos = {};
+function loadIntroPhoto(key, srcs) {
+  if (introPhotos[key]) return;
+  const ent = introPhotos[key] = { img: new Image(), ok: false, i: 0 };
+  ent.img.onload = () => { ent.ok = true; };
+  ent.img.onerror = () => { ent.i++; if (ent.i < srcs.length) ent.img.src = srcs[ent.i]; };
+  ent.img.src = srcs[0];
+}
+function introPhotoReady(key) { const e = introPhotos[key]; return !!(e && e.ok && e.img.naturalWidth); }
+// 커버 핏 — 비율 유지하며 화면을 가득 채우고 넘치는 부분은 잘라낸다(사진 크롭).
+function drawPhotoCover(g, img, W, H) {
+  const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return;
+  const sc = Math.max(W / iw, H / ih), dw = iw * sc, dh = ih * sc;
+  g.imageSmoothingEnabled = true;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
 function drawIntroScene(t) {
   const W = window.innerWidth, H = window.innerHeight;
   const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
@@ -821,8 +842,10 @@ function drawIntroScene(t) {
       ctx.restore();
     };
     if (s < TOMATO_CUT) {
-      // ── A. 덩굴밭 — 화면을 뒤덮는 덤불, 주렁주렁한 열매(맨 위엔 안 익은 초록 하나) ──
+      // ── A. 덩굴밭 — 사진(assets/intro/tomato-a) 있으면 흑백 도트로, 없으면 손그림 잎 폴백 ──
       const px2 = W * 0.5, py2 = H * 0.5;
+      if (introPhotoReady('tomatoA')) { drawPhotoCover(ctx, introPhotos.tomatoA.img, W, H); }
+      else {
       plate('tomA', () => {
       let g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#474747'); g.addColorStop(0.55, '#6b6b6b'); g.addColorStop(1, '#383838');
@@ -875,18 +898,19 @@ function drawIntroScene(t) {
       wavyStem(px2 + S * 0.2, -12, px2, py2 - S * 0.4,
         [S * 0.16, -S * 0.12, S * 0.09, -S * 0.05], S * 0.055, '#31352c');
       });   // ── tomA 플레이트 끝
+      }
+      // 핑토 — 배경 위에 얹는다(컬러 레이어)
       silhouetteDraw(cctx, 0, px2 - S * 0.5, py2 - S * 0.5, S, t, false, 'neutral', false, characterColor(0));
       fxOnce('wind', () => uiClick(0.28));
     } else {
-      // ── B. 상자(참조 사진과 동일 — 풀컬러). 이 컷만 흑백 하프톤을 건너뛰고 컬러 레이어에 그린다. ──
+      // ── B. 상자 — 사진(assets/intro/tomato-b) 있으면 흑백 도트로, 없으면 손그림 상자 폴백 ──
       const crT = H * 0.44, S2 = S;
       const px2 = W * 0.5, py2 = crT - S2 * 0.14;
-      // 배경+상자+토마토 컬러 플레이트를 컬러 레이어(cctx)에 통째로 blit(카메라 변환 아래).
-      cctx.save();
-      cctx.imageSmoothingEnabled = true;   // 부드러운 사진 톤(픽셀아트 아님)
-      cctx.drawImage(buildTomBColor(W, H, S), 0, 0, W, H);
-      cctx.restore();
-      // 핑토 — 무더기 한가운데, 혼자 색이 다르다(미운오리새끼). 눈물 또르르.
+      // 배경을 흑백 하프톤 ctx에 그린다(끝에서 dither → 도트아트). 컬러 플레이트를 밑그림으로 blit해도
+      // dither가 명도만 남겨 흑백 도트가 된다.
+      if (introPhotoReady('tomatoB')) { drawPhotoCover(ctx, introPhotos.tomatoB.img, W, H); }
+      else { ctx.imageSmoothingEnabled = true; ctx.drawImage(buildTomBColor(W, H, S), 0, 0, W, H); }
+      // 핑토 — 배경 위에 얹는다(컬러 레이어). 눈물 또르르.
       silhouetteDraw(cctx, 0, px2 - S2 * 0.55, py2 - S2 * 0.55, S2 * 1.1, t, false, 'sad', false, characterColor(0));
       if (s > 13.0) {
         const drop = (sd, side) => {
@@ -894,7 +918,7 @@ function drawIntroScene(t) {
           if (s < sd || cyc > 0.85) return;
           const dx2 = px2 + side * S2 * 0.2;
           const dy2 = py2 + S2 * 0.02 + cyc * S2 * 0.45;
-          cctx.fillStyle = `rgba(80,120,210,${0.9 * (1 - cyc)})`;   // 눈물 — 맑은 물방울(컬러)
+          cctx.fillStyle = `rgba(80,120,210,${0.9 * (1 - cyc)})`;   // 눈물 — 맑은 물방울
           cctx.beginPath(); cctx.ellipse(dx2, dy2, 3.2, 4.6, 0, 0, 7); cctx.fill();
         };
         drop(13.0, -1); drop(13.8, 1);
@@ -902,13 +926,10 @@ function drawIntroScene(t) {
       }
       if (s > 16.8) drawIntroMark(cctx, '…', px2, py2 - S2 * 0.95, S2 * 0.4, seg2(s, 16.8, 17.3), '#2a2a2a');
     }
-    // 장면 전환 화이트 플래시 — B컷은 컬러 레이어가 위를 덮으므로 cctx에도 함께 플래시
+    // 장면 전환 화이트 플래시(양 컷 모두 ctx 배경이므로 ctx만)
     {
       const f = 1 - Math.min(1, Math.abs(s - TOMATO_CUT) / 0.22);
-      if (f > 0) {
-        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore();
-        cctx.save(); cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.fillStyle = `rgba(255,255,255,${f})`; cctx.fillRect(0, 0, W, H); cctx.restore();
-      }
+      if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
       if (s > TOMATO_CUT) fxOnce('cut', () => uiClick(0.5));
     }
   } else if (kind === 'phone') {
@@ -4199,6 +4220,9 @@ window.__probe = () => ({ jam: jamOn, phase: endingPhase, prog: scoreProgress(),
 
 // ===== 시작 =====
 resize();
+// 소개 컷신 배경 사진(있으면) 미리 로드 — 없으면 손그림 폴백. 저작권 있는 스톡 사진 금지.
+loadIntroPhoto('tomatoA', ['assets/intro/tomato-a.jpg', 'assets/intro/tomato-a.png', 'assets/intro/tomato-a.jpeg']);
+loadIntroPhoto('tomatoB', ['assets/intro/tomato-b.jpg', 'assets/intro/tomato-b.png', 'assets/intro/tomato-b.jpeg']);
 buildPickColumns();   // 플레이 중 좌/우 캐릭터 선택 열 생성
 if (SCORE) setupGift();   // 선물 아이콘 + 드래그&드롭(리버브) 준비
 if (SCORE) setupAudience();   // 관객 폰 실시간 부호 탭(SSE) 연결 준비
