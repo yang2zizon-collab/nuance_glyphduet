@@ -283,6 +283,10 @@ html, body { background: #ffffff; color: var(--ink); }
 #qr-caption { color: #000; font-size: 1.05rem; letter-spacing: 0.12em; margin: 0; }
 #qr-url { color: #888; font-size: 0.78rem; margin: 0; word-break: break-all; max-width: 80vw; text-align: center; }
 
+/* 엔딩 — 소통 게이지·문구는 8초 뒤 스스르 사라진다(showEnding의 타이머가 클래스를 붙임) */
+.theme-score #screen-ending { transition: opacity 1.8s ease; }
+.theme-score.ending-hud-off #screen-ending { opacity: 0; pointer-events: none; }
+
 /* 엔딩 */
 #ending-title { text-shadow: none; color: #000; }
 #ending-meter { background: #eee; border-color: #000; }

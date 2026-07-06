@@ -257,38 +257,51 @@ function drawSlotWindow(t) {
 let introScene = null;    // { kind, start, dur, fx:{} }
 let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
 
-const INTRO_DUR = { tomato: 12000, phone: 11000, mouse: 12500 };  // 장면 내부 시계 기준(초 값들은 그대로)
+const INTRO_DUR = { tomato: 19000, phone: 17000, mouse: 16000 };  // 장면 내부 시계 기준(내레이션이 길어져 여유 있게)
 const INTRO_PACE = 1.25;  // 전체 호흡 — 클수록 컷신이 여유 있게 흐른다(내부 s가 1/PACE로 느려짐)
-const TOMATO_CUT = 5.2;   // 토마토 장면 전환 시각(초) — 덩굴밭 → 상자
-const MOUSE_CUT = 4.5;    // 생쥐 장면 전환 시각(초) — 밤거리 → 부엌
+const TOMATO_CUT = 8.5;   // 토마토 장면 전환 시각(초) — 덩굴밭 → 상자
+const MOUSE_CUT = 6.5;    // 생쥐 장면 전환 시각(초) — 밤거리 → 부엌
+const PHONE_B2 = 5.4, PHONE_B3 = 10.8;   // 전화 컷신 비트 경계
 
 // 컷신 내레이션 — 맨 아래 대화창에 한국어·영어 두 줄이 타이핑되고,
 // 찍힌 지 조금 지난 글자들이 하나둘 외계어 글리프로 변해 간다(번역이 새는 느낌).
-const INTRO_ALIEN = '◆●■▲▼◇○□△▽◐◑♪☆✳※';
-const INTRO_TYPE_CPS = 16;   // 초당 타이핑 글자 수(한국어 기준 — 영어는 길이에 비례해 같이 끝난다)
+const INTRO_ALIEN = '◆●■▲▼◇○□△▽◐◑♪☆✳※⌘∿';
+const INTRO_TYPE_CPS = 8;    // 초당 타이핑 글자 수 — 천천히, 읽는 호흡으로(영어는 길이 비례로 같이 끝남)
 const INTRO_NARR = {
   tomato: [
     { at: 0.6, ko: '초록의 물결 아래, 붉은 열매들은 저마다의 작은 심장을 매달고 있었습니다.',
       en: 'Beneath a green tide, red fruits hung like small hearts.' },
-    { at: 6.0, ko: '같은 상자에 담겨도 물들지 않는 색 하나 — 핑토는 조용히 제 빛을 껴안고 있었습니다…',
-      en: 'Boxed together, yet a color apart — Pinto held its own light…' },
+    { at: 6.6, ko: '바람이 지날 때마다 밭은 낮게 웅성거리고, 익어가는 것들은 조용히 무거워집니다.',
+      en: 'With every wind the field murmurs; what ripens grows quietly heavy.' },
+    { at: 11.6, ko: '같은 상자에 담겨도 물들지 않는 색 하나 —',
+      en: 'Boxed together, yet one color refuses to blend —' },
+    { at: 15.0, ko: '핑토는 저만의 빛을 안고, 아무도 모르게 반짝였습니다…',
+      en: 'Pinto held its own light, glimmering where no one looked…' },
   ],
   phone: [
     { at: 0.5, ko: '바람의 높이에서 사는 새가, 가지 끝에 놓인 낯선 기계와 마주쳤습니다.',
       en: 'A bird of the high winds met a strange machine at the branch’s end.' },
-    { at: 4.0, ko: '빛이 겨우 스미는 깊이에서, 심해어도 같은 꿈의 조각을 주웠습니다.',
+    { at: 3.2, ko: '반질반질한 침묵 — 그것은 아직 아무의 목소리도 아니었습니다.',
+      en: 'A polished silence — not yet anyone’s voice.' },
+    { at: 6.0, ko: '빛이 겨우 스미는 깊이에서, 심해어도 같은 꿈의 조각을 주웠습니다.',
       en: 'Where light barely seeps, the deep-sea fish found the same shard of a dream.' },
-    { at: 7.3, ko: '따르릉 — 하늘과 심해가 한 가닥의 선으로 이어지는 순간.',
+    { at: 8.9, ko: '어둠은 넓고, 그리움은 그보다 조금 더 넓습니다.',
+      en: 'The dark is vast; longing, a little vaster.' },
+    { at: 11.4, ko: '따르릉 — 하늘과 심해가 한 가닥의 선으로 이어지는 순간.',
       en: 'Ring — sky and abyss, joined by a single thread.' },
+    { at: 14.6, ko: '서로 다른 두 물이, 같은 파문으로 흔들립니다.',
+      en: 'Two different waters tremble in the same ripple.' },
   ],
   mouse: [
     { at: 0.5, ko: '가로등이 하나둘 켜지는 밤, 작은 발자국이 도시의 골목을 꿰매며 달립니다.',
       en: 'As lamps blink on, small footsteps stitch through the city’s alleys.' },
-    { at: 5.0, ko: '떨어진 부스러기는 길이 되고, 그 길은 어느 부엌의 온기로 이어졌습니다.',
+    { at: 3.6, ko: '도시는 크고, 배고픔은 그보다 빠릅니다.',
+      en: 'The city is big; hunger is faster.' },
+    { at: 7.2, ko: '떨어진 부스러기는 길이 되고, 그 길은 어느 부엌의 온기로 이어졌습니다.',
       en: 'Fallen crumbs became a road, and the road led to a kitchen’s warmth.' },
-    { at: 7.7, ko: '쓱쓱 — 빗자루의 파도가 작은 손님을 문밖으로 밀어냅니다.',
+    { at: 9.9, ko: '쓱쓱 — 빗자루의 파도가 작은 손님을 문밖으로 밀어냅니다.',
       en: 'Swish — a broom’s wave pushes the little guest out.' },
-    { at: 10.7, ko: '그래도 생쥐는, 다시 빼꼼.',
+    { at: 13.2, ko: '그래도 생쥐는, 다시 빼꼼.',
       en: 'And yet, the mouse peeks again.' },
   ],
 };
@@ -407,7 +420,7 @@ function drawIntroScene(t) {
   }
   else if (kind === 'mouse' && s < MOUSE_CUT) {
     // 밤거리 — 내달리는 생쥐를 옆에서 트래킹(라따뚜이처럼 낮은 시점)
-    const runX = W * (0.06 + seg2(s, 0.3, 4.2) * 0.75);
+    const runX = W * (0.06 + seg2(s, 0.4, 5.8) * 0.75);
     ox = Math.max(W * 0.32, Math.min(W * 0.68, runX));
     oy = H * 0.68;
     zoom = 1.14;
@@ -663,30 +676,42 @@ function drawIntroScene(t) {
       let g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#474747'); g.addColorStop(0.55, '#6b6b6b'); g.addColorStop(1, '#383838');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // 뒤층 잎 — 어둡게, 빽빽하게, 심도 흐림(뒤 배경이 뭉개진 실사 톤)
+      // 유기적 줄기 헬퍼 — 마디마다 좌우로 굽이치는 곡선(일직선 금지)
+      const wavyStem = (x0, y0, x1, y1, bows, wdt, tone) => {
+        ctx.strokeStyle = tone; ctx.lineWidth = wdt; ctx.lineCap = 'round';
+        const dx = x1 - x0, dy = y1 - y0;
+        const L2 = Math.hypot(dx, dy) || 1;
+        const nx2 = -dy / L2, ny2 = dx / L2;   // 진행 방향의 수직
+        ctx.beginPath(); ctx.moveTo(x0, y0);
+        for (let i = 0; i < bows.length; i++) {
+          const u1 = (i + 1) / bows.length, um = (i + 0.5) / bows.length;
+          ctx.quadraticCurveTo(
+            x0 + dx * um + nx2 * bows[i], y0 + dy * um + ny2 * bows[i],
+            x0 + dx * u1, y0 + dy * u1);
+        }
+        ctx.stroke();
+      };
+      // 뒤층 잎 — 어둡게, 아주 빽빽하게, 심도 흐림(뒤 배경이 뭉개진 실사 톤)
       ctx.filter = 'blur(2.5px)';
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 34; i++) {
         const fx2 = ((i * 41) % 97) / 97 * W, fy2 = ((i * 67) % 89) / 89 * H;
         leaf(fx2, fy2, S * (0.5 + ((i * 13) % 5) * 0.11), ((i * 29) % 63) / 10 - 3 + Math.sin(t * 0.5 + i) * 0.03,
-          46 + (i % 5) * 10);
+          44 + (i % 6) * 9);
       }
-      // 덩굴 줄기 — 잎 사이를 지나는 굵은 줄기(흐림 유지)
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 5; i++) {
-        ctx.strokeStyle = `rgba(${70 + i * 8},${74 + i * 8},${66 + i * 8},0.9)`;
-        ctx.lineWidth = S * (0.045 + (i % 2) * 0.02);
-        ctx.beginPath();
-        const sx2 = W * (0.08 + i * 0.2);
-        ctx.moveTo(sx2, -10);
-        ctx.quadraticCurveTo(sx2 + Math.sin(i * 2.1) * W * 0.08, H * 0.45, sx2 + Math.sin(i * 1.3) * W * 0.12, H + 10);
-        ctx.stroke();
+      // 덩굴 줄기 — 잎 사이를 굽이굽이 지나는 줄기들(흐림 유지)
+      for (let i = 0; i < 6; i++) {
+        const sx2 = W * (0.06 + i * 0.17);
+        const amp = W * (0.02 + hash01(i * 3.1) * 0.05);
+        wavyStem(sx2, -10, sx2 + Math.sin(i * 1.3) * W * 0.1, H + 10,
+          [amp, -amp * 0.8, amp * 1.1, -amp * 0.7, amp * 0.5],
+          S * (0.04 + (i % 2) * 0.018), `rgba(${70 + i * 7},${74 + i * 7},${66 + i * 7},0.9)`);
       }
       ctx.filter = 'none';
-      // 앞층 잎 — 밝게, 무성함, 선명(열매보다 먼저 → 열매가 앞에 또렷이)
-      for (let i = 0; i < 12; i++) {
+      // 앞층 잎 — 밝게, 훨씬 무성하게(열매보다 먼저 → 열매가 앞에 또렷이)
+      for (let i = 0; i < 20; i++) {
         const fx2 = ((i * 71) % 93) / 93 * W, fy2 = ((i * 37 + 20) % 90) / 90 * H;
-        leaf(fx2, fy2, S * (0.42 + ((i * 17) % 4) * 0.1), ((i * 43) % 63) / 10 - 3 - Math.sin(t * 0.6 + i) * 0.04,
-          128 + (i % 5) * 16);
+        leaf(fx2, fy2, S * (0.4 + ((i * 17) % 4) * 0.1), ((i * 43) % 63) / 10 - 3 - Math.sin(t * 0.6 + i) * 0.04,
+          124 + (i % 6) * 14);
       }
       // 매달린 열매 송이 — 위 덤불에서 내려온 줄기 끝에 2~3알씩. 전부 줄기에 연결(공중에 뜨지 않게).
       const clusters = [
@@ -699,42 +724,40 @@ function drawIntroScene(t) {
       clusters.forEach((c, ci) => {
         const nx = W * c.ax + Math.sin(t * 0.4 + ci * 2.1) * 3;   // 바람에 살짝
         const nyy = H * c.ny;
-        // 원줄기 — 화면 위 덤불에서 송이 노드까지 내려온다
-        ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.055;
-        ctx.beginPath();
-        ctx.moveTo(nx + W * c.sway * 2, -12);
-        ctx.quadraticCurveTo(nx + W * c.sway * 3.2, nyy * 0.55, nx, nyy);
-        ctx.stroke();
-        // 노드 → 각 열매로 꼭지줄기(pedicel)
-        c.fr.forEach(([dx, dy, k]) => {
+        // 원줄기 — 굽이치며 내려오는 유기적 곡선(마디 4개, 송이마다 다른 흔들림)
+        const amp = S * (0.14 + hash01(ci * 7.7) * 0.12) * (c.sway > 0 ? 1 : -1);
+        wavyStem(nx + W * c.sway * 2, -12, nx, nyy,
+          [amp, -amp * 0.7, amp * 0.9, -amp * 0.4], S * 0.05, '#31352c');
+        // 노드의 옹이(마디 혹)
+        ctx.fillStyle = '#31352c';
+        ctx.beginPath(); ctx.arc(nx, nyy, S * 0.04, 0, 7); ctx.fill();
+        // 노드 → 각 열매로 꼭지줄기(pedicel) — 아래로 처지는 곡선
+        c.fr.forEach(([dx, dy, k], fi) => {
           const fx = nx + S * dx, fy = nyy + S * dy;
           const r = S * 0.27 * k;
           ctx.strokeStyle = '#373b32'; ctx.lineWidth = Math.max(2.4, r * 0.15);
           ctx.beginPath();
           ctx.moveTo(nx, nyy);
-          ctx.quadraticCurveTo((nx + fx) / 2, (nyy + fy - r) / 2 + S * 0.05, fx, fy - r * 0.8);
+          ctx.quadraticCurveTo(
+            nx + (fx - nx) * 0.35 + (fi % 2 ? S * 0.06 : -S * 0.05),
+            nyy + (fy - nyy) * 0.75 + S * 0.09,
+            fx, fy - r * 0.8);
           ctx.stroke();
           tomatoFruit(fx, fy, r, false, true);
         });
       });
-      // 맨 위 안 익은 초록 토마토 — 역시 줄기에 매달려
-      ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.05;
-      ctx.beginPath();
-      ctx.moveTo(W * 0.545, -10);
-      ctx.quadraticCurveTo(W * 0.535, H * 0.02, W * 0.52, H * 0.07 - S * 0.25);
-      ctx.stroke();
+      // 맨 위 안 익은 초록 토마토 — 역시 굽은 줄기에 매달려
+      wavyStem(W * 0.555, -10, W * 0.52, H * 0.07 - S * 0.25,
+        [S * 0.08, -S * 0.06, S * 0.04], S * 0.045, '#31352c');
       tomatoFruit(W * 0.52, H * 0.07, S * 0.32, true, true);
       // 전경 보케 — 카메라 코앞의 잎이 크게 흐려져 프레임을 감싼다(시네마틱)
       ctx.filter = 'blur(6px)';
       leaf(W * 0.03, H * 0.92, S * 1.25, -2.4, 26);
       leaf(W * 0.97, H * 0.05, S * 1.05, 0.9, 30);
       ctx.filter = 'none';
-      // 핑토의 줄기 — 위 덤불에서 내려와 매달린다
-      ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.06; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(px2 + S * 0.18, -12);
-      ctx.quadraticCurveTo(px2 + S * 0.26, H * 0.22, px2, py2 - S * 0.4);
-      ctx.stroke();
+      // 핑토의 줄기 — 굽이치며 내려와 매달린다
+      wavyStem(px2 + S * 0.2, -12, px2, py2 - S * 0.4,
+        [S * 0.16, -S * 0.12, S * 0.09, -S * 0.05], S * 0.055, '#31352c');
       });   // ── tomA 플레이트 끝
       silhouetteDraw(cctx, 0, px2 - S * 0.5, py2 - S * 0.5, S, t, false, 'neutral', false, characterColor(0));
       fxOnce('wind', () => uiClick(0.28));
@@ -743,10 +766,51 @@ function drawIntroScene(t) {
       const crL = W * 0.2, crR = W * 0.74, crT = H * 0.44, crB = H * 0.86;
       const oxP = W * 0.06, oyP = H * 0.055;   // 시점 오프셋 — 오른쪽 면·윗면 개구부가 보인다
       plate('tomB', () => {
+      // 배경 — 참조 사진처럼 야외 밭: 흐릿한 수풀 이랑(좌우) + 가운데 밝은 길 + 풀밭 위의 상자
       let g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#ececec'); g.addColorStop(1, '#c6c6c6');
+      g.addColorStop(0, '#c2c2c2'); g.addColorStop(0.45, '#8d8d8d'); g.addColorStop(1, '#5f5f5f');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      shadow(W * 0.5 + oxP, crB + S * 0.1, (crR - crL) * 0.72, S * 0.3, 0.4);
+      // 뒤 수풀 — 크게 흐려진 잎덩이들이 좌우 이랑을 이룬다(피사계심도)
+      ctx.filter = 'blur(4px)';
+      for (let i = 0; i < 30; i++) {
+        const side = i % 2 ? 1 : -1;
+        const bx3 = W * (0.5 + side * (0.18 + hash01(i * 3.3) * 0.36));
+        const by3 = H * (0.04 + hash01(i * 7.1) * 0.6);
+        const br3 = S * (0.3 + hash01(i * 11.7) * 0.5);
+        const L3 = 52 + Math.floor(hash01(i * 5.3) * 70);
+        const bg2 = ctx.createRadialGradient(bx3 - br3 * 0.3, by3 - br3 * 0.3, br3 * 0.1, bx3, by3, br3);
+        bg2.addColorStop(0, `rgb(${L3 + 55},${L3 + 62},${L3 + 50})`);
+        bg2.addColorStop(1, `rgb(${Math.max(0, L3 - 30)},${Math.max(0, L3 - 24)},${Math.max(0, L3 - 32)})`);
+        ctx.fillStyle = bg2;
+        ctx.beginPath(); ctx.ellipse(bx3, by3, br3, br3 * 0.8, 0, 0, 7); ctx.fill();
+      }
+      // 가운데 밝은 흙길(원경으로 뻗는다)
+      const pathG = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+      pathG.addColorStop(0, 'rgba(235,235,235,0.85)'); pathG.addColorStop(1, 'rgba(200,200,200,0.25)');
+      ctx.fillStyle = pathG;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.44, 0); ctx.lineTo(W * 0.56, 0);
+      ctx.lineTo(W * 0.72, H * 0.7); ctx.lineTo(W * 0.28, H * 0.7);
+      ctx.closePath(); ctx.fill();
+      ctx.filter = 'none';
+      // 풀밭 — 상자가 놓인 땅(아래 1/3), 풀잎 다발
+      g = ctx.createLinearGradient(0, H * 0.62, 0, H);
+      g.addColorStop(0, '#6f6f6f'); g.addColorStop(1, '#3d3d3d');
+      ctx.fillStyle = g; ctx.fillRect(0, H * 0.62, W, H * 0.38);
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 60; i++) {
+        const gx = hash01(i * 13.7) * W;
+        const gy = H * (0.66 + hash01(i * 7.9) * 0.32);
+        const gl = S * (0.1 + hash01(i * 3.1) * 0.22) * (gy / H + 0.4);
+        const lean = (hash01(i * 5.7) - 0.5) * S * 0.16;
+        ctx.strokeStyle = `rgba(${30 + Math.floor(hash01(i * 9.1) * 70)},${38 + Math.floor(hash01(i * 9.1) * 70)},${28 + Math.floor(hash01(i * 9.1) * 60)},0.9)`;
+        ctx.lineWidth = 1.6 + hash01(i * 2.3) * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(gx, gy);
+        ctx.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl);
+        ctx.stroke();
+      }
+      shadow(W * 0.5 + oxP, crB + S * 0.1, (crR - crL) * 0.72, S * 0.3, 0.45);
       // 윗면 개구부 — 사다리꼴로 열린 어두운 안쪽(위에서 살짝 내려다봄)
       ctx.fillStyle = '#383838';
       ctx.beginPath();
@@ -819,14 +883,28 @@ function drawIntroScene(t) {
       post(crR + oxP, crT - oyP - S * 0.04, crB - oyP + S * 0.04, S * 0.07, '#b2b2b2', '#878787');
       post(crL, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#eeeeee', '#b9b9b9');
       post(crR, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#e2e2e2', '#a5a5a5');
-      // 바닥에 떨어진 토마토 두 알
+      // 바닥에 떨어진 토마토 두 알(풀 위)
       tomatoFruit(W * 0.1, crB - S * 0.08, S * 0.26, false);
       tomatoFruit(W * 0.92, crB - S * 0.2, S * 0.22, false);
+      // 앞 풀 — 상자 발치를 스치는 풀잎(깊이감)
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 26; i++) {
+        const gx = hash01(i * 17.3 + 5) * W;
+        const gy = H * (0.88 + hash01(i * 7.3 + 2) * 0.12);
+        const gl = S * (0.22 + hash01(i * 3.9 + 1) * 0.3);
+        const lean = (hash01(i * 5.1 + 3) - 0.5) * S * 0.24;
+        ctx.strokeStyle = `rgba(${18 + Math.floor(hash01(i * 9.7) * 40)},${24 + Math.floor(hash01(i * 9.7) * 44)},${16 + Math.floor(hash01(i * 9.7) * 36)},0.95)`;
+        ctx.lineWidth = 2 + hash01(i * 2.9) * 2;
+        ctx.beginPath();
+        ctx.moveTo(gx, gy);
+        ctx.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl);
+        ctx.stroke();
+      }
       });   // ── tomB 플레이트 끝
       // 핑토 — 무더기 한가운데, 혼자 색이 다르다(미운오리새끼). 눈물 또르르.
       const px2 = W * 0.5, py2 = crT - S * 0.14;
       silhouetteDraw(cctx, 0, px2 - S * 0.55, py2 - S * 0.55, S * 1.1, t, false, 'sad', false, characterColor(0));
-      if (s > 8.2) {
+      if (s > 13.0) {
         const drop = (sd, side) => {
           const cyc = ((s - sd) % 1.6) / 1.6;
           if (s < sd || cyc > 0.85) return;
@@ -835,10 +913,10 @@ function drawIntroScene(t) {
           ctx.fillStyle = `rgba(0,0,0,${0.85 * (1 - cyc)})`;
           ctx.beginPath(); ctx.ellipse(dx2, dy2, 3.2, 4.6, 0, 0, 7); ctx.fill();
         };
-        drop(8.2, -1); drop(9.0, 1);
+        drop(13.0, -1); drop(13.8, 1);
         fxOnce('sniff', () => speakVoiceEvents([{ rel: 0, ch: 'u' }, { rel: 0.4, ch: 'u' }], characterVoice(0), 'sad'));
       }
-      if (s > 10.2) drawIntroMark(ctx, '…', px2, py2 - S * 0.95, S * 0.4, seg2(s, 10.2, 10.7));
+      if (s > 16.8) drawIntroMark(ctx, '…', px2, py2 - S * 0.95, S * 0.4, seg2(s, 16.8, 17.3));
     }
     // 장면 전환 화이트 플래시
     {
@@ -848,7 +926,7 @@ function drawIntroScene(t) {
     }
   } else if (kind === 'phone') {
     // ── ② 새+심해어 공동(3비트): 나무의 전화기 → 심해의 폰 → 연결 ──
-    const beat = s < 3.6 ? 1 : s < 7.0 ? 2 : 3;
+    const beat = s < PHONE_B2 ? 1 : s < PHONE_B3 ? 2 : 3;
     if (beat === 1) {
       // b1 — 새가 커다란 느티나무로 날아와 전화기 발견(사진 레퍼런스)
       const horizon = H * 0.74;
@@ -1069,7 +1147,7 @@ function drawIntroScene(t) {
         ctx.stroke();
       }
       // 심해어(남색) — 왼쪽에서 유영해 들어옴, 광륜
-      const swim = seg2(s, 3.8, 5.6);
+      const swim = seg2(s, 6.0, 8.2);
       const fx3 = W * (-0.12 + 0.5 * swim), fy3 = H * (0.55 + 0.1 * swim) + Math.sin(t * 1.8) * 6;
       const glowK = 0.7 + 0.3 * Math.sin(t * 3);
       const fg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, S * 1.4);
@@ -1077,8 +1155,8 @@ function drawIntroScene(t) {
       ctx.fillStyle = fg; ctx.fillRect(fx3 - S * 1.6, fy3 - S * 1.6, S * 3.2, S * 3.2);
       silhouetteDraw(cctx, 1, fx3 - S / 2, fy3 - S / 2, S, t, false, 'neutral', true, characterColor(1));
       fxOnce('sonar', () => { [0, 500].forEach((d) => setTimeout(() => uiClick(0.35), d)); });
-      if (s > 6.0) {
-        drawIntroMark(ctx, '!', fx3, fy3 - S * 0.75, S * 0.4, seg2(s, 6.0, 6.3) * (1 - seg2(s, 6.7, 7.0)), '#fff');
+      if (s > 9.2) {
+        drawIntroMark(ctx, '!', fx3, fy3 - S * 0.75, S * 0.4, seg2(s, 9.2, 9.5) * (1 - seg2(s, 10.2, 10.5)), '#fff');
         fxOnce('found2', () => uiClick(0.5));
       }
     } else {
@@ -1107,8 +1185,8 @@ function drawIntroScene(t) {
       fg.addColorStop(0, `rgba(255,255,255,${0.8 * glowK})`); fg.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = fg; ctx.fillRect(fx3 - S3 * 1.4, fy3 - S3 * 1.4, S3 * 2.8, S3 * 2.8);
       // 캐릭터 + 수화기(귀에 든 모양) + 꼬불선(화면 밖으로)
-      silhouetteDraw(cctx, 2, bx - S3 / 2, by - S3 / 2, S3, t + 1, Math.sin(t * 6) > 0 && s > 8.2, 'neutral', false, characterColor(2));
-      silhouetteDraw(cctx, 1, fx3 - S3 / 2, fy3 - S3 / 2, S3, t, Math.sin(t * 6 + 2) > 0 && s > 9.0, 'neutral', true, characterColor(1));
+      silhouetteDraw(cctx, 2, bx - S3 / 2, by - S3 / 2, S3, t + 1, Math.sin(t * 6) > 0 && s > 12.4, 'neutral', false, characterColor(2));
+      silhouetteDraw(cctx, 1, fx3 - S3 / 2, fy3 - S3 / 2, S3, t, Math.sin(t * 6 + 2) > 0 && s > 13.2, 'neutral', true, characterColor(1));
       ctx.save();
       cordlessHandset(bx - S3 * 0.52, by - S3 * 0.05, 1.6, true, -0.22);
       cord(bx - S3 * 0.52, by + S3 * 0.18, W * 1.05, by + S3 * 0.55, '#141414');
@@ -1116,27 +1194,27 @@ function drawIntroScene(t) {
       cord(fx3 + S3 * 0.52, fy3 + S3 * 0.18, -W * 0.05, fy3 + S3 * 0.55, '#e9e9e9');
       ctx.restore();
       // 벨 울림 "( ( (" — 흰 호가 퍼진다
-      if (s > 7.3 && s < 8.6) {
-        const rp = ((s - 7.3) % 0.65) / 0.65;
+      if (s > 11.6 && s < 13.0) {
+        const rp = ((s - 11.6) % 0.65) / 0.65;
         ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - rp)})`; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(fx3 + S3 * 0.52, fy3 - S3 * 0.03, S3 * (0.28 + rp * 0.45), -1.2, 1.2); ctx.stroke();
         fxOnce('ring', () => { [0, 650].forEach((d) => setTimeout(() => { uiClick(0.95); uiClick(0.7); }, d)); });
       }
-      if (s > 8.3) {
-        drawIntroMark(ctx, '?', bx + S3 * 0.42, by - S3 * 0.6, S * 0.62, seg2(s, 8.3, 8.7));
+      if (s > 12.6) {
+        drawIntroMark(ctx, '?', bx + S3 * 0.42, by - S3 * 0.6, S * 0.62, seg2(s, 12.6, 13.0));
         fxOnce('q1', () => speakVoiceEvents([{ rel: 0, ch: 'a' }, { rel: 0.25, ch: 'e' }], characterVoice(2), 'confused'));
       }
-      if (s > 9.1) {
-        drawIntroMark(ctx, '?', fx3 - S3 * 0.42, fy3 - S3 * 0.6, S * 0.62, seg2(s, 9.1, 9.5), '#fff');
+      if (s > 13.4) {
+        drawIntroMark(ctx, '?', fx3 - S3 * 0.42, fy3 - S3 * 0.6, S * 0.62, seg2(s, 13.4, 13.8), '#fff');
         fxOnce('q2', () => speakVoiceEvents([{ rel: 0, ch: 'o' }, { rel: 0.25, ch: 'i' }], characterVoice(1), 'confused'));
       }
-      if (s > 10.1) {
-        drawIntroMark(ctx, '♪', W * 0.5, splitY, S * 0.62, seg2(s, 10.1, 10.6));
+      if (s > 14.8) {
+        drawIntroMark(ctx, '♪', W * 0.5, splitY, S * 0.62, seg2(s, 14.8, 15.3));
         fxOnce('duet', () => { speakVoiceEvents([{ rel: 0, ch: 'a' }], characterVoice(1), 'happy'); speakVoiceEvents([{ rel: 0.3, ch: 'a' }], characterVoice(2), 'happy'); });
       }
     }
     // 비트 전환 화이트 플래시
-    [3.6, 7.0].forEach((cut) => {
+    [PHONE_B2, PHONE_B3].forEach((cut) => {
       const f = 1 - Math.min(1, Math.abs(s - cut) / 0.22);
       if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
     });
@@ -1240,14 +1318,14 @@ function drawIntroScene(t) {
       });
       });   // ── street 플레이트 끝
       // 생쥐 — 자갈길을 총총 내달린다. 중간에 한 번 멈춰 두리번('…')
-      const pauseA = s > 1.85 && s < 2.25;
-      const runU = seg2(s, 0.3, 4.2) - (seg2(s, 1.7, 1.85) - seg2(s, 2.25, 2.4)) * 0.1;
+      const pauseA = s > 2.6 && s < 3.4;
+      const runU = seg2(s, 0.4, 5.8) - (seg2(s, 2.4, 2.6) - seg2(s, 3.4, 3.6)) * 0.1;
       const mx2 = W * (0.06 + runU * 0.75);
       const hop = pauseA ? 0 : Math.abs(Math.sin(s * 11)) * S * 0.05;
       const my2 = stFloor + (H - stFloor) * 0.35 - hop;
       shadow(mx2, stFloor + (H - stFloor) * 0.42, S * 0.42, S * 0.09, 0.5);
       silhouetteDraw(cctx, 3, mx2 - S * 0.45, my2 - S * 0.8, S * 0.9, t, false, 'neutral', true, characterColor(3));
-      if (s > 1.9 && s < 2.5) drawIntroMark(ctx, '…', mx2, my2 - S * 1.15, S * 0.34, seg2(s, 1.9, 2.1) * (1 - seg2(s, 2.3, 2.5)), '#fff');
+      if (s > 2.7 && s < 3.6) drawIntroMark(ctx, '…', mx2, my2 - S * 1.15, S * 0.34, seg2(s, 2.7, 2.95) * (1 - seg2(s, 3.3, 3.6)), '#fff');
       fxOnce('night', () => uiClick(0.2));
       fxOnce('scurry', () => { [0, 220, 440, 660, 880].forEach((d) => setTimeout(() => typeKey('m', 0.25, characterVoice(3)), d)); });
     } else {
@@ -1732,22 +1810,32 @@ function drawIntroScene(t) {
   for (let i = 0; i < narr.length; i++) if (s >= narr[i].at) { ln = narr[i]; li = i; }
   if (ln && fade > 0.2) {
     const seedK = kind === 'phone' ? 5.7 : kind === 'mouse' ? 11.3 : 0;
-    // 타이핑 + 외계어 변환 — cps에 비례해 두 줄이 함께 끝난다
+    // 타이핑 + 외계어 변환 — cps에 비례해 두 줄이 함께 끝난다. 변환 확률 ~80%(외계어가 더 많이).
     const typed = (text, cps, seed) => {
       const chs = [...text];
       const n = Math.min(chs.length, Math.floor((s - ln.at) * cps));
       let out = '';
       for (let i = 0; i < n; i++) {
         const age = (s - ln.at) - i / cps;
-        if (chs[i] !== ' ' && age > 0.45 && hash01(i * 3.71 + li * 13.3 + seed) > 0.3) {
+        if (chs[i] !== ' ' && age > 0.4 && hash01(i * 3.71 + li * 13.3 + seed) > 0.2) {
           out += INTRO_ALIEN[Math.floor(hash01(i * 7.7 + li * 3.1 + seed) * INTRO_ALIEN.length)];
         } else out += chs[i];
       }
-      return { out, done: n >= chs.length };
+      return { out, done: n >= chs.length, n };
     };
     const koLen = [...ln.ko].length, enLen = [...(ln.en || '')].length;
     const K = typed(ln.ko, INTRO_TYPE_CPS, seedK);
     const E = ln.en ? typed(ln.en, INTRO_TYPE_CPS * Math.max(0.5, enLen / Math.max(1, koLen)), seedK + 77.7) : { out: '', done: true };
+    // 낭독 — 동물의숲처럼: 글자가 찍힐 때마다 그 글자를 웅얼웅얼(들릴 듯 말 듯, 변형된 목소리)
+    if (audioReady) {
+      const sp = (introScene.spoken = introScene.spoken || {});
+      const prev = sp[li] || 0;
+      if (K.n > prev) {
+        const ch = [...ln.ko][K.n - 1];
+        if (ch && ch !== ' ' && !'—…,.!?'.includes(ch)) typeKey(ch, 0.16, 4 + (li % 2));
+        sp[li] = K.n;
+      }
+    }
     sctx.save();
     // 폰트 크기 — 상자 최대 폭에 맞춰 자동 축소(삐져나감 방지)
     let fk = Math.max(14, Math.round(Math.min(W, H) * 0.025));
@@ -1807,7 +1895,8 @@ function show(name) {
   if (name === 'play') startPlay();
   if (SCORE && name === 'title') {   // 처음으로 — 단계 상태 정리
     asciiArt = null;
-    document.body.classList.remove('ascii-time', 'gift-time');
+    titleIntroStarted = false;       // 다음 공연도 ▶ 1회차 = 우웅부터
+    document.body.classList.remove('ascii-time', 'gift-time', 'ending-hud-off');
     postPhase('idle');
   }
   if (SCORE && name === 'select') resetSlot();   // 소개 슬롯 초기화
@@ -1821,7 +1910,7 @@ function startScreenAudio(name) {
   playScreenWav(name).then((played) => {
     if (played) return;                 // WAV가 깔렸으면 합성 배경 생략
     if (state.screen !== name) return;  // 그새 화면이 바뀌었으면 무시
-    if (name === 'title') { startTitleMusic(); scheduleIntroAdvance(); }
+    if (name === 'title') { if (titleIntroStarted) { startTitleMusic(); scheduleIntroAdvance(); } }   // ▶를 눌러야 우웅
     else if (name === 'select') startSelectTone();
     else if (name === 'play') startPlayBeat();   // 타자에 박자를 입히는 킥 그리드
     // 대화(play) 화면은 합성 엠비언스 없음 — 타자 킥만 그리드에 스냅된다.
@@ -1845,6 +1934,7 @@ window.addEventListener('keydown', ensureAudio);
 // 타이틀 인트로(리버스 스웰)가 끝나면 자동으로 캐릭터 선택 화면으로 넘어간다.
 // 인트로 ~10초 + 마지막 "커넥션" 피크 여운까지 들려준 뒤 전환.
 let titleIntroTimer = null;   // (친구의 컷신용 introTimer와 별개)
+let titleIntroStarted = false;   // 타이틀 ▶ 1회차 = 우웅(리버스 스웰), 2회차 = 다음 화면
 function scheduleIntroAdvance() {
   clearTimeout(titleIntroTimer);
   titleIntroTimer = setTimeout(() => {
@@ -2624,21 +2714,23 @@ function glyphSprite(ch, px, alpha) {
 // (tap.html artMotion과 같은 수식 — 고치면 둘 다)
 function asciiMotion(mark, x, y, W, H, tm) {
   const m = Math.min(W, H);
-  if (mark === 'tilde') return { dx: 0, dy: Math.sin(x * 0.012 + tm * 2.1) * m * 0.013 };
+  if (mark === 'tilde') {   // 물결 — 크게 넘실 + 잔물결
+    return { dx: Math.sin(y * 0.02 + tm * 0.7) * m * 0.006, dy: Math.sin(x * 0.011 + tm * 1.9) * m * 0.028 + Math.sin(x * 0.031 + tm * 3.1) * m * 0.008 };
+  }
   if (mark === 'bang') {
     const cx = W / 2, cy = H * 0.46, rx = x - cx, ry = y - cy;
-    const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.008;
+    const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.016;
     return { dx: rx / r * k, dy: ry / r * k };
   }
   if (mark === 'period') {
     const cx = W / 2, cy = H / 2, rx = x - cx, ry = y - cy;
-    const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.007;
+    const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.015;
     return { dx: rx / r * k, dy: ry / r * k };
   }
-  if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.007, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.01 };
-  if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.013 * (y / H), dy: 0 };
+  if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.014, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.02 };
+  if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.026 * (y / H), dy: Math.sin(tm * 1.1 + y * 0.02) * m * 0.006 };
   const cx = W / 2, cy = H * 0.48, rx = x - cx, ry = y - cy;   // question — 접선 방향으로 감돈다
-  const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.008;
+  const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.016;
   return { dx: -ry / r * k, dy: rx / r * k };
 }
 
@@ -2861,6 +2953,8 @@ function setupAudience() {
           giveSpecificGift(r, g);
         }
       }
+      // 합주 중 폰 터치 — 총보에 음표 하나 추가
+      else if (d.type === 'addnote') addAudienceNote();
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
@@ -3047,6 +3141,7 @@ let scoreAnim = null;                          // 악보 애니메이션 rAF
 let scoreStartWall = 0, scoreTotalMs = 0;      // 비주얼 진행 계산용
 let endingPhase = 0;                            // 0=없음, 1=순차 듀엣, 2=오케스트라 합주
 let orchestraT0 = 0;                            // 합주 시작 시각 — 색 반전(흰→검) 스윕 기준
+let endingHudTimer = null;                      // 소통 게이지·문구 8초 후 페이드아웃 타이머
 let orchestraScore = null;                      // 2단계 다성부 악보 데이터
 const SCORE_TEMPO = 156;
 
@@ -3841,6 +3936,7 @@ function startEndingScore() {
 //          오케스트라 총보처럼 파트별 보표를 위아래로 쌓아 보여준다.
 function startOrchestraPhase() {
   resumeAudio();
+  captureScoreStill();   // 1단계 완성 스코어를 폰 규격 정지화면으로 서버에 올린다(합주 동안 폰이 띄움)
   endingPhase = 2;
   orchestraScore = buildOrchestra();
   if (!orchestraScore) { endingPhase = 0; return; }
@@ -3869,7 +3965,39 @@ function stopEndingScore() {
   endingPhase = 0;
   orchestraScore = null;
   orchestraT0 = 0;
-  document.body.classList.remove('score-invert');
+  clearTimeout(endingHudTimer); endingHudTimer = null;
+  document.body.classList.remove('score-invert', 'ending-hud-off');
+}
+
+// 1단계(순차 듀엣) 완성 스코어를 폰 규격으로 렌더해 서버에 정지화면으로 올린다.
+// endingPhase가 아직 1일 때(=합주 직전) 불러야 1단계 그림이 잡힌다.
+function captureScoreStill() {
+  try {
+    const cv = document.createElement('canvas'); cv.width = 720; cv.height = 900;
+    const c2 = cv.getContext('2d');
+    drawScore3D(c2, 720, 900, 1.234, 1);
+    fetch('/still', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.82) }),
+    }).catch(() => {});
+  } catch (e) { /* 정적 서버 — 무시 */ }
+}
+
+// 합주 중 관객 폰 터치 — 총보에 음표(글리프) 하나를 그 자리에서 태어나게 한다.
+function addAudienceNote() {
+  if (endingPhase !== 2 || !orchestraScore || !orchestraScore.parts.length) return;
+  const spb = 60 / SCORE_TEMPO;
+  const playBeat = Math.max(0, Math.min(orchestraScore.totalBeats - 0.1,
+    (performance.now() - scoreStartWall) / 1000 / spb));
+  const p = orchestraScore.parts[Math.floor(Math.random() * orchestraScore.parts.length)];
+  const glyphs = '◇○●△▽□♪✳*';
+  p.notes.push({
+    beat: Math.max(0, playBeat - p.startBeat),
+    midi: 55 + Math.floor(Math.random() * 18),
+    glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
+    accent: Math.random() > 0.7,
+  });
+  typeKey('a', 0.4, Math.floor(Math.random() * 8));   // 태어나는 소리도 하나
 }
 
 function showEnding() {
@@ -3907,6 +4035,10 @@ function showEnding() {
     ? `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%  /  ${state.messages.length} words exchanged · ${pct}% rapport`
     : `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%`;
   show('ending');
+  // 소통 게이지·문구는 8초만 보여주고 스스르 사라진다 — 스코어만 꽉 차게
+  document.body.classList.remove('ending-hud-off');
+  clearTimeout(endingHudTimer);
+  endingHudTimer = setTimeout(() => document.body.classList.add('ending-hud-off'), 8000);
   // 대화가 하나의 악보가 되어 연주된다
   startEndingScore();
 }
@@ -3991,6 +4123,12 @@ document.body.addEventListener('click', (e) => {
     // 같은 제스처로 바로 넘어가면 인트로가 안 들리므로, 방금 깨운
     // 경우엔 화면을 넘기지 않고 인트로를 들려준다(끝나면 자동 전환).
     if (!audioReady || performance.now() - audioWokenAt < 600) { ensureAudio(); return; }
+    // 첫 ▶ — 우웅(리버스 스웰) 인트로를 들려주며 머문다. (QR 화면에서 이미 오디오가 깨어 있어도)
+    if (!titleIntroStarted) {
+      titleIntroStarted = true;
+      startTitleMusic(); scheduleIntroAdvance();
+      return;
+    }
     // 인트로 도중 다시 누르면 건너뛰고 바로 캐릭터 선택으로.
     clearTimeout(titleIntroTimer); titleIntroTimer = null;
     updateSelectUI(); show('select');

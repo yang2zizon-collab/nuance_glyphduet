@@ -12,6 +12,7 @@ clients = set()             # 연결된 SSE 구독자(메인 화면 + 폰)들의
 clients_lock = threading.Lock()
 current_phase = {'v': 'idle'}   # 메인이 POST /phase 로 알려주는 현재 단계(폰 화면 전환용)
 current_ascii = {'v': None}     # 마지막 아스키아트(mark+chars) — 늦게 접속한 폰도 그린다
+current_still = {'v': None}     # 그래픽 스코어 정지화면(dataURL) — 합주 때 폰이 띄운다
 
 
 def broadcast(payload):
@@ -76,8 +77,11 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'public': base.startswith('https://'),
                 'phase': current_phase['v'],
                 'ascii': current_ascii['v'],
+                'hasStill': bool(current_still['v']),
                 'port': PORT,
             })
+        if self.path.split('?')[0] == '/still':
+            return self._json(200, {'img': current_still['v']})
         return super().do_GET()
 
     def do_POST(self):
@@ -90,6 +94,11 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return self.handle_gift()
         if path == '/ascii':
             return self.handle_ascii()
+        if path == '/still':
+            return self.handle_still()
+        if path == '/addnote':
+            broadcast(json.dumps({'type': 'addnote'}))   # 합주 중 폰 터치 → 메인에 음표 하나 추가
+            return self._json(200, {'ok': True})
         self.send_error(404)
 
     def _body_json(self):
@@ -109,6 +118,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         current_phase['v'] = phase
         if phase in ('round', 'idle'):
             current_ascii['v'] = None
+            current_still['v'] = None
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
         return self._json(200, {'ok': True})
 
@@ -121,6 +131,16 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'ok': False, 'error': 'bad ascii'})
         current_ascii['v'] = {'mark': mark, 'chars': chars}
         broadcast(json.dumps({'type': 'ascii', 'mark': mark, 'chars': chars}))
+        return self._json(200, {'ok': True})
+
+    # 메인이 그래픽 스코어 정지화면(dataURL)을 올림 → 폰이 합주 동안 띄운다.
+    def handle_still(self):
+        data = self._body_json()
+        img = data.get('img')
+        if not isinstance(img, str) or not img.startswith('data:image/') or len(img) > 2_000_000:
+            return self._json(400, {'ok': False, 'error': 'bad still'})
+        current_still['v'] = img
+        broadcast(json.dumps({'type': 'still'}))   # 폰: 알림만 받고 GET /still 로 가져간다
         return self._json(200, {'ok': True})
 
     # 폰이 선물을 보냄(주는이→받는이) → 메인 화면이 받아 적용.

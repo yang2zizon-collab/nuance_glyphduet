@@ -46,8 +46,8 @@
 </head>
 <body>
   <header>
-    <h1 id="title">"뉘앙스" 부호 탭</h1>
-    <p id="subtitle">마음에 드는 말투를 눌러 악보에 얹어 주세요</p>
+    <h1 id="title">"뉘앙스" 글리프 듀엣</h1>
+    <p id="subtitle">잠시만 기다려 주세요 · hold on</p>
   </header>
   <!-- 대기 화면 — 라운드(대화 타이핑)가 시작되면 자동으로 부호 패드로 바뀐다 -->
   <div id="wait-ui" style="display:flex; flex:1 1 auto; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center;">
@@ -87,6 +87,18 @@
   <div id="art-ui" style="display:none; flex:1 1 auto; align-items:center; justify-content:center; padding:8px 0 14px;">
     <canvas id="art-cv" style="width:100%; image-rendering:pixelated; border:3px solid #000; box-shadow:5px 5px 0 #000;"></canvas>
   </div>
+  <!-- 그래픽 스코어 정지화면 — 합주가 시작되면 자동으로 뜨고, 터치할 때마다 총보에 음표가 태어난다 -->
+  <div id="still-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:10px; padding:8px 0 14px; position:relative;">
+    <img id="still-img" alt="graphic score" style="width:100%; border:3px solid #000; box-shadow:5px 5px 0 #000;" />
+    <p style="margin:0; text-align:center; font-size:14px; color:#222;">오늘의 그래픽 스코어 — <b>화면을 터치하면 음표가 하나 태어납니다</b></p>
+    <p id="still-count" style="margin:0; text-align:center; font-size:12px; color:#999;"></p>
+    <div id="ripple-layer" style="position:absolute; inset:0; pointer-events:none; overflow:hidden;"></div>
+  </div>
+  <style>
+    @keyframes rip { from { transform: scale(0.25); opacity: 0.95; } to { transform: scale(2.6); opacity: 0; } }
+    .rip { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border: 3px solid #000; border-radius: 50%; animation: rip 0.7s ease-out forwards; }
+    .ripg { position: absolute; margin: -14px 0 0 -8px; font-size: 24px; font-weight: 700; animation: rip 0.95s ease-out forwards; }
+  </style>
   <footer><span id="status">연결됨</span></footer>
 
   <!-- 캐릭터 스프라이트 — 메인과 같은 그림을 폰 버튼에도 그린다(라인아트 → 캐릭터 색으로 틴트) -->
@@ -364,21 +376,23 @@
     // 완성 후 부호별 "숨쉬기" — 메인(js/main.js asciiMotion)과 같은 수식
     function artMotion(mark, x, y, w, h, tm) {
       const m = Math.min(w, h);
-      if (mark === 'tilde') return { dx: 0, dy: Math.sin(x * 0.012 + tm * 2.1) * m * 0.013 };
+      if (mark === 'tilde') {
+        return { dx: Math.sin(y * 0.02 + tm * 0.7) * m * 0.006, dy: Math.sin(x * 0.011 + tm * 1.9) * m * 0.028 + Math.sin(x * 0.031 + tm * 3.1) * m * 0.008 };
+      }
       if (mark === 'bang') {
         const cx = w / 2, cy = h * 0.46, rx = x - cx, ry = y - cy;
-        const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.008;
+        const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.016;
         return { dx: rx / r * k, dy: ry / r * k };
       }
       if (mark === 'period') {
         const cx = w / 2, cy = h / 2, rx = x - cx, ry = y - cy;
-        const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.007;
+        const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.015;
         return { dx: rx / r * k, dy: ry / r * k };
       }
-      if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.007, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.01 };
-      if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.013 * (y / h), dy: 0 };
+      if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.014, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.02 };
+      if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.026 * (y / h), dy: Math.sin(tm * 1.1 + y * 0.02) * m * 0.006 };
       const cx = w / 2, cy = h * 0.48, rx = x - cx, ry = y - cy;
-      const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.008;
+      const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.016;
       return { dx: -ry / r * k, dy: rx / r * k };
     }
 
@@ -443,21 +457,60 @@
     }
 
     const waitEl = document.getElementById('wait-ui');
+
+    // ===== 그래픽 스코어 정지화면 + 터치로 음표 태어나기 =====
+    const stillEl = document.getElementById('still-ui');
+    const stillImg = document.getElementById('still-img');
+    const stillCount = document.getElementById('still-count');
+    let stillOn = false, noteCount = 0, stillLock = 0;
+    function showStill(img) {
+      stillOn = true; artOn = false; cancelAnimationFrame(artAnim);
+      padEl.style.display = 'none'; giftEl.style.display = 'none';
+      artEl.style.display = 'none'; waitEl.style.display = 'none';
+      stillEl.style.display = 'flex';
+      stillImg.src = img;
+      titleEl.textContent = '"뉘앙스" 스코어';
+      subEl.textContent = '모두의 대화가 합주로 연주되고 있습니다';
+    }
+    function fetchStill() {
+      fetch('/still').then((r) => r.json()).then((c) => { if (c && c.img) showStill(c.img); }).catch(() => {});
+    }
+    stillEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const now = performance.now();
+      if (now - stillLock < 180) return;   // 과속 방지
+      stillLock = now;
+      post('/addnote', {}).then(() => setStatus(true, '연결됨')).catch(() => setStatus(false, '연결 끊김'));
+      noteCount++;
+      stillCount.textContent = '내가 보탠 음표 ' + noteCount + '개';
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (er) {} }
+      const rl = document.getElementById('ripple-layer');
+      const rect = stillEl.getBoundingClientRect();
+      const rip = document.createElement('div'); rip.className = 'rip';
+      rip.style.left = (e.clientX - rect.left) + 'px'; rip.style.top = (e.clientY - rect.top) + 'px';
+      rl.appendChild(rip); setTimeout(() => rip.remove(), 750);
+      const gl = document.createElement('div'); gl.className = 'ripg';
+      gl.textContent = ['◇', '○', '●', '△', '♪'][noteCount % 5];
+      gl.style.left = (e.clientX - rect.left) + 'px'; gl.style.top = (e.clientY - rect.top) + 'px';
+      rl.appendChild(gl); setTimeout(() => gl.remove(), 1000);
+    });
+
     let curPhase = null;
     function setMode(phase) {
-      if (phase === 'round' || phase === 'idle') artOn = false;   // 새 라운드 — 그림 내리기
+      if (phase === 'round' || phase === 'idle') { artOn = false; stillOn = false; }   // 새 라운드 — 그림·스틸 내리기
       if (phase === curPhase) return;                             // 같은 단계 반복 알림은 무시(선택 유지)
       curPhase = phase;
-      if (artOn) return;                                          // 그림은 엔딩 동안 유지
+      if (artOn || stillOn) return;                               // 그림·스틸은 엔딩 동안 유지
       const gift = phase === 'gift';
       const round = phase === 'round';
       padEl.style.display = round ? 'grid' : 'none';
       giftEl.style.display = gift ? 'flex' : 'none';
       waitEl.style.display = (!gift && !round) ? 'flex' : 'none';   // 라운드 전(대기)·엔딩(그림 없을 때)
       artEl.style.display = 'none';
+      stillEl.style.display = 'none';
       titleEl.textContent = gift ? '"뉘앙스" 선물' : round ? '"뉘앙스" 부호 탭' : '"뉘앙스" 글리프 듀엣';
       subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다'
-        : round ? '마음에 드는 말투를 눌러 악보에 얹어 주세요'
+        : round ? '기호에 투표하세요 — 가장 많이 눌린 기호가 음악의 말투가 됩니다'
         : '잠시만 기다려 주세요 · hold on';
       if (gift) { giftGiver = null; giftLock = false; renderGift(); }
     }
@@ -470,7 +523,8 @@
       fetch('/config').then((r) => r.json()).then((c) => {
         if (!c) return;
         if (c.phase) setMode(c.phase);
-        if (c.ascii && c.ascii.mark && !artOn) showArt(c.ascii.mark, c.ascii.chars);
+        if (c.phase === 'ending' && c.hasStill && !stillOn) fetchStill();          // 합주 스틸 따라잡기
+        else if (c.ascii && c.ascii.mark && !artOn && !stillOn) showArt(c.ascii.mark, c.ascii.chars);
       }).catch(() => {});
     }
     syncNow();
@@ -482,7 +536,8 @@
         let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
         if (!d) return;
         if (d.type === 'phase') setMode(d.phase);
-        else if (d.type === 'ascii' && !artOn) showArt(d.mark, d.chars);
+        else if (d.type === 'still') fetchStill();                        // 합주 시작 — 스코어 정지화면
+        else if (d.type === 'ascii' && !artOn && !stillOn) showArt(d.mark, d.chars);
       };
       es.onerror = () => {};
     } catch (e) { /* SSE 미지원 — 폴링만으로 동작 */ }
