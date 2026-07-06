@@ -52,6 +52,10 @@ serve.py                로컬 서버
   남색(#3a4fa0)·새 귤색(#ff9d3b)·생쥐 연보라(#b9a6e8). `silhouetteDraw`가 `characterColor(idx)`로
   픽셀 단위 채색(silhouetteFill rgb 파라미터). CSS의 brightness(0) 필터는 제거됨(다시 넣으면 색이 죽는다).
   **현재 전부 흑백** — silhouetteDraw 기본 검정(마지막 color 인자를 넘길 때만 색, 컷신 재제작 시 사용).
+  **예외 — 토마토 B컷(상자)은 사용자 요청으로 풀컬러**: `buildTomBColor(W,H,S)`가 초록 밭·나무 상자·
+  빨간 토마토를 W×H 컬러 캔버스로 1회 굽고(크기별 캐시 tomBColorCv), B 분기에서 흑백 하프톤 ctx 대신
+  **컬러 레이어 cctx에 통째로 blit**(imageSmoothingEnabled=true). 이 컷만 dither 파이프라인을 우회한다.
+  전환 화이트 플래시도 cctx에 같이 그려야 함(컬러 레이어가 위를 덮으므로).
 - **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
   **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
   선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로

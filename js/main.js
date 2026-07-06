@@ -362,6 +362,156 @@ function drawIntroMark(ctx, ch, x, y, px, alpha = 1, color = '#000') {
   ctx.restore();
 }
 
+// 토마토 B컷 전용 — 참조 사진처럼 "풀컬러"로 밭·상자·토마토를 그린 배경 플레이트.
+// 이 컷만 흑백 하프톤을 건너뛰고 컬러 레이어(cctx)에 통째로 blit한다. 무거우니 크기별로 1회 캐시.
+let tomBColorCv = null;
+function buildTomBColor(W, H, S) {
+  if (tomBColorCv && tomBColorCv._w === W && tomBColorCv._h === H) return tomBColorCv;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const crL = W * 0.2, crR = W * 0.74, crT = H * 0.44, crB = H * 0.86;
+  const oxP = W * 0.06, oyP = H * 0.055;
+  // 하늘/햇빛 하즈 — 위는 밝은 연둣빛, 아래로 짙은 초록
+  let grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#e2f1cf'); grad.addColorStop(0.4, '#a4c46e'); grad.addColorStop(0.72, '#628c3a'); grad.addColorStop(1, '#3d5a25');
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  // 우거진 잎덩이 — 초록 밭(블러). 위·오른쪽일수록 밝다(역광).
+  g.filter = 'blur(6px)';
+  for (let i = 0; i < 110; i++) {
+    const bx = hash01(i * 3.3 + 1.1) * W, by = H * (-0.03 + hash01(i * 7.1 + 2.7) * 0.72);
+    const br = S * (0.26 + hash01(i * 11.7 + 0.5) * 0.62);
+    const lit = (1 - by / (H * 0.72)) * 0.55 + (bx / W) * 0.22 + (hash01(i * 5.3) - 0.5) * 0.28;
+    const R = Math.max(20, Math.min(215, 70 + lit * 150));
+    const Gc = Math.max(45, Math.min(240, 115 + lit * 150));
+    const B = Math.max(12, Math.min(150, 38 + lit * 90));
+    const rg = g.createRadialGradient(bx - br * 0.3, by - br * 0.35, br * 0.08, bx, by, br);
+    rg.addColorStop(0, `rgb(${Math.min(255, R + 40)},${Math.min(255, Gc + 45)},${Math.min(255, B + 30)})`);
+    rg.addColorStop(1, `rgb(${Math.max(0, R - 35)},${Math.max(0, Gc - 35)},${Math.max(0, B - 30)})`);
+    g.fillStyle = rg;
+    g.beginPath(); g.ellipse(bx, by, br, br * 0.82, hash01(i) * 3, 0, 7); g.fill();
+  }
+  // 햇빛 역광 번짐(오른쪽 위)
+  const sun = g.createRadialGradient(W * 0.72, H * 0.13, 0, W * 0.72, H * 0.13, H * 0.6);
+  sun.addColorStop(0, 'rgba(255,252,225,0.8)'); sun.addColorStop(1, 'rgba(255,252,225,0)');
+  g.fillStyle = sun; g.fillRect(0, 0, W, H * 0.8);
+  // 햇빛 보케
+  for (let i = 0; i < 18; i++) {
+    const bx = W * (0.25 + hash01(i * 9.7 + 3) * 0.7), by = H * (0.02 + hash01(i * 4.1 + 5) * 0.46);
+    const br = S * (0.07 + hash01(i * 6.3) * 0.16), a = 0.2 + hash01(i * 2.9) * 0.4;
+    const bk = g.createRadialGradient(bx, by, 0, bx, by, br);
+    bk.addColorStop(0, `rgba(240,255,210,${a})`); bk.addColorStop(0.7, `rgba(230,250,200,${a * 0.5})`); bk.addColorStop(1, 'rgba(230,250,200,0)');
+    g.fillStyle = bk; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
+  }
+  g.filter = 'none';
+  // 잔디밭(아래)
+  grad = g.createLinearGradient(0, H * 0.6, 0, H);
+  grad.addColorStop(0, '#5e7c35'); grad.addColorStop(0.5, '#43622b'); grad.addColorStop(1, '#29411d');
+  g.fillStyle = grad; g.fillRect(0, H * 0.6, W, H * 0.4);
+  g.lineCap = 'round';
+  for (let i = 0; i < 150; i++) {
+    const gx = hash01(i * 13.7 + 0.3) * W, gy = H * (0.62 + hash01(i * 7.9 + 1.2) * 0.36);
+    const gl = S * (0.09 + hash01(i * 3.1 + 0.7) * 0.2) * (gy / H + 0.4);
+    const lean = (hash01(i * 5.7 + 2.1) - 0.5) * S * 0.18;
+    const gt = 45 + Math.floor(hash01(i * 9.1 + 4) * 80);
+    g.strokeStyle = `rgba(${Math.floor(gt * 0.6)},${gt + 40},${Math.floor(gt * 0.4)},0.92)`;
+    g.lineWidth = 1.4 + hash01(i * 2.3 + 1) * 1.9;
+    g.beginPath(); g.moveTo(gx, gy); g.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl); g.stroke();
+  }
+  // 상자 바닥 그림자
+  g.save(); g.translate(W * 0.5 + oxP, crB + S * 0.1); g.scale(1, 0.3);
+  const sh = g.createRadialGradient(0, 0, 0, 0, 0, (crR - crL) * 0.72);
+  sh.addColorStop(0, 'rgba(0,0,0,0.45)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = sh; g.beginPath(); g.arc(0, 0, (crR - crL) * 0.72, 0, 7); g.fill(); g.restore();
+  // 붉은 토마토(광택 + 초록 꽃받침)
+  const redTom = (bx, by, r, green) => {
+    const rg = g.createRadialGradient(bx - r * 0.34, by - r * 0.4, r * 0.1, bx, by, r);
+    if (green) { rg.addColorStop(0, '#cbd96c'); rg.addColorStop(0.55, '#8fae3e'); rg.addColorStop(1, '#4f6a22'); }
+    else { rg.addColorStop(0, '#ff6a4a'); rg.addColorStop(0.5, '#e02f22'); rg.addColorStop(1, '#8f160f'); }
+    g.fillStyle = rg; g.beginPath(); g.arc(bx, by, r, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.ellipse(bx - r * 0.36, by - r * 0.42, r * 0.18, r * 0.1, -0.6, 0, 7); g.fill();
+    g.strokeStyle = '#3c6a28'; g.lineCap = 'round';
+    for (let p2 = 0; p2 < 5; p2++) {
+      const a = p2 * (Math.PI * 2 / 5) - Math.PI / 2 + 0.3;
+      g.lineWidth = Math.max(1.6, r * 0.14);
+      g.beginPath(); g.moveTo(bx, by - r * 0.86);
+      g.quadraticCurveTo(bx + Math.cos(a) * r * 0.5, by - r * 0.9 + Math.sin(a) * r * 0.22, bx + Math.cos(a) * r * 0.9, by - r * 0.66 + Math.sin(a) * r * 0.5);
+      g.stroke();
+    }
+    g.lineWidth = Math.max(1.6, r * 0.12);
+    g.beginPath(); g.moveTo(bx, by - r * 0.88); g.lineTo(bx - r * 0.06, by - r * 1.12); g.stroke();
+  };
+  // 상자 윗면 개구부(어두운 안쪽)
+  g.fillStyle = '#2a1c12';
+  g.beginPath(); g.moveTo(crL + oxP, crT - oyP); g.lineTo(crR + oxP, crT - oyP); g.lineTo(crR, crT); g.lineTo(crL, crT); g.closePath(); g.fill();
+  // 무더기 뒷줄
+  [[0.26, 1], [0.35, 0.85], [0.45, 0.95], [0.55, 0.85], [0.65, 0.9], [0.73, 0.8]].forEach(([fx, k]) => redTom(W * fx + oxP * 0.7, crT - oyP * 0.55 - S * 0.08 * k, S * 0.23 * k, false));
+  // 무더기 앞줄(+접촉 그림자). 가운데 두 알은 작게 — 핑토가 그 사이에 앉는다.
+  [[0.25, 1.0], [0.36, 0.88], [0.44, 0.76], [0.56, 0.76], [0.64, 0.9], [0.74, 1.0]].forEach(([fx, k]) => {
+    g.fillStyle = 'rgba(40,10,8,0.4)';
+    g.beginPath(); g.ellipse(W * fx, crT + S * 0.1, S * 0.22 * k, S * 0.06 * k, 0, 0, 7); g.fill();
+    redTom(W * fx, crT - S * 0.1, S * 0.28 * k, false);
+  });
+  // 앞면 슬랫(밝은 나무 + 나뭇결)
+  const slatN = 4, slatH = (crB - crT) / slatN;
+  for (let i2 = 0; i2 < slatN; i2++) {
+    const sy = crT + i2 * slatH;
+    const wg = g.createLinearGradient(0, sy, 0, sy + slatH * 0.78);
+    wg.addColorStop(0, '#e6bd7c'); wg.addColorStop(1, '#bd8c4c');
+    g.fillStyle = wg; g.fillRect(crL, sy, crR - crL, slatH * 0.78);
+    g.strokeStyle = 'rgba(80,50,20,0.7)'; g.lineWidth = 1.8; g.strokeRect(crL, sy, crR - crL, slatH * 0.78);
+    g.strokeStyle = 'rgba(120,80,40,0.4)'; g.lineWidth = 1;
+    for (let gr = 0; gr < 2; gr++) {
+      g.beginPath(); g.moveTo(crL + 8, sy + slatH * (0.2 + gr * 0.3 + (i2 % 2) * 0.1));
+      g.quadraticCurveTo(W * 0.47, sy + slatH * (0.32 + gr * 0.26), crR - 8, sy + slatH * (0.22 + gr * 0.3)); g.stroke();
+    }
+    g.fillStyle = i2 % 2 ? '#8a5f30' : '#946836';   // 오른쪽 옆면(그늘)
+    g.beginPath(); g.moveTo(crR, sy); g.lineTo(crR + oxP, sy - oyP); g.lineTo(crR + oxP, sy - oyP + slatH * 0.78); g.lineTo(crR, sy + slatH * 0.78); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(60,38,16,0.6)'; g.lineWidth = 1.4; g.stroke();
+  }
+  // 윗테 립
+  g.fillStyle = '#efc888'; g.fillRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
+  g.strokeStyle = 'rgba(80,50,20,0.7)'; g.lineWidth = 1.6; g.strokeRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
+  g.fillStyle = '#c8a060';
+  g.beginPath(); g.moveTo(crR + S * 0.02, crT - S * 0.035); g.lineTo(crR + oxP + S * 0.015, crT - oyP - S * 0.03); g.lineTo(crR + oxP + S * 0.015, crT - oyP + S * 0.02); g.lineTo(crR + S * 0.02, crT + S * 0.015); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(60,38,16,0.6)'; g.lineWidth = 1.4; g.stroke();
+  // 좌우 음영
+  const csh = g.createLinearGradient(crL, 0, crR + oxP, 0);
+  csh.addColorStop(0, 'rgba(255,240,200,0.16)'); csh.addColorStop(0.4, 'rgba(0,0,0,0)'); csh.addColorStop(1, 'rgba(20,10,0,0.3)');
+  g.fillStyle = csh; g.fillRect(crL, crT - oyP, crR - crL + oxP, crB - crT + oyP);
+  // 기둥
+  const post = (cx, topY, botY, wP, t1, t2) => {
+    const pg = g.createLinearGradient(cx - wP, 0, cx + wP, 0);
+    pg.addColorStop(0, t1); pg.addColorStop(1, t2);
+    g.fillStyle = pg; g.fillRect(cx - wP, topY, wP * 2, botY - topY);
+    g.strokeStyle = 'rgba(60,38,16,0.7)'; g.lineWidth = 1.8; g.strokeRect(cx - wP, topY, wP * 2, botY - topY);
+  };
+  post(crR + oxP, crT - oyP - S * 0.04, crB - oyP + S * 0.04, S * 0.07, '#a5763c', '#7a5528');
+  post(crL, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#e8bd7c', '#bd8f50');
+  post(crR, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#dcb070', '#a87c44');
+  // 바닥에 떨어진 토마토
+  redTom(W * 0.1, crB - S * 0.08, S * 0.26, false);
+  redTom(W * 0.92, crB - S * 0.2, S * 0.22, false);
+  redTom(W * 0.17, crB + S * 0.12, S * 0.2, false);
+  // 앞 풀
+  g.lineCap = 'round';
+  for (let i = 0; i < 30; i++) {
+    const gx = hash01(i * 17.3 + 5) * W, gy = H * (0.88 + hash01(i * 7.3 + 2) * 0.12);
+    const gl = S * (0.22 + hash01(i * 3.9 + 1) * 0.3), lean = (hash01(i * 5.1 + 3) - 0.5) * S * 0.24;
+    const gt = 30 + Math.floor(hash01(i * 9.7) * 50);
+    g.strokeStyle = `rgba(${Math.floor(gt * 0.5)},${gt + 30},${Math.floor(gt * 0.35)},0.95)`;
+    g.lineWidth = 2 + hash01(i * 2.9) * 2;
+    g.beginPath(); g.moveTo(gx, gy); g.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl); g.stroke();
+  }
+  // 시네마틱 비네트(가장자리 살짝 어둡게)
+  const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.3)');
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  cv._w = W; cv._h = H;
+  tomBColorCv = cv;
+  return cv;
+}
+
 function drawIntroScene(t) {
   const W = window.innerWidth, H = window.innerHeight;
   const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
@@ -728,177 +878,37 @@ function drawIntroScene(t) {
       silhouetteDraw(cctx, 0, px2 - S * 0.5, py2 - S * 0.5, S, t, false, 'neutral', false, characterColor(0));
       fxOnce('wind', () => uiClick(0.28));
     } else {
-      // ── B. 상자(사진②③) — 살짝 위·옆에서 본 3/4 시점(입체). 무더기 속 혼자 다른 핑토 ──
-      const crL = W * 0.2, crR = W * 0.74, crT = H * 0.44, crB = H * 0.86;
-      const oxP = W * 0.06, oyP = H * 0.055;   // 시점 오프셋 — 오른쪽 면·윗면 개구부가 보인다
-      plate('tomB', () => {
-      // ── 배경(참조 사진과 동일한 구도) — 상자 뒤로 우거진 초록 밭이 화면을 가득 채우고
-      //    위쪽 오른편에서 햇빛이 번져 밝고, 아래엔 풀이 깔려 있다. 흑백 하프톤 톤으로 재현. ──
-      // 밝은 햇빛 하늘 하즈(위 밝음 → 아래 잎그늘로 어두워짐)
-      let g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#dcdcdc'); g.addColorStop(0.4, '#9a9a9a'); g.addColorStop(0.72, '#6a6a6a'); g.addColorStop(1, '#4a4a4a');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // 오른쪽 위 햇빛 번짐(사진의 역광) — 밝게 퍼지는 원
-      const sunG = ctx.createRadialGradient(W * 0.72, H * 0.14, 0, W * 0.72, H * 0.14, H * 0.55);
-      sunG.addColorStop(0, 'rgba(255,255,255,0.75)'); sunG.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = sunG; ctx.fillRect(0, 0, W, H * 0.75);
-      // 우거진 잎덩이 — 화면 전체를 채우는 흐릿한 초록 밭(피사계심도). 위로 갈수록 밝게(역광).
-      ctx.filter = 'blur(5px)';
-      for (let i = 0; i < 90; i++) {
-        const bx3 = hash01(i * 3.3 + 1.1) * W;
-        const by3 = H * (-0.03 + hash01(i * 7.1 + 2.7) * 0.72);
-        const br3 = S * (0.26 + hash01(i * 11.7 + 0.5) * 0.6);
-        // 밝기 — 위쪽·오른쪽일수록 밝다(햇빛). 아래로 갈수록 그늘.
-        const lit = (1 - by3 / (H * 0.72)) * 0.6 + (bx3 / W) * 0.25;
-        const L3 = Math.max(28, Math.min(210, 60 + lit * 150 + (hash01(i * 5.3) - 0.5) * 60));
-        const bg2 = ctx.createRadialGradient(bx3 - br3 * 0.3, by3 - br3 * 0.35, br3 * 0.08, bx3, by3, br3);
-        bg2.addColorStop(0, `rgb(${Math.min(255, L3 + 45)},${Math.min(255, L3 + 52)},${Math.min(255, L3 + 40)})`);
-        bg2.addColorStop(1, `rgb(${Math.max(0, L3 - 34)},${Math.max(0, L3 - 28)},${Math.max(0, L3 - 38)})`);
-        ctx.fillStyle = bg2;
-        ctx.beginPath(); ctx.ellipse(bx3, by3, br3, br3 * 0.82, hash01(i) * 3, 0, 7); ctx.fill();
-      }
-      // 햇빛 보케 — 초점 밖 잎 사이로 반짝이는 밝은 동그라미들(사진의 보케)
-      for (let i = 0; i < 16; i++) {
-        const bx3 = W * (0.28 + hash01(i * 9.7 + 3) * 0.68);
-        const by3 = H * (0.02 + hash01(i * 4.1 + 5) * 0.44);
-        const br3 = S * (0.08 + hash01(i * 6.3) * 0.16);
-        const a = 0.25 + hash01(i * 2.9) * 0.4;
-        const bk = ctx.createRadialGradient(bx3, by3, 0, bx3, by3, br3);
-        bk.addColorStop(0, `rgba(255,255,255,${a})`); bk.addColorStop(0.7, `rgba(255,255,255,${a * 0.5})`); bk.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = bk; ctx.beginPath(); ctx.arc(bx3, by3, br3, 0, 7); ctx.fill();
-      }
-      ctx.filter = 'none';
-      // 풀밭 — 상자가 놓인 땅(아래). 짧은 잔디가 촘촘히.
-      g = ctx.createLinearGradient(0, H * 0.6, 0, H);
-      g.addColorStop(0, '#5c5c5c'); g.addColorStop(0.5, '#454545'); g.addColorStop(1, '#2c2c2c');
-      ctx.fillStyle = g; ctx.fillRect(0, H * 0.6, W, H * 0.4);
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 130; i++) {
-        const gx = hash01(i * 13.7 + 0.3) * W;
-        const gy = H * (0.62 + hash01(i * 7.9 + 1.2) * 0.36);
-        const gl = S * (0.09 + hash01(i * 3.1 + 0.7) * 0.2) * (gy / H + 0.4);
-        const lean = (hash01(i * 5.7 + 2.1) - 0.5) * S * 0.18;
-        const tone = 26 + Math.floor(hash01(i * 9.1 + 4) * 80) + (gy / H) * 20;
-        ctx.strokeStyle = `rgba(${tone},${tone + 6},${tone - 4},0.92)`;
-        ctx.lineWidth = 1.4 + hash01(i * 2.3 + 1) * 1.8;
-        ctx.beginPath();
-        ctx.moveTo(gx, gy);
-        ctx.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl);
-        ctx.stroke();
-      }
-      shadow(W * 0.5 + oxP, crB + S * 0.1, (crR - crL) * 0.72, S * 0.3, 0.45);
-      // 윗면 개구부 — 사다리꼴로 열린 어두운 안쪽(위에서 살짝 내려다봄)
-      ctx.fillStyle = '#383838';
-      ctx.beginPath();
-      ctx.moveTo(crL + oxP, crT - oyP);
-      ctx.lineTo(crR + oxP, crT - oyP);
-      ctx.lineTo(crR, crT); ctx.lineTo(crL, crT);
-      ctx.closePath(); ctx.fill();
-      // 무더기 뒷줄 — 개구부 안쪽에서 작게 빼꼼(원근) — 6알
-      [[0.26, 1], [0.35, 0.85], [0.45, 0.95], [0.55, 0.85], [0.65, 0.9], [0.73, 0.8]].forEach(([fx2, k]) => {
-        tomatoFruit(W * fx2 + oxP * 0.7, crT - oyP * 0.55 - S * 0.08 * k, S * 0.23 * k, false);
-      });
-      // 무더기 앞줄 — 크게, 접촉 그림자와 함께(가운데는 핑토 자리) — 6알
-      [[0.25, 1.0], [0.36, 0.88], [0.44, 0.76], [0.56, 0.76], [0.64, 0.9], [0.74, 1.0]].forEach(([fx2, k]) => {
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.ellipse(W * fx2, crT + S * 0.1, S * 0.22 * k, S * 0.06 * k, 0, 0, 7); ctx.fill();
-        tomatoFruit(W * fx2, crT - S * 0.1, S * 0.28 * k, false);
-      });
-      // 앞면 슬랫(널빤지) 4장 — 밝은 나무 + 나뭇결, 사이 틈
-      const slatN = 4, slatH = (crB - crT) / slatN;
-      for (let i2 = 0; i2 < slatN; i2++) {
-        const sy2 = crT + i2 * slatH;
-        const wg = ctx.createLinearGradient(0, sy2, 0, sy2 + slatH * 0.78);
-        wg.addColorStop(0, '#f0f0f0'); wg.addColorStop(1, '#b3b3b3');
-        ctx.fillStyle = wg; ctx.fillRect(crL, sy2, crR - crL, slatH * 0.78);
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.8;
-        ctx.strokeRect(crL, sy2, crR - crL, slatH * 0.78);
-        ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1;   // 나뭇결
-        for (let gr = 0; gr < 2; gr++) {
-          ctx.beginPath();
-          ctx.moveTo(crL + 8, sy2 + slatH * (0.2 + gr * 0.3 + (i2 % 2) * 0.1));
-          ctx.quadraticCurveTo(W * 0.47, sy2 + slatH * (0.32 + gr * 0.26), crR - 8, sy2 + slatH * (0.22 + gr * 0.3));
-          ctx.stroke();
-        }
-        // 오른쪽 면 슬랫 — 스큐된 평행사변형(그늘진 나무)
-        ctx.fillStyle = i2 % 2 ? '#8d8d8d' : '#989898';
-        ctx.beginPath();
-        ctx.moveTo(crR, sy2);
-        ctx.lineTo(crR + oxP, sy2 - oyP);
-        ctx.lineTo(crR + oxP, sy2 - oyP + slatH * 0.78);
-        ctx.lineTo(crR, sy2 + slatH * 0.78);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
-      }
-      // 윗테 립 — 앞·옆 상단 모서리의 밝은 띠(두께감)
-      ctx.fillStyle = '#f5f5f5';
-      ctx.fillRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.6;
-      ctx.strokeRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
-      ctx.fillStyle = '#d9d9d9';
-      ctx.beginPath();
-      ctx.moveTo(crR + S * 0.02, crT - S * 0.035);
-      ctx.lineTo(crR + oxP + S * 0.015, crT - oyP - S * 0.03);
-      ctx.lineTo(crR + oxP + S * 0.015, crT - oyP + S * 0.02);
-      ctx.lineTo(crR + S * 0.02, crT + S * 0.015);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
-      // 좌우 음영 — 왼쪽에서 빛이 드는 입체감
-      const crShade = ctx.createLinearGradient(crL, 0, crR + oxP, 0);
-      crShade.addColorStop(0, 'rgba(255,255,255,0.18)'); crShade.addColorStop(0.4, 'rgba(0,0,0,0)');
-      crShade.addColorStop(1, 'rgba(0,0,0,0.3)');
-      ctx.fillStyle = crShade; ctx.fillRect(crL, crT - oyP, crR - crL + oxP, crB - crT + oyP);
-      // 모서리 기둥 — 뒤 오른(가늘게) → 앞 왼·앞 오른
-      const post = (cx2, topY, botY, wP, t1, t2) => {
-        const pg = ctx.createLinearGradient(cx2 - wP, 0, cx2 + wP, 0);
-        pg.addColorStop(0, t1); pg.addColorStop(1, t2);
-        ctx.fillStyle = pg; ctx.fillRect(cx2 - wP, topY, wP * 2, botY - topY);
-        ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.8;
-        ctx.strokeRect(cx2 - wP, topY, wP * 2, botY - topY);
-      };
-      post(crR + oxP, crT - oyP - S * 0.04, crB - oyP + S * 0.04, S * 0.07, '#b2b2b2', '#878787');
-      post(crL, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#eeeeee', '#b9b9b9');
-      post(crR, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#e2e2e2', '#a5a5a5');
-      // 바닥에 떨어진 토마토 세 알(풀 위)
-      tomatoFruit(W * 0.1, crB - S * 0.08, S * 0.26, false);
-      tomatoFruit(W * 0.92, crB - S * 0.2, S * 0.22, false);
-      tomatoFruit(W * 0.17, crB + S * 0.12, S * 0.2, false);
-      // 앞 풀 — 상자 발치를 스치는 풀잎(깊이감)
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 26; i++) {
-        const gx = hash01(i * 17.3 + 5) * W;
-        const gy = H * (0.88 + hash01(i * 7.3 + 2) * 0.12);
-        const gl = S * (0.22 + hash01(i * 3.9 + 1) * 0.3);
-        const lean = (hash01(i * 5.1 + 3) - 0.5) * S * 0.24;
-        ctx.strokeStyle = `rgba(${18 + Math.floor(hash01(i * 9.7) * 40)},${24 + Math.floor(hash01(i * 9.7) * 44)},${16 + Math.floor(hash01(i * 9.7) * 36)},0.95)`;
-        ctx.lineWidth = 2 + hash01(i * 2.9) * 2;
-        ctx.beginPath();
-        ctx.moveTo(gx, gy);
-        ctx.quadraticCurveTo(gx + lean * 0.4, gy - gl * 0.6, gx + lean, gy - gl);
-        ctx.stroke();
-      }
-      });   // ── tomB 플레이트 끝
+      // ── B. 상자(참조 사진과 동일 — 풀컬러). 이 컷만 흑백 하프톤을 건너뛰고 컬러 레이어에 그린다. ──
+      const crT = H * 0.44, S2 = S;
+      const px2 = W * 0.5, py2 = crT - S2 * 0.14;
+      // 배경+상자+토마토 컬러 플레이트를 컬러 레이어(cctx)에 통째로 blit(카메라 변환 아래).
+      cctx.save();
+      cctx.imageSmoothingEnabled = true;   // 부드러운 사진 톤(픽셀아트 아님)
+      cctx.drawImage(buildTomBColor(W, H, S), 0, 0, W, H);
+      cctx.restore();
       // 핑토 — 무더기 한가운데, 혼자 색이 다르다(미운오리새끼). 눈물 또르르.
-      const px2 = W * 0.5, py2 = crT - S * 0.14;
-      silhouetteDraw(cctx, 0, px2 - S * 0.55, py2 - S * 0.55, S * 1.1, t, false, 'sad', false, characterColor(0));
+      silhouetteDraw(cctx, 0, px2 - S2 * 0.55, py2 - S2 * 0.55, S2 * 1.1, t, false, 'sad', false, characterColor(0));
       if (s > 13.0) {
         const drop = (sd, side) => {
           const cyc = ((s - sd) % 1.6) / 1.6;
           if (s < sd || cyc > 0.85) return;
-          const dx2 = px2 + side * S * 0.2;
-          const dy2 = py2 + S * 0.02 + cyc * S * 0.45;
-          ctx.fillStyle = `rgba(0,0,0,${0.85 * (1 - cyc)})`;
-          ctx.beginPath(); ctx.ellipse(dx2, dy2, 3.2, 4.6, 0, 0, 7); ctx.fill();
+          const dx2 = px2 + side * S2 * 0.2;
+          const dy2 = py2 + S2 * 0.02 + cyc * S2 * 0.45;
+          cctx.fillStyle = `rgba(80,120,210,${0.9 * (1 - cyc)})`;   // 눈물 — 맑은 물방울(컬러)
+          cctx.beginPath(); cctx.ellipse(dx2, dy2, 3.2, 4.6, 0, 0, 7); cctx.fill();
         };
         drop(13.0, -1); drop(13.8, 1);
         fxOnce('sniff', () => speakVoiceEvents([{ rel: 0, ch: 'u' }, { rel: 0.4, ch: 'u' }], characterVoice(0), 'sad'));
       }
-      if (s > 16.8) drawIntroMark(ctx, '…', px2, py2 - S * 0.95, S * 0.4, seg2(s, 16.8, 17.3));
+      if (s > 16.8) drawIntroMark(cctx, '…', px2, py2 - S2 * 0.95, S2 * 0.4, seg2(s, 16.8, 17.3), '#2a2a2a');
     }
-    // 장면 전환 화이트 플래시
+    // 장면 전환 화이트 플래시 — B컷은 컬러 레이어가 위를 덮으므로 cctx에도 함께 플래시
     {
       const f = 1 - Math.min(1, Math.abs(s - TOMATO_CUT) / 0.22);
-      if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
+      if (f > 0) {
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore();
+        cctx.save(); cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.fillStyle = `rgba(255,255,255,${f})`; cctx.fillRect(0, 0, W, H); cctx.restore();
+      }
       if (s > TOMATO_CUT) fxOnce('cut', () => uiClick(0.5));
     }
   } else if (kind === 'phone') {
