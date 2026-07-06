@@ -518,15 +518,47 @@ function buildTomBColor(W, H, S) {
 const introPhotos = {};
 function loadIntroPhoto(key, srcs) {
   if (introPhotos[key]) return;
-  const ent = introPhotos[key] = { img: new Image(), ok: false, i: 0 };
-  ent.img.onload = () => { ent.ok = true; };
+  const ent = introPhotos[key] = { img: new Image(), ok: false, i: 0, styled: null };
+  ent.img.onload = () => { ent.ok = true; ent.styled = cartoonizePhoto(ent.img); };
   ent.img.onerror = () => { ent.i++; if (ent.i < srcs.length) ent.img.src = srcs[ent.i]; };
   ent.img.src = srcs[0];
 }
 function introPhotoReady(key) { const e = introPhotos[key]; return !!(e && e.ok && e.img.naturalWidth); }
+
+// 살짝 만화 느낌 — 흑백 톤을 몇 단계로 뭉치고(포스터화) 가장자리에 은은한 잉크 선을 얹는다.
+// 그 뒤 기존 dither가 도트로 바꾸면 "만화 스크린톤" 톤이 된다. 로드 시 1회만 만들어 캐시.
+const CARTOON_LEVELS = 6;      // 톤 밴드 수(적을수록 만화틱). "살짝만" → 6
+const CARTOON_EDGE = 78;       // 잉크 선이 켜지는 경계 세기(낮을수록 선 많아짐)
+function cartoonizePhoto(img) {
+  const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return img;
+  const w = Math.min(1400, iw), h = Math.round(ih * w / iw);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingEnabled = true;
+  g.drawImage(img, 0, 0, w, h);
+  const im = g.getImageData(0, 0, w, h), d = im.data;
+  const n = w * h;
+  const gray = new Float32Array(n);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  const out = new Float32Array(n);
+  const step = 255 / (CARTOON_LEVELS - 1);
+  for (let p = 0; p < n; p++) out[p] = Math.round(gray[p] / step) * step;   // 포스터화(톤 뭉침)
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {          // 소벨 에지 → 잉크 선
+    const i0 = y * w + x;
+    const gx = -gray[i0 - w - 1] - 2 * gray[i0 - 1] - gray[i0 + w - 1] + gray[i0 - w + 1] + 2 * gray[i0 + 1] + gray[i0 + w + 1];
+    const gy = -gray[i0 - w - 1] - 2 * gray[i0 - w] - gray[i0 - w + 1] + gray[i0 + w - 1] + 2 * gray[i0 + w] + gray[i0 + w + 1];
+    const mag = Math.sqrt(gx * gx + gy * gy);
+    if (mag > CARTOON_EDGE) out[i0] = Math.max(0, out[i0] - Math.min(170, (mag - CARTOON_EDGE) * 1.1));
+  }
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) { const v = out[p]; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  g.putImageData(im, 0, 0);
+  cv._w = w; cv._h = h;
+  return cv;
+}
+
 // 커버 핏 — 비율 유지하며 화면을 가득 채우고 넘치는 부분은 잘라낸다(사진 크롭).
 function drawPhotoCover(g, img, W, H) {
-  const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return;
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height; if (!iw || !ih) return;
   const sc = Math.max(W / iw, H / ih), dw = iw * sc, dh = ih * sc;
   g.imageSmoothingEnabled = true;
   g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
@@ -844,7 +876,7 @@ function drawIntroScene(t) {
     if (s < TOMATO_CUT) {
       // ── A. 덩굴밭 — 사진(assets/intro/tomato-a) 있으면 흑백 도트로, 없으면 손그림 잎 폴백 ──
       const px2 = W * 0.5, py2 = H * 0.5;
-      if (introPhotoReady('tomatoA')) { drawPhotoCover(ctx, introPhotos.tomatoA.img, W, H); }
+      if (introPhotoReady('tomatoA')) { drawPhotoCover(ctx, introPhotos.tomatoA.styled || introPhotos.tomatoA.img, W, H); }
       else {
       plate('tomA', () => {
       let g = ctx.createLinearGradient(0, 0, 0, H);
@@ -908,7 +940,7 @@ function drawIntroScene(t) {
       const px2 = W * 0.5, py2 = crT - S2 * 0.14;
       // 배경을 흑백 하프톤 ctx에 그린다(끝에서 dither → 도트아트). 컬러 플레이트를 밑그림으로 blit해도
       // dither가 명도만 남겨 흑백 도트가 된다.
-      if (introPhotoReady('tomatoB')) { drawPhotoCover(ctx, introPhotos.tomatoB.img, W, H); }
+      if (introPhotoReady('tomatoB')) { drawPhotoCover(ctx, introPhotos.tomatoB.styled || introPhotos.tomatoB.img, W, H); }
       else { ctx.imageSmoothingEnabled = true; ctx.drawImage(buildTomBColor(W, H, S), 0, 0, W, H); }
       // 핑토 — 배경 위에 얹는다(컬러 레이어). 눈물 또르르.
       silhouetteDraw(cctx, 0, px2 - S2 * 0.55, py2 - S2 * 0.55, S2 * 1.1, t, false, 'sad', false, characterColor(0));

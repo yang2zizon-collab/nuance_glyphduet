@@ -120,7 +120,10 @@ serve.py                로컬 서버
   ASCII_HOLD=7s 후 `endAsciiToEnding()`→엔딩. `body.ascii-time`으로 스코어판/열/입력칸 숨김.
   POST `/ascii {mark,chars}`(점 제외 실제 글자만)→SSE로 폰도 같은 밀도 필드+움직임을 렌더
   (tap.html artMaskDraw/artMotion/renderArt — RAF 30fps, 라운드/idle에서 내려감).
-- **소개 컷신 배경 사진 필터(사용자 제공 이미지)**: `assets/intro/tomato-a.(jpg|png|jpeg)` /
+- **소개 컷신 배경 사진 필터(사용자 제공 이미지)**:
+  로드 시 `cartoonizePhoto`로 **살짝 만화 느낌**(톤 포스터화 CARTOON_LEVELS=6 + 소벨 에지 잉크선
+  CARTOON_EDGE=78)을 1회 입혀 캐시(ent.styled) → 그 뒤 dither가 도트로 → 만화 스크린톤 톤.
+   `assets/intro/tomato-a.(jpg|png|jpeg)` /
   `tomato-b.*`가 있으면 토마토 A/B컷 배경으로 쓴다 — `loadIntroPhoto`로 프리로드, `drawPhotoCover`가
   커버핏으로 흑백 ctx에 그려 dither→도트아트, 그 위에 핑토를 얹는다. 파일이 없으면 손그림 폴백.
   **저작권 있는 스톡 사진(워터마크/미구매)은 넣지 말 것 — 본인 촬영·정식 라이선스·CC0만.** (assets/intro/README.md)
