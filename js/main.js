@@ -262,28 +262,39 @@ const INTRO_PACE = 1.25;  // 전체 호흡 — 클수록 컷신이 여유 있게
 const TOMATO_CUT = 5.2;   // 토마토 장면 전환 시각(초) — 덩굴밭 → 상자
 const MOUSE_CUT = 4.5;    // 생쥐 장면 전환 시각(초) — 밤거리 → 부엌
 
-// 컷신 내레이션 — 맨 아래 대화창에 한 글자씩 타이핑되고, 잠시 뒤 일부 글자가 외계어로 변한다.
-const INTRO_ALIEN = '◆●■▲▼◇○□△▽◐◑♪☆';
-const INTRO_TYPE_CPS = 16;   // 초당 타이핑 글자 수
+// 컷신 내레이션 — 맨 아래 대화창에 한국어·영어 두 줄이 타이핑되고,
+// 찍힌 지 조금 지난 글자들이 하나둘 외계어 글리프로 변해 간다(번역이 새는 느낌).
+const INTRO_ALIEN = '◆●■▲▼◇○□△▽◐◑♪☆✳※';
+const INTRO_TYPE_CPS = 16;   // 초당 타이핑 글자 수(한국어 기준 — 영어는 길이에 비례해 같이 끝난다)
 const INTRO_NARR = {
   tomato: [
-    { at: 0.6, text: '빨간 토마토들 사이에서, 조금 다른 토마토가 자랐습니다.' },
-    { at: 6.0, text: '상자에 담겨도, 핑토는 혼자 색이 달랐습니다…' },
+    { at: 0.6, ko: '초록의 물결 아래, 붉은 열매들은 저마다의 작은 심장을 매달고 있었습니다.',
+      en: 'Beneath a green tide, red fruits hung like small hearts.' },
+    { at: 6.0, ko: '같은 상자에 담겨도 물들지 않는 색 하나 — 핑토는 조용히 제 빛을 껴안고 있었습니다…',
+      en: 'Boxed together, yet a color apart — Pinto held its own light…' },
   ],
   phone: [
-    { at: 0.5, text: '새는 나뭇가지 위에서 이상한 기계를 발견했습니다.' },
-    { at: 4.0, text: '깊은 바다의 심해어도, 같은 기계를 발견했습니다.' },
-    { at: 7.3, text: '따르릉 — 두 세계가 처음으로 연결되었습니다.' },
+    { at: 0.5, ko: '바람의 높이에서 사는 새가, 가지 끝에 놓인 낯선 기계와 마주쳤습니다.',
+      en: 'A bird of the high winds met a strange machine at the branch’s end.' },
+    { at: 4.0, ko: '빛이 겨우 스미는 깊이에서, 심해어도 같은 꿈의 조각을 주웠습니다.',
+      en: 'Where light barely seeps, the deep-sea fish found the same shard of a dream.' },
+    { at: 7.3, ko: '따르릉 — 하늘과 심해가 한 가닥의 선으로 이어지는 순간.',
+      en: 'Ring — sky and abyss, joined by a single thread.' },
   ],
   mouse: [
-    { at: 0.5, text: '밤의 도시 — 생쥐 한 마리가 거리를 내달립니다.' },
-    { at: 5.0, text: '부스러기를 따라, 어느 집 부엌으로 숨어들었습니다.' },
-    { at: 7.7, text: '쓱쓱 — 빗자루가 생쥐를 쫓아냅니다.' },
-    { at: 10.7, text: '그래도 생쥐는, 다시 빼꼼.' },
+    { at: 0.5, ko: '가로등이 하나둘 켜지는 밤, 작은 발자국이 도시의 골목을 꿰매며 달립니다.',
+      en: 'As lamps blink on, small footsteps stitch through the city’s alleys.' },
+    { at: 5.0, ko: '떨어진 부스러기는 길이 되고, 그 길은 어느 부엌의 온기로 이어졌습니다.',
+      en: 'Fallen crumbs became a road, and the road led to a kitchen’s warmth.' },
+    { at: 7.7, ko: '쓱쓱 — 빗자루의 파도가 작은 손님을 문밖으로 밀어냅니다.',
+      en: 'Swish — a broom’s wave pushes the little guest out.' },
+    { at: 10.7, ko: '그래도 생쥐는, 다시 빼꼼.',
+      en: 'And yet, the mouse peeks again.' },
   ],
 };
 const INTRO_PX = 2.0;     // 도트 한 알의 크기(CSS px) — 촘촘할수록 실사에 가깝다
 let introCanvas = null, introCtx = null;
+let introLayerCache = {};   // 정적 배경 플레이트 캐시 — 컷신 시작마다 비운다(프레임드랍 방지)
 let introColorCanvas = null, introColorCtx = null;   // 캐릭터(컬러) 레이어
 const BAYER8 = [
   [0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26],
@@ -292,16 +303,21 @@ const BAYER8 = [
   [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21],
 ];
 function ditherIntroCanvas() {
+  // 프레임드랍 최적화 — 문턱값을 정수(0~765)로 미리 계산하고, 픽셀 쓰기는 Uint32 한 번으로.
   const w = introCanvas.width, h = introCanvas.height;
   const img = introCtx.getImageData(0, 0, w, h);
   const d = img.data;
+  const u32 = new Uint32Array(d.buffer);
+  if (!ditherIntroCanvas._th) {
+    ditherIntroCanvas._th = BAYER8.map((row) => row.map((v) => ((v + 0.5) / 64) * 765));
+  }
+  const TH = ditherIntroCanvas._th;
+  let p = 0;
   for (let y = 0; y < h; y++) {
-    const row = BAYER8[y & 7];
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const v = (d[i] + d[i + 1] + d[i + 2]) / 765;
-      const c = v > (row[x & 7] + 0.5) / 64 ? 255 : 0;
-      d[i] = d[i + 1] = d[i + 2] = c; d[i + 3] = 255;
+    const row = TH[y & 7];
+    for (let x = 0; x < w; x++, p++) {
+      const i = p << 2;
+      u32[p] = (d[i] + d[i + 1] + d[i + 2]) > row[x & 7] ? 0xFFFFFFFF : 0xFF000000;
     }
   }
   introCtx.putImageData(img, 0, 0);
@@ -310,6 +326,7 @@ function ditherIntroCanvas() {
 function startIntroScene(kind) {
   if (state.screen !== 'select') return;
   introScene = { kind, start: performance.now(), dur: (INTRO_DUR[kind] || 8000) * INTRO_PACE, fx: {} };
+  introLayerCache = {};   // 새 컷신 — 배경 플레이트 다시 굽기
   const sm = $('#slot-machine'); if (sm) sm.style.visibility = 'hidden';
 }
 function endIntroScene() {
@@ -339,12 +356,29 @@ function drawIntroScene(t) {
   // 캐릭터(컬러) 레이어는 풀해상도 — 저해상 디더를 거치지 않아 픽셀아트가 또렷하다
   if (!introColorCanvas) { introColorCanvas = document.createElement('canvas'); introColorCtx = introColorCanvas.getContext('2d'); }
   if (introColorCanvas.width !== W || introColorCanvas.height !== H) { introColorCanvas.width = W; introColorCanvas.height = H; }
-  const ctx = introCtx;
+  let ctx = introCtx;   // let — plate()가 잠시 오프스크린으로 바꿔치기한다
   ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
   ctx.imageSmoothingEnabled = true;
   const cctx = introColorCtx;
   cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, W, H);
   cctx.imageSmoothingEnabled = false;
+
+  // 정적 배경 플레이트 — 무거운 블러·그라디언트 층을 월드 좌표로 "1회만" 그려 캐시하고,
+  // 매 프레임은 카메라 변환 아래 drawImage 한 번으로 끝낸다(프레임드랍 최적화의 핵심).
+  // drawFn 안의 코드는 바깥과 똑같이 ctx를 쓰면 된다(그 동안 ctx가 플레이트를 가리킴).
+  function plate(key, drawFn) {
+    let ent = introLayerCache[key];
+    if (!ent || ent.w !== pw || ent.h !== ph) {
+      const cv = document.createElement('canvas'); cv.width = pw; cv.height = ph;
+      const pctx = cv.getContext('2d');
+      pctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+      pctx.imageSmoothingEnabled = true;
+      const prev = ctx; ctx = pctx;
+      try { drawFn(); } finally { ctx = prev; }
+      ent = introLayerCache[key] = { cv, w: pw, h: ph };
+    }
+    ctx.drawImage(ent.cv, 0, 0, W, H);
+  }
 
   // 장면 내부 시계 — INTRO_PACE 로 나눠 전체 호흡을 늦춘다(장면 안 초 값들은 그대로 유효)
   const s = (performance.now() - introScene.start) / 1000 / INTRO_PACE;
@@ -624,6 +658,8 @@ function drawIntroScene(t) {
     };
     if (s < TOMATO_CUT) {
       // ── A. 덩굴밭 — 화면을 뒤덮는 덤불, 주렁주렁한 열매(맨 위엔 안 익은 초록 하나) ──
+      const px2 = W * 0.5, py2 = H * 0.5;
+      plate('tomA', () => {
       let g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#474747'); g.addColorStop(0.55, '#6b6b6b'); g.addColorStop(1, '#383838');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -693,39 +729,47 @@ function drawIntroScene(t) {
       leaf(W * 0.03, H * 0.92, S * 1.25, -2.4, 26);
       leaf(W * 0.97, H * 0.05, S * 1.05, 0.9, 30);
       ctx.filter = 'none';
-      // 핑토 — 덩굴 가운데, 위 덤불에서 내려온 제 줄기에 매달려 있다(컬러 레이어)
-      const px2 = W * 0.5, py2 = H * 0.5;
+      // 핑토의 줄기 — 위 덤불에서 내려와 매달린다
       ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.06; ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(px2 + S * 0.18, -12);
       ctx.quadraticCurveTo(px2 + S * 0.26, H * 0.22, px2, py2 - S * 0.4);
       ctx.stroke();
+      });   // ── tomA 플레이트 끝
       silhouetteDraw(cctx, 0, px2 - S * 0.5, py2 - S * 0.5, S, t, false, 'neutral', false, characterColor(0));
       fxOnce('wind', () => uiClick(0.28));
     } else {
-      // ── B. 상자(사진②③) — 빨간 토마토 무더기 속에 혼자 다른 핑토 ──
+      // ── B. 상자(사진②③) — 살짝 위·옆에서 본 3/4 시점(입체). 무더기 속 혼자 다른 핑토 ──
+      const crL = W * 0.2, crR = W * 0.74, crT = H * 0.44, crB = H * 0.86;
+      const oxP = W * 0.06, oyP = H * 0.055;   // 시점 오프셋 — 오른쪽 면·윗면 개구부가 보인다
+      plate('tomB', () => {
       let g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#ececec'); g.addColorStop(1, '#c6c6c6');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      const crL = W * 0.2, crR = W * 0.8, crT = H * 0.42, crB = H * 0.86;
-      shadow(W * 0.5, crB + S * 0.12, (crR - crL) * 0.62, S * 0.3, 0.4);
-      // 상자 안쪽(뒤판) — 슬랫 틈으로 어둡게 비친다
-      ctx.fillStyle = '#4a4a4a'; ctx.fillRect(crL, crT, crR - crL, crB - crT);
-      // 무더기 — 상자 위로 봉긋 솟은 토마토들(두 줄), 가운데 핑토 자리 비움
-      const heap = [[0.28, 0.40, 1.0], [0.415, 0.365, 0.92], [0.585, 0.365, 0.95], [0.72, 0.40, 1.0],
-        [0.34, 0.315, 0.8], [0.66, 0.315, 0.82], [0.24, 0.33, 0.72], [0.76, 0.33, 0.7]];
-      heap.forEach(([fx2, fy2, k]) => {
-        // 밑 접촉 그림자 — 열매끼리 눌린 실사감
+      shadow(W * 0.5 + oxP, crB + S * 0.1, (crR - crL) * 0.72, S * 0.3, 0.4);
+      // 윗면 개구부 — 사다리꼴로 열린 어두운 안쪽(위에서 살짝 내려다봄)
+      ctx.fillStyle = '#383838';
+      ctx.beginPath();
+      ctx.moveTo(crL + oxP, crT - oyP);
+      ctx.lineTo(crR + oxP, crT - oyP);
+      ctx.lineTo(crR, crT); ctx.lineTo(crL, crT);
+      ctx.closePath(); ctx.fill();
+      // 무더기 뒷줄 — 개구부 안쪽에서 작게 빼꼼(원근)
+      [[0.3, 1], [0.44, 0.9], [0.58, 0.95], [0.7, 0.85]].forEach(([fx2, k]) => {
+        tomatoFruit(W * fx2 + oxP * 0.7, crT - oyP * 0.55 - S * 0.08 * k, S * 0.23 * k, false);
+      });
+      // 무더기 앞줄 — 크게, 접촉 그림자와 함께(가운데는 핑토 자리)
+      [[0.27, 1.0], [0.4, 0.92], [0.6, 0.95], [0.72, 1.0]].forEach(([fx2, k]) => {
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.ellipse(W * fx2, H * fy2 + S * 0.26 * k, S * 0.24 * k, S * 0.07 * k, 0, 0, 7); ctx.fill();
-        tomatoFruit(W * fx2, H * fy2, S * 0.3 * k, false);
+        ctx.beginPath(); ctx.ellipse(W * fx2, crT + S * 0.1, S * 0.22 * k, S * 0.06 * k, 0, 0, 7); ctx.fill();
+        tomatoFruit(W * fx2, crT - S * 0.1, S * 0.28 * k, false);
       });
       // 앞면 슬랫(널빤지) 4장 — 밝은 나무 + 나뭇결, 사이 틈
       const slatN = 4, slatH = (crB - crT) / slatN;
       for (let i2 = 0; i2 < slatN; i2++) {
         const sy2 = crT + i2 * slatH;
         const wg = ctx.createLinearGradient(0, sy2, 0, sy2 + slatH * 0.78);
-        wg.addColorStop(0, '#f0f0f0'); wg.addColorStop(1, '#b5b5b5');
+        wg.addColorStop(0, '#f0f0f0'); wg.addColorStop(1, '#b3b3b3');
         ctx.fillStyle = wg; ctx.fillRect(crL, sy2, crR - crL, slatH * 0.78);
         ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.8;
         ctx.strokeRect(crL, sy2, crR - crL, slatH * 0.78);
@@ -733,28 +777,54 @@ function drawIntroScene(t) {
         for (let gr = 0; gr < 2; gr++) {
           ctx.beginPath();
           ctx.moveTo(crL + 8, sy2 + slatH * (0.2 + gr * 0.3 + (i2 % 2) * 0.1));
-          ctx.quadraticCurveTo(W * 0.5, sy2 + slatH * (0.32 + gr * 0.26), crR - 8, sy2 + slatH * (0.22 + gr * 0.3));
+          ctx.quadraticCurveTo(W * 0.47, sy2 + slatH * (0.32 + gr * 0.26), crR - 8, sy2 + slatH * (0.22 + gr * 0.3));
           ctx.stroke();
         }
+        // 오른쪽 면 슬랫 — 스큐된 평행사변형(그늘진 나무)
+        ctx.fillStyle = i2 % 2 ? '#8d8d8d' : '#989898';
+        ctx.beginPath();
+        ctx.moveTo(crR, sy2);
+        ctx.lineTo(crR + oxP, sy2 - oyP);
+        ctx.lineTo(crR + oxP, sy2 - oyP + slatH * 0.78);
+        ctx.lineTo(crR, sy2 + slatH * 0.78);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
       }
-      // 상자 전체의 좌우 음영 — 왼쪽에서 빛이 드는 입체감
-      const crShade = ctx.createLinearGradient(crL, 0, crR, 0);
-      crShade.addColorStop(0, 'rgba(255,255,255,0.18)'); crShade.addColorStop(0.35, 'rgba(0,0,0,0)');
-      crShade.addColorStop(1, 'rgba(0,0,0,0.28)');
-      ctx.fillStyle = crShade; ctx.fillRect(crL, crT, crR - crL, crB - crT);
-      // 모서리 기둥 두 개
-      [[crL], [crR]].forEach(([cx2]) => {
-        const pg = ctx.createLinearGradient(cx2 - S * 0.1, 0, cx2 + S * 0.1, 0);
-        pg.addColorStop(0, '#e5e5e5'); pg.addColorStop(1, '#a8a8a8');
-        ctx.fillStyle = pg; ctx.fillRect(cx2 - S * 0.09, crT - S * 0.06, S * 0.18, crB - crT + S * 0.1);
+      // 윗테 립 — 앞·옆 상단 모서리의 밝은 띠(두께감)
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.6;
+      ctx.strokeRect(crL - S * 0.02, crT - S * 0.035, crR - crL + S * 0.04, S * 0.05);
+      ctx.fillStyle = '#d9d9d9';
+      ctx.beginPath();
+      ctx.moveTo(crR + S * 0.02, crT - S * 0.035);
+      ctx.lineTo(crR + oxP + S * 0.015, crT - oyP - S * 0.03);
+      ctx.lineTo(crR + oxP + S * 0.015, crT - oyP + S * 0.02);
+      ctx.lineTo(crR + S * 0.02, crT + S * 0.015);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
+      // 좌우 음영 — 왼쪽에서 빛이 드는 입체감
+      const crShade = ctx.createLinearGradient(crL, 0, crR + oxP, 0);
+      crShade.addColorStop(0, 'rgba(255,255,255,0.18)'); crShade.addColorStop(0.4, 'rgba(0,0,0,0)');
+      crShade.addColorStop(1, 'rgba(0,0,0,0.3)');
+      ctx.fillStyle = crShade; ctx.fillRect(crL, crT - oyP, crR - crL + oxP, crB - crT + oyP);
+      // 모서리 기둥 — 뒤 오른(가늘게) → 앞 왼·앞 오른
+      const post = (cx2, topY, botY, wP, t1, t2) => {
+        const pg = ctx.createLinearGradient(cx2 - wP, 0, cx2 + wP, 0);
+        pg.addColorStop(0, t1); pg.addColorStop(1, t2);
+        ctx.fillStyle = pg; ctx.fillRect(cx2 - wP, topY, wP * 2, botY - topY);
         ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.8;
-        ctx.strokeRect(cx2 - S * 0.09, crT - S * 0.06, S * 0.18, crB - crT + S * 0.1);
-      });
+        ctx.strokeRect(cx2 - wP, topY, wP * 2, botY - topY);
+      };
+      post(crR + oxP, crT - oyP - S * 0.04, crB - oyP + S * 0.04, S * 0.07, '#b2b2b2', '#878787');
+      post(crL, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#eeeeee', '#b9b9b9');
+      post(crR, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#e2e2e2', '#a5a5a5');
       // 바닥에 떨어진 토마토 두 알
-      tomatoFruit(W * 0.11, crB - S * 0.1, S * 0.26, false);
-      tomatoFruit(W * 0.9, crB - S * 0.24, S * 0.22, false);
+      tomatoFruit(W * 0.1, crB - S * 0.08, S * 0.26, false);
+      tomatoFruit(W * 0.92, crB - S * 0.2, S * 0.22, false);
+      });   // ── tomB 플레이트 끝
       // 핑토 — 무더기 한가운데, 혼자 색이 다르다(미운오리새끼). 눈물 또르르.
-      const px2 = W * 0.5, py2 = H * 0.38;
+      const px2 = W * 0.5, py2 = crT - S * 0.14;
       silhouetteDraw(cctx, 0, px2 - S * 0.55, py2 - S * 0.55, S * 1.1, t, false, 'sad', false, characterColor(0));
       if (s > 8.2) {
         const drop = (sd, side) => {
@@ -781,23 +851,8 @@ function drawIntroScene(t) {
     const beat = s < 3.6 ? 1 : s < 7.0 ? 2 : 3;
     if (beat === 1) {
       // b1 — 새가 커다란 느티나무로 날아와 전화기 발견(사진 레퍼런스)
-      let g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#c9c9c9'); g.addColorStop(0.55, '#f0f0f0'); g.addColorStop(1, '#e2e2e2');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       const horizon = H * 0.74;
-      // 원경 산등성이 — 흐릿하게(피사계심도)
-      ctx.filter = 'blur(3px)';
-      ctx.fillStyle = '#bdbdbd';
-      ctx.beginPath(); ctx.ellipse(W * 0.82, horizon + H * 0.02, W * 0.32, H * 0.1, 0, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#cccccc';
-      ctx.beginPath(); ctx.ellipse(W * 0.2, horizon + H * 0.03, W * 0.36, H * 0.08, 0, Math.PI, 0); ctx.fill();
-      ctx.filter = 'none';
-      // 풀밭 땅
-      g = ctx.createLinearGradient(0, horizon, 0, H);
-      g.addColorStop(0, '#b0b0b0'); g.addColorStop(1, '#747474');
-      ctx.fillStyle = g; ctx.fillRect(0, horizon, W, H - horizon);
       const trunkX = W * 0.2, branchY = H * 0.5, gy = horizon + H * 0.045;
-      shadow(trunkX + S * 0.5, horizon + H * 0.06, S * 2.8, S * 0.42, 0.35);   // 나무 그늘
       // 수관 — 겹겹의 잎덩이(라디얼 음영): 뒤(어둡고 흐릿) → 중간 → 앞(밝고 선명)
       const clump = (cx2, cy2, r, L, blur) => {
         if (blur) ctx.filter = `blur(${blur}px)`;
@@ -809,6 +864,22 @@ function drawIntroScene(t) {
         ctx.beginPath(); ctx.ellipse(cx2, cy2, r, r * 0.78, 0, 0, 7); ctx.fill();
         ctx.filter = 'none';
       };
+      plate('tree', () => {
+      let g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#c9c9c9'); g.addColorStop(0.55, '#f0f0f0'); g.addColorStop(1, '#e2e2e2');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // 원경 산등성이 — 흐릿하게(피사계심도)
+      ctx.filter = 'blur(3px)';
+      ctx.fillStyle = '#bdbdbd';
+      ctx.beginPath(); ctx.ellipse(W * 0.82, horizon + H * 0.02, W * 0.32, H * 0.1, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#cccccc';
+      ctx.beginPath(); ctx.ellipse(W * 0.2, horizon + H * 0.03, W * 0.36, H * 0.08, 0, Math.PI, 0); ctx.fill();
+      ctx.filter = 'none';
+      // 풀밭 땅
+      g = ctx.createLinearGradient(0, horizon, 0, H);
+      g.addColorStop(0, '#b0b0b0'); g.addColorStop(1, '#747474');
+      ctx.fillStyle = g; ctx.fillRect(0, horizon, W, H - horizon);
+      shadow(trunkX + S * 0.5, horizon + H * 0.06, S * 2.8, S * 0.42, 0.35);   // 나무 그늘
       const canopyCX = trunkX + S * 0.6;
       for (let i = 0; i < 9; i++) {   // 뒤층
         const u = ((i * 47) % 90) / 90;
@@ -861,14 +932,30 @@ function drawIntroScene(t) {
         ctx.quadraticCurveTo(trunkX + S * (fx0 + fx1 * 0.5), H * 0.2, trunkX + S * (fx0 + fx1), H * 0.13);
         ctx.stroke();
       });
-      // 전화기 가지 — 오른쪽으로 완만하게 + 잔가지
-      ctx.strokeStyle = '#151515'; ctx.lineWidth = S * 0.15;
-      ctx.beginPath();
-      ctx.moveTo(trunkX + S * 0.12, H * 0.42);
-      ctx.quadraticCurveTo(W * 0.38, branchY - S * 0.22, W * 0.66, branchY);
-      ctx.stroke();
-      ctx.lineWidth = S * 0.06;
-      ctx.beginPath(); ctx.moveTo(W * 0.52, branchY - S * 0.1); ctx.quadraticCurveTo(W * 0.6, branchY - S * 0.34, W * 0.68, branchY - S * 0.4); ctx.stroke();
+      // 전화기 가지 — 굽이치며 끝으로 갈수록 가늘어진다(일직선 X). 마디마다 살짝 위아래로.
+      ctx.strokeStyle = '#151515'; ctx.lineCap = 'round';
+      const bPts = [
+        [trunkX + S * 0.1, H * 0.42], [W * 0.3, H * 0.475], [W * 0.42, branchY - S * 0.07],
+        [W * 0.53, branchY + S * 0.03], [W * 0.63, branchY - S * 0.04], [W * 0.7, branchY - S * 0.01],
+      ];
+      for (let i2 = 0; i2 < bPts.length - 1; i2++) {
+        ctx.lineWidth = Math.max(S * 0.035, S * (0.16 - i2 * 0.026));
+        const mx3 = (bPts[i2][0] + bPts[i2 + 1][0]) / 2;
+        const my3 = (bPts[i2][1] + bPts[i2 + 1][1]) / 2 + (i2 % 2 ? S * 0.045 : -S * 0.045);
+        ctx.beginPath();
+        ctx.moveTo(bPts[i2][0], bPts[i2][1]);
+        ctx.quadraticCurveTo(mx3, my3, bPts[i2 + 1][0], bPts[i2 + 1][1]);
+        ctx.stroke();
+      }
+      // 잔가지 — 위아래로 자연스럽게 벌어지고, 끝에 잎 뭉치
+      [[0.34, -1, 0.34], [0.47, 1, 0.26], [0.58, -1, 0.3]].forEach(([fx0, dir, len], bi) => {
+        ctx.lineWidth = S * (0.05 - bi * 0.008);
+        ctx.beginPath();
+        ctx.moveTo(W * fx0, branchY - S * 0.04 + dir * S * 0.02);
+        ctx.quadraticCurveTo(W * fx0 + S * 0.22, branchY + dir * S * len * 0.55, W * fx0 + S * 0.44, branchY + dir * S * len);
+        ctx.stroke();
+        clump(W * fx0 + S * 0.52, branchY + dir * S * (len + 0.14), S * (0.2 + (bi % 2) * 0.05), 118, 0);
+      });
       // 앞층 잎덩이 — 가장 밝고 선명(가지 위를 살짝 덮는다)
       for (let i = 0; i < 7; i++) {
         const u = ((i * 73 + 31) % 90) / 90;
@@ -877,6 +964,7 @@ function drawIntroScene(t) {
       }
       // 가지 위 옛날 전화기
       rotary(W * 0.44, branchY - S * 0.06, 1, true);
+      });   // ── tree 플레이트 끝
       // 새(귤색) — 오른쪽 위에서 날아와 착지
       const fly = seg2(s, 0.2, 2.2);
       const bx = W * (1.06 - 0.46 * fly), by = H * (0.16 + 0.26 * fly) - Math.sin(fly * Math.PI) * H * 0.1;
@@ -891,13 +979,15 @@ function drawIntroScene(t) {
       }
     } else if (beat === 2) {
       // b2 — 심해(사진 레퍼런스) — 수면의 빛이 갈라져 내려오고, 바위 능선·해초·물고기떼·해파리
-      let g = ctx.createLinearGradient(0, 0, 0, H);
+      plate('seaSky', () => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#5c5c5c'); g.addColorStop(0.35, '#2c2c2c'); g.addColorStop(1, '#040404');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       // 수면의 밝은 웅덩이(빛이 모이는 곳)
       const sg2 = ctx.createRadialGradient(W * 0.46, -H * 0.05, 0, W * 0.46, -H * 0.05, H * 0.5);
       sg2.addColorStop(0, 'rgba(255,255,255,0.85)'); sg2.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sg2; ctx.fillRect(0, 0, W, H * 0.5);
+      });   // ── seaSky 플레이트 끝
       // 갈라져 내려오는 빛줄기 여러 가닥(갓레이)
       [[0.34, 0.35, -0.16], [0.42, 0.6, -0.05], [0.48, 0.9, 0.03], [0.55, 0.5, 0.12], [0.63, 0.3, 0.24]].forEach(([fx2, k, spread]) => {
         const flick = 0.8 + 0.2 * Math.sin(t * 0.9 + fx2 * 20);
@@ -909,30 +999,32 @@ function drawIntroScene(t) {
         ctx.lineTo(W * (fx2 + spread) + S * 0.55, H * 0.9); ctx.lineTo(W * (fx2 + spread) - S * 0.55, H * 0.9);
         ctx.closePath(); ctx.fill();
       });
-      // 물고기떼 — 작은 밝은 실루엣들이 줄지어 유영(어둠 속에서 빛을 받는다)
+      // 물고기떼 — 밝은 실루엣들이 줄지어 유영(어둠 속에서 빛을 받는다) — 큼직하게
       ctx.fillStyle = 'rgba(235,235,235,0.6)';
       for (let i = 0; i < 14; i++) {
         const u = ((i * 61) % 100) / 100;
         const fx2 = W * (0.16 + u * 0.62) + Math.sin(t * 0.5 + i) * 10;
         const fy2 = H * (0.2 + ((i * 37) % 40) / 100 * 0.5) + Math.sin(t * 0.8 + i * 2) * 6;
-        const fr = S * (0.05 + (i % 3) * 0.02);
+        const fr = S * (0.085 + (i % 3) * 0.03);
         ctx.beginPath(); ctx.ellipse(fx2, fy2, fr, fr * 0.42, 0, 0, 7); ctx.fill();       // 몸통
         ctx.beginPath();                                                                    // 꼬리
         ctx.moveTo(fx2 + fr * 0.9, fy2); ctx.lineTo(fx2 + fr * 1.5, fy2 - fr * 0.5); ctx.lineTo(fx2 + fr * 1.5, fy2 + fr * 0.5);
         ctx.closePath(); ctx.fill();
       }
-      // 해파리 둘 — 갓 + 하늘거리는 촉수(반투명 흰빛)
-      [[0.16, 0.24, 1], [0.85, 0.36, 0.7]].forEach(([fx2, fy2, k], ji) => {
-        const jx = W * fx2, jy = H * fy2 + Math.sin(t * 0.7 + ji * 2) * 10;
-        const jr = S * 0.22 * k;
+      // 해파리 둘 — 갓 + 하늘거리는 촉수(반투명 흰빛) — 큼직하게
+      [[0.15, 0.26, 1], [0.86, 0.36, 0.75]].forEach(([fx2, fy2, k], ji) => {
+        const jx = W * fx2, jy = H * fy2 + Math.sin(t * 0.7 + ji * 2) * 12;
+        const jr = S * 0.34 * k;
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
         ctx.beginPath(); ctx.arc(jx, jy, jr, Math.PI, 0); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.8;
-        for (let tn2 = 0; tn2 < 4; tn2++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';   // 갓 아랫단(주름)
+        ctx.beginPath(); ctx.ellipse(jx, jy, jr, jr * 0.22, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2.2;
+        for (let tn2 = 0; tn2 < 5; tn2++) {
           ctx.beginPath();
-          const tx2 = jx - jr * 0.6 + tn2 * jr * 0.4;
+          const tx2 = jx - jr * 0.64 + tn2 * jr * 0.32;
           ctx.moveTo(tx2, jy);
-          ctx.quadraticCurveTo(tx2 + Math.sin(t * 2 + tn2) * 5, jy + jr * 1.2, tx2 + Math.sin(t * 1.6 + tn2 * 2) * 8, jy + jr * 2.2);
+          ctx.quadraticCurveTo(tx2 + Math.sin(t * 2 + tn2) * 8, jy + jr * 1.2, tx2 + Math.sin(t * 1.6 + tn2 * 2) * 13, jy + jr * 2.3);
           ctx.stroke();
         }
       });
@@ -954,9 +1046,12 @@ function drawIntroScene(t) {
         }
         ctx.lineTo(W + 4, baseY); ctx.lineTo(W + 4, H + 4); ctx.closePath(); ctx.fill();
       };
+      plate('seaFloor', () => {
       ridge(H * 0.8, S * 0.7, '#1d1d1d', 3.7);
       ridge(H * 0.88, S * 0.5, '#070707', 9.1);
       sphere(W * 0.68, H * 0.82, S * 0.5, '#6a6a6a', '#0a0a0a');   // 폰 뒤 둥근 바위
+      rotary(W * 0.6, H * 0.9, 0.95, false);                       // 폰 — 바위 앞 해저에
+      });   // ── seaFloor 플레이트 끝
       // 해초 — 하늘하늘 물결치는 검은 줄기들(좌우 구석)
       ctx.lineCap = 'round';
       for (let i = 0; i < 9; i++) {
@@ -973,8 +1068,6 @@ function drawIntroScene(t) {
         }
         ctx.stroke();
       }
-      // 폰 — 바위 앞 해저에(밝은 몸체라 어둠 속에서 보인다)
-      rotary(W * 0.6, H * 0.9, 0.95, false);
       // 심해어(남색) — 왼쪽에서 유영해 들어옴, 광륜
       const swim = seg2(s, 3.8, 5.6);
       const fx3 = W * (-0.12 + 0.5 * swim), fy3 = H * (0.55 + 0.1 * swim) + Math.sin(t * 1.8) * 6;
@@ -1051,6 +1144,7 @@ function drawIntroScene(t) {
     // ── ③-A 밤의 도시(라따뚜이 무드) — 가로등 불빛의 자갈길을 생쥐가 내달린다 ──
     if (s < MOUSE_CUT) {
       const stFloor = H * 0.72;
+      plate('street', () => {
       // 밤하늘
       let g = ctx.createLinearGradient(0, 0, 0, stFloor);
       g.addColorStop(0, '#060606'); g.addColorStop(0.7, '#1c1c1c'); g.addColorStop(1, '#2f2f2f');
@@ -1144,6 +1238,7 @@ function drawIntroScene(t) {
         ctx.fillStyle = pg2; ctx.beginPath(); ctx.arc(0, 0, S * 1.1, 0, 7); ctx.fill();
         ctx.restore();
       });
+      });   // ── street 플레이트 끝
       // 생쥐 — 자갈길을 총총 내달린다. 중간에 한 번 멈춰 두리번('…')
       const pauseA = s > 1.85 && s < 2.25;
       const runU = seg2(s, 0.3, 4.2) - (seg2(s, 1.7, 1.85) - seg2(s, 2.25, 2.4)) * 0.1;
@@ -1160,6 +1255,9 @@ function drawIntroScene(t) {
     const sKitchen = s - MOUSE_CUT;
     { const s = sKitchen;
     const floorY = H * 0.68;
+    // 김(스팀)용 냄비 좌표 — 플레이트 밖(동적 그리기)에서도 쓴다
+    const potX = W * 0.905, potW2 = S * 0.34, potH2 = S * 0.26, potY = H * 0.47 - H * 0.004;
+    plate('kitchen', () => {
     let g = ctx.createLinearGradient(0, 0, 0, floorY);
     g.addColorStop(0, '#8f8f8f'); g.addColorStop(1, '#dedede');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, floorY);
@@ -1287,7 +1385,6 @@ function drawIntroScene(t) {
     ctx.fillRect(W * 0.875, counterY - H * 0.006, W * 0.115, H * 0.008);   // 쿡탑 슬림 슬랩
     ctx.fillStyle = '#3c3c3c';
     ctx.beginPath(); ctx.ellipse(W * 0.955, counterY - H * 0.004, W * 0.017, H * 0.006, 0, 0, 7); ctx.fill();   // 빈 화구
-    const potX = W * 0.905, potW2 = S * 0.34, potH2 = S * 0.26, potY = counterY - H * 0.004;
     g = ctx.createLinearGradient(potX - potW2 / 2, 0, potX + potW2 / 2, 0);
     g.addColorStop(0, '#4a4a4a'); g.addColorStop(0.35, '#0f0f0f'); g.addColorStop(1, '#000');
     ctx.fillStyle = g;
@@ -1301,19 +1398,7 @@ function drawIntroScene(t) {
       ctx.arc(potX + sgn * potW2 * 0.52, potY - potH2 * 0.62, potW2 * 0.1, sgn > 0 ? -Math.PI / 2 : Math.PI / 2, sgn > 0 ? Math.PI / 2 : -Math.PI / 2 + Math.PI * 2 * 0);
       ctx.stroke();
     });
-    // 김 — 하늘하늘 올라가는 세 줄기(살아있는 부엌)
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-    for (let st2 = 0; st2 < 3; st2++) {
-      const sx2 = potX - potW2 * 0.25 + st2 * potW2 * 0.25;
-      ctx.beginPath();
-      for (let yy = 0; yy <= 6; yy++) {
-        const u = yy / 6;
-        const px2 = sx2 + Math.sin(u * Math.PI * 2 + t * 2.4 + st2 * 1.7) * S * 0.05 * u;
-        const py2 = potY - potH2 * 1.2 - u * S * 0.55;
-        yy === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
-      }
-      ctx.stroke();
-    }
+    // (김은 동적이라 플레이트 밖에서 매 프레임 그린다)
     // 아래 수납장 — 문 4짝 + 오른쪽 서랍 3단(사진 레퍼런스) + 토킥 그늘
     const lowY = counterY + counterTh;
     ctx.fillStyle = '#e6e6e6'; ctx.fillRect(KX, lowY, W - KX, floorY - lowY);
@@ -1377,6 +1462,138 @@ function drawIntroScene(t) {
         ctx.beginPath(); ctx.moveTo(px2, prevY + 1); ctx.lineTo(px2 - W * 0.008, py - 1); ctx.stroke();
       }
       prevY = py;
+    }
+    // ── 디테일 더 + 살짝 튼 시점(오른쪽 면·윗면이 보이는 유사 3D) ──
+    // 위 찬장 오른쪽 옆면 + 아랫면 띠
+    ctx.fillStyle = '#b5b5b5';
+    ctx.beginPath();
+    ctx.moveTo(KX + W * 0.435, cabTop);
+    ctx.lineTo(KX + W * 0.453, cabTop + H * 0.014);
+    ctx.lineTo(KX + W * 0.453, cabBot + H * 0.014);
+    ctx.lineTo(KX + W * 0.435, cabBot);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = '#a3a3a3';
+    ctx.beginPath();
+    ctx.moveTo(KX, cabBot); ctx.lineTo(KX + W * 0.435, cabBot);
+    ctx.lineTo(KX + W * 0.453, cabBot + H * 0.014); ctx.lineTo(KX + W * 0.018, cabBot + H * 0.014);
+    ctx.closePath(); ctx.fill();
+    // 조리대 윗면 — 위에서 살짝 내려다본 밝은 면(가장자리 하이라이트)
+    ctx.fillStyle = '#fafafa';
+    ctx.beginPath();
+    ctx.moveTo(KX - W * 0.012, counterY);
+    ctx.lineTo(W, counterY);
+    ctx.lineTo(W, counterY - H * 0.011);
+    ctx.lineTo(KX + W * 0.004, counterY - H * 0.011);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.1; ctx.stroke();
+    // 아래 수납장 오른쪽 옆면(그늘)
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.998, counterY + S * 0.1); ctx.lineTo(W, counterY + S * 0.1);
+    ctx.lineTo(W, floorY); ctx.lineTo(W * 0.998, floorY);
+    ctx.closePath(); ctx.fill();
+    // 벽 선반 + 유리병 셋
+    const shX = W * 0.26, shY = H * 0.3, shW = W * 0.13;
+    ctx.fillStyle = '#d9d9d9'; ctx.fillRect(shX, shY, shW, H * 0.012);
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.strokeRect(shX, shY, shW, H * 0.012);
+    for (let j2 = 0; j2 < 3; j2++) {
+      const jx2 = shX + shW * (0.12 + j2 * 0.3), jw2 = shW * 0.18, jh2 = H * (0.045 + (j2 % 2) * 0.016);
+      ctx.fillStyle = 'rgba(238,238,238,0.92)';
+      ctx.fillRect(jx2, shY - jh2, jw2, jh2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.2; ctx.strokeRect(jx2, shY - jh2, jw2, jh2);
+      ctx.fillStyle = '#8a8a8a'; ctx.fillRect(jx2, shY - jh2 - H * 0.008, jw2, H * 0.008);           // 뚜껑
+      ctx.fillStyle = 'rgba(130,130,130,0.55)'; ctx.fillRect(jx2 + 2, shY - jh2 * 0.55, jw2 - 4, jh2 * 0.55 - 2);   // 내용물
+    }
+    // 벽시계 — 선반 위
+    const ckX = W * 0.325, ckY = H * 0.17, ckR = S * 0.15;
+    ctx.fillStyle = '#f4f4f4'; ctx.beginPath(); ctx.arc(ckX, ckY, ckR, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.lineWidth = 1.2;
+    for (let h2 = 0; h2 < 12; h2++) {
+      const a = h2 * Math.PI / 6;
+      ctx.beginPath();
+      ctx.moveTo(ckX + Math.cos(a) * ckR * 0.8, ckY + Math.sin(a) * ckR * 0.8);
+      ctx.lineTo(ckX + Math.cos(a) * ckR * 0.92, ckY + Math.sin(a) * ckR * 0.92);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ckX, ckY); ctx.lineTo(ckX + ckR * 0.46, ckY - ckR * 0.24); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ckX, ckY); ctx.lineTo(ckX - ckR * 0.1, ckY - ckR * 0.66); ctx.stroke();
+    // 토스터 — 도마 옆 조리대 위
+    const toX = W * 0.47, toY2 = counterY - H * 0.011;
+    ctx.fillStyle = '#c9c9c9';
+    ctx.beginPath(); ctx.roundRect(toX - S * 0.16, toY2 - S * 0.16, S * 0.32, S * 0.16, S * 0.045); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(toX - S * 0.1, toY2 - S * 0.155, S * 0.085, S * 0.02);
+    ctx.fillRect(toX + S * 0.02, toY2 - S * 0.155, S * 0.085, S * 0.02);
+    ctx.fillRect(toX + S * 0.15, toY2 - S * 0.1, S * 0.02, S * 0.05);       // 레버
+    // 과일 그릇 — 싱크 오른쪽
+    const fbX = W * 0.8, fbY = counterY - H * 0.011;
+    ['#9c9c9c', '#c6c6c6', '#8a8a8a'].forEach((tone2, fi) => {
+      ctx.fillStyle = tone2;
+      ctx.beginPath(); ctx.arc(fbX - S * 0.085 + fi * S * 0.085, fbY - S * 0.1, S * 0.055, 0, 7); ctx.fill();
+    });
+    ctx.fillStyle = '#2e2e2e';
+    ctx.beginPath(); ctx.ellipse(fbX, fbY - S * 0.05, S * 0.19, S * 0.08, 0, 0, Math.PI); ctx.fill();
+    // 걸린 컵 셋 — 오른쪽 찬장 밑 고리
+    for (let c2 = 0; c2 < 3; c2++) {
+      const cx3 = W * (0.75 + c2 * 0.036), cy3 = cabBot + H * 0.045;
+      ctx.strokeStyle = '#2f2f2f'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx3, cabBot + H * 0.014); ctx.lineTo(cx3, cy3); ctx.stroke();
+      ctx.fillStyle = c2 % 2 ? '#dcdcdc' : '#b5b5b5';
+      ctx.beginPath(); ctx.roundRect(cx3 - S * 0.05, cy3, S * 0.1, S * 0.085, S * 0.02); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx3 + S * 0.06, cy3 + S * 0.042, S * 0.026, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    }
+    // 러그 — 바닥에 원근 사다리꼴(살짝 튼 시점)
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.16, floorY + (H - floorY) * 0.24);
+    ctx.lineTo(W * 0.44, floorY + (H - floorY) * 0.24);
+    ctx.lineTo(W * 0.5, floorY + (H - floorY) * 0.74);
+    ctx.lineTo(W * 0.1, floorY + (H - floorY) * 0.74);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(W * 0.18, floorY + (H - floorY) * 0.33); ctx.lineTo(W * 0.452, floorY + (H - floorY) * 0.33); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W * 0.135, floorY + (H - floorY) * 0.62); ctx.lineTo(W * 0.478, floorY + (H - floorY) * 0.62); ctx.stroke();
+    // 커튼 — 창 양옆의 천(주름)
+    [[wx - ww * 0.18, -0.06], [wx + ww + ww * 0.02, 0.2]].forEach(([cxL, bow]) => {
+      ctx.fillStyle = '#c6c6c6';
+      ctx.beginPath();
+      ctx.moveTo(cxL, wy - H * 0.02);
+      ctx.lineTo(cxL + ww * 0.15, wy - H * 0.02);
+      ctx.quadraticCurveTo(cxL + ww * (0.15 + bow), wy + wh * 0.5, cxL + ww * 0.13, wy + wh + H * 0.05);
+      ctx.lineTo(cxL - ww * 0.02, wy + wh + H * 0.05);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      for (let f2 = 0; f2 < 3; f2++) {
+        ctx.beginPath();
+        ctx.moveTo(cxL + ww * (0.03 + f2 * 0.038), wy - H * 0.01);
+        ctx.quadraticCurveTo(cxL + ww * (0.05 + f2 * 0.038 + bow * 0.3), wy + wh * 0.5, cxL + ww * (0.02 + f2 * 0.04), wy + wh + H * 0.04);
+        ctx.stroke();
+      }
+    });
+    // 바닥 원근 — 사선 이음 두 줄(정면이 아니라 살짝 튼 공간감)
+    ctx.strokeStyle = 'rgba(0,0,0,0.26)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(W * 0.06, floorY); ctx.lineTo(W * -0.1, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W * 0.95, floorY); ctx.lineTo(W * 1.12, H); ctx.stroke();
+    });   // ── kitchen 플레이트 끝
+    // 김 — 하늘하늘 올라가는 세 줄기(동적, 매 프레임)
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    for (let st2 = 0; st2 < 3; st2++) {
+      const sx2 = potX - potW2 * 0.25 + st2 * potW2 * 0.25;
+      ctx.beginPath();
+      for (let yy = 0; yy <= 6; yy++) {
+        const u = yy / 6;
+        const px2 = sx2 + Math.sin(u * Math.PI * 2 + t * 2.4 + st2 * 1.7) * S * 0.05 * u;
+        const py2 = potY - potH2 * 1.2 - u * S * 0.55;
+        yy === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
+      }
+      ctx.stroke();
     }
     // 부스러기 길 — 오른쪽(싱크대 밑)에서 왼쪽으로 점점이
     const crumbs = [];
@@ -1508,31 +1725,58 @@ function drawIntroScene(t) {
   sctx.drawImage(introColorCanvas, 0, 0, W, H);
   sctx.restore();
 
-  // ── 내레이션 자막 — 맨 밑 대화창(네모칸). 타이핑되며 일부 글자가 외계어로 스르륵 변한다 ──
+  // ── 내레이션 자막 — 맨 밑 대화창(네모칸). 한국어+영어 두 줄이 타이핑되며
+  //    찍힌 지 조금 지난 글자들이 외계어로 스르륵 변한다. 상자 폭에 맞춰 글자를 줄여 삐져나가지 않게.
   const narr = INTRO_NARR[kind] || [];
   let ln = null, li = -1;
   for (let i = 0; i < narr.length; i++) if (s >= narr[i].at) { ln = narr[i]; li = i; }
   if (ln && fade > 0.2) {
-    const chs = [...ln.text];
-    const nTyped = Math.min(chs.length, Math.floor((s - ln.at) * INTRO_TYPE_CPS));
-    let out = '';
-    for (let i = 0; i < nTyped; i++) {
-      const age = (s - ln.at) - i / INTRO_TYPE_CPS;   // 이 글자가 찍힌 뒤 지난 시간
-      if (age > 0.5 && hash01(i * 3.71 + li * 13.3 + (kind === 'phone' ? 5.7 : kind === 'mouse' ? 11.3 : 0)) > 0.55) {
-        out += INTRO_ALIEN[Math.floor(hash01(i * 7.7 + li * 3.1) * INTRO_ALIEN.length)];   // 외계어로 변한 글자
-      } else out += chs[i];
-    }
-    const fs = Math.max(15, Math.round(Math.min(W, H) * 0.027));
+    const seedK = kind === 'phone' ? 5.7 : kind === 'mouse' ? 11.3 : 0;
+    // 타이핑 + 외계어 변환 — cps에 비례해 두 줄이 함께 끝난다
+    const typed = (text, cps, seed) => {
+      const chs = [...text];
+      const n = Math.min(chs.length, Math.floor((s - ln.at) * cps));
+      let out = '';
+      for (let i = 0; i < n; i++) {
+        const age = (s - ln.at) - i / cps;
+        if (chs[i] !== ' ' && age > 0.45 && hash01(i * 3.71 + li * 13.3 + seed) > 0.3) {
+          out += INTRO_ALIEN[Math.floor(hash01(i * 7.7 + li * 3.1 + seed) * INTRO_ALIEN.length)];
+        } else out += chs[i];
+      }
+      return { out, done: n >= chs.length };
+    };
+    const koLen = [...ln.ko].length, enLen = [...(ln.en || '')].length;
+    const K = typed(ln.ko, INTRO_TYPE_CPS, seedK);
+    const E = ln.en ? typed(ln.en, INTRO_TYPE_CPS * Math.max(0.5, enLen / Math.max(1, koLen)), seedK + 77.7) : { out: '', done: true };
     sctx.save();
-    sctx.font = `${fs}px Galmuri11, Datatype, monospace`;
-    const bw2 = Math.min(W * 0.86, Math.max(sctx.measureText(ln.text).width + fs * 2.6, W * 0.4));
-    const bh2 = fs * 2.5, bx2 = (W - bw2) / 2, by2 = H * 0.965 - bh2;
+    // 폰트 크기 — 상자 최대 폭에 맞춰 자동 축소(삐져나감 방지)
+    let fk = Math.max(14, Math.round(Math.min(W, H) * 0.025));
+    sctx.font = `${fk}px Galmuri11, Datatype, monospace`;
+    const wK0 = sctx.measureText(ln.ko).width;
+    let fe = Math.round(fk * 0.68);
+    sctx.font = `${fe}px Galmuri11, Datatype, monospace`;
+    const wE0 = ln.en ? sctx.measureText(ln.en).width : 0;
+    const maxTextW = W * 0.86 - fk * 2.2;
+    const fit = Math.min(1, maxTextW / Math.max(wK0, wE0, 1));
+    fk = Math.max(11, Math.floor(fk * fit)); fe = Math.max(9, Math.floor(fe * fit));
+    const textW = Math.max(wK0, wE0) * fit;
+    const bw2 = Math.max(W * 0.42, textW + fk * 2.2);
+    const bh2 = fk * 1.55 + (ln.en ? fe * 1.7 : fk * 0.7);
+    const bx2 = (W - bw2) / 2, by2 = H * 0.968 - bh2;
     sctx.fillStyle = 'rgba(255,255,255,0.96)';
     sctx.strokeStyle = '#000'; sctx.lineWidth = 2;
     sctx.beginPath(); sctx.roundRect(bx2, by2, bw2, bh2, 6); sctx.fill(); sctx.stroke();
-    sctx.fillStyle = '#000'; sctx.textAlign = 'left'; sctx.textBaseline = 'middle';
-    const caret = nTyped < chs.length && Math.sin(t * 9) > -0.2 ? '▌' : '';
-    sctx.fillText(out + caret, bx2 + fs * 1.1, by2 + bh2 * 0.54);
+    sctx.textAlign = 'left'; sctx.textBaseline = 'middle';
+    const caretK = !K.done && Math.sin(t * 9) > -0.2 ? '▌' : '';
+    sctx.fillStyle = '#000';
+    sctx.font = `${fk}px Galmuri11, Datatype, monospace`;
+    sctx.fillText(K.out + caretK, bx2 + fk * 1.1, by2 + fk * 0.95);
+    if (ln.en) {
+      const caretE = K.done && !E.done && Math.sin(t * 9) > -0.2 ? '▌' : '';
+      sctx.fillStyle = '#555';
+      sctx.font = `${fe}px Galmuri11, Datatype, monospace`;
+      sctx.fillText(E.out + caretE, bx2 + fk * 1.1, by2 + fk * 1.55 + fe * 0.75);
+    }
     sctx.restore();
   }
 
@@ -2356,8 +2600,47 @@ function giftDoneToEnding() {
 // 선물이 끝나면, 그래픽 스코어에 타이핑된 글자들이 "슈우우" 날아가
 // 최다 득표 부호에 걸맞은 그림을 화면 가득 그린다. 잠시 머문 뒤 엔딩 연주로.
 const ASCII_FLY = 2400;    // 비행 시간(ms)
-const ASCII_HOLD = 5000;   // 완성 후 머무는 시간(ms)
+const ASCII_HOLD = 7000;   // 완성 후 머무는 시간(ms) — 숨쉬는 그림을 좀 더 보여준다
 let asciiArt = null;       // { targets, start, cell, mark, done }
+let asciiAtlas = {};       // 글리프 스프라이트 캐시 — fillText 대신 drawImage(프레임드랍 방지)
+
+function glyphSprite(ch, px, alpha) {
+  const key = ch + '|' + px + '|' + alpha;
+  let cv = asciiAtlas[key];
+  if (!cv) {
+    cv = document.createElement('canvas');
+    cv.width = cv.height = Math.ceil(px * 1.5 + 6);
+    const g = cv.getContext('2d');
+    g.font = `${px}px Datatype, Galmuri11, monospace`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = `rgba(0,0,0,${alpha})`;
+    g.fillText(ch, cv.width / 2, cv.height / 2);
+    asciiAtlas[key] = cv;
+  }
+  return cv;
+}
+
+// 완성 후 부호별 "숨쉬기" — 물결은 넘실, 방사선은 맥동, 파문은 번지고, 소용돌이는 감돈다.
+// (tap.html artMotion과 같은 수식 — 고치면 둘 다)
+function asciiMotion(mark, x, y, W, H, tm) {
+  const m = Math.min(W, H);
+  if (mark === 'tilde') return { dx: 0, dy: Math.sin(x * 0.012 + tm * 2.1) * m * 0.013 };
+  if (mark === 'bang') {
+    const cx = W / 2, cy = H * 0.46, rx = x - cx, ry = y - cy;
+    const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.008;
+    return { dx: rx / r * k, dy: ry / r * k };
+  }
+  if (mark === 'period') {
+    const cx = W / 2, cy = H / 2, rx = x - cx, ry = y - cy;
+    const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.007;
+    return { dx: rx / r * k, dy: ry / r * k };
+  }
+  if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.007, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.01 };
+  if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.013 * (y / H), dy: 0 };
+  const cx = W / 2, cy = H * 0.48, rx = x - cx, ry = y - cy;   // question — 접선 방향으로 감돈다
+  const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.008;
+  return { dx: -ry / r * k, dy: rx / r * k };
+}
 
 // 부호별 그림(마스크) — 검정으로 칠한 곳에 글자가 앉는다.
 // 부호를 그대로 그리지 않고, 각 뉘앙스의 "느낌"만 남긴 추상 구도로 화면을 채운다.
@@ -2458,29 +2741,42 @@ function startAsciiArt() {
   });
   if (!srcs.length) srcs.push({ ch: '·', x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const W = window.innerWidth, H = window.innerHeight;
-  const cell = Math.max(16, Math.floor(Math.min(W, H) / 40));
+  // 더 작고 촘촘한 셀 — 화면 전체가 밀도 필드가 된다:
+  // 진한 곳 = 타이핑 글자가 촘촘히, 옅은 곳 = 작은 글자·점이 드문드문, 빈 곳도 옅은 점의 들판.
+  const cell = Math.max(11, Math.floor(Math.min(W, H) / 58));
   const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
   const g = mc.getContext('2d', { willReadFrequently: true });
   asciiMaskDraw(g, mark, W, H);
   const img = g.getImageData(0, 0, W, H).data;
   const targets = [];
+  asciiAtlas = {};   // 셀 크기가 바뀌므로 아틀라스 초기화
   let k = 0;
+  const T = (ch, px, alpha, sc, x, y) =>
+    ({ ch, px: Math.max(6, Math.round(px)), alpha, sx: sc.x, sy: sc.y, tx: x, ty: y, delay: Math.random() * 700 });
   for (let y = Math.floor(cell / 2); y < H; y += cell) {
     for (let x = Math.floor(cell / 2); x < W; x += cell) {
-      if (img[(y * W + x) * 4 + 3] > 128) {
+      const v = img[(y * W + x) * 4 + 3];                       // 마스크 진하기(0~255)
+      const hsel = hash01(x * 12.9898 + y * 78.233);
+      const rndSc = srcs[Math.floor(hash01(x * 3.7 + y * 1.3) * srcs.length)];
+      if (v > 150) {                                            // 진한 곳 — 타이핑 글자 촘촘히
         const sc = srcs[k % srcs.length]; k++;
-        targets.push({ ch: sc.ch, sx: sc.x, sy: sc.y, tx: x, ty: y, delay: Math.random() * 700 });
+        targets.push(T(sc.ch, cell * 1.02, 0.95, sc, x, y));
+      } else if (v > 60) {                                      // 중간 — 글자와 점이 섞인다
+        if (hsel > 0.35) { const sc = srcs[k % srcs.length]; k++; targets.push(T(sc.ch, cell * 0.8, 0.8, sc, x, y)); }
+        else targets.push(T('·', cell * 0.7, 0.6, rndSc, x, y));
+      } else if (hsel > 0.76) {                                 // 빈 곳 — 옅은 점의 들판(밀도 낮게)
+        targets.push(T('·', cell * 0.6, 0.4, rndSc, x, y));
       }
     }
   }
   asciiArt = { targets, start: performance.now(), cell, mark, done: false };
   state.phase = 'ascii';
   document.body.classList.add('ascii-time');   // 스코어판·캐릭터 열·입력칸 숨김
-  // 폰에도 같은 그림을 띄운다(부호 + 사용 글자들)
+  // 폰에도 같은 그림을 띄운다(부호 + 사용 글자들 — 점 말고 실제 타이핑 글자만)
   try {
     fetch('/ascii', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mark, chars: targets.slice(0, 500).map((o) => o.ch).join('') }),
+      body: JSON.stringify({ mark, chars: targets.filter((o) => o.ch !== '·').slice(0, 500).map((o) => o.ch).join('') }),
     }).catch(() => {});
   } catch (e) { /* 정적 서버 — 무시 */ }
 }
@@ -2490,13 +2786,18 @@ function drawAsciiArt(t) {
   const W = window.innerWidth, H = window.innerHeight;
   sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, W, H);
   const el = performance.now() - asciiArt.start;
-  sctx.fillStyle = '#000';
-  sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
-  sctx.font = `${(asciiArt.cell * 1.05).toFixed(1)}px Datatype, Galmuri11, monospace`;
+  const settle = Math.max(0, Math.min(1, (el - ASCII_FLY - 400) / 900));   // 완성 후 숨쉬기 페이드인
   for (const tg of asciiArt.targets) {
     const p = Math.max(0, Math.min(1, (el - tg.delay) / ASCII_FLY));
     const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;   // easeInOutCubic — 슈우우
-    sctx.fillText(tg.ch, tg.sx + (tg.tx - tg.sx) * e, tg.sy + (tg.ty - tg.sy) * e);
+    let x = tg.sx + (tg.tx - tg.sx) * e;
+    let y = tg.sy + (tg.ty - tg.sy) * e;
+    if (settle > 0) {
+      const mv = asciiMotion(asciiArt.mark, tg.tx, tg.ty, W, H, t);
+      x += mv.dx * settle; y += mv.dy * settle;
+    }
+    const sp = glyphSprite(tg.ch, tg.px, tg.alpha);
+    sctx.drawImage(sp, x - sp.width / 2, y - sp.height / 2);
   }
   if (!asciiArt.done && el > ASCII_FLY + 700 + ASCII_HOLD) {
     asciiArt.done = true;

@@ -361,29 +361,74 @@
       }
     }
 
+    // 완성 후 부호별 "숨쉬기" — 메인(js/main.js asciiMotion)과 같은 수식
+    function artMotion(mark, x, y, w, h, tm) {
+      const m = Math.min(w, h);
+      if (mark === 'tilde') return { dx: 0, dy: Math.sin(x * 0.012 + tm * 2.1) * m * 0.013 };
+      if (mark === 'bang') {
+        const cx = w / 2, cy = h * 0.46, rx = x - cx, ry = y - cy;
+        const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 2.8 - r * 0.02) * m * 0.008;
+        return { dx: rx / r * k, dy: ry / r * k };
+      }
+      if (mark === 'period') {
+        const cx = w / 2, cy = h / 2, rx = x - cx, ry = y - cy;
+        const r = Math.hypot(rx, ry) || 1, k = Math.sin(r * 0.045 - tm * 2.3) * m * 0.007;
+        return { dx: rx / r * k, dy: ry / r * k };
+      }
+      if (mark === 'ellipsis') return { dx: Math.sin(tm * 0.9 + y * 0.02) * m * 0.007, dy: Math.sin(tm * 1.3 + x * 0.017) * m * 0.01 };
+      if (mark === 'semicolon') return { dx: Math.sin(tm * 1.5 + y * 0.01) * m * 0.013 * (y / h), dy: 0 };
+      const cx = w / 2, cy = h * 0.48, rx = x - cx, ry = y - cy;
+      const r = Math.hypot(rx, ry) || 1, k = Math.sin(tm * 1.5 + r * 0.02) * m * 0.008;
+      return { dx: -ry / r * k, dy: rx / r * k };
+    }
+
+    let artAnim = 0, artFrame = 0;
     function renderArt(mark, chars) {
       const w = Math.min(720, (artEl.clientWidth || window.innerWidth - 28) * 2);
       const h = Math.floor(w * 1.25);   // 폰 세로 비율
       artCv.width = w; artCv.height = h;
-      const g = artCv.getContext('2d', { willReadFrequently: true });
-      g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
-      // 마스크 → 글자 앉히기
+      // 마스크 → 밀도 필드: 진한 곳은 글자 촘촘, 옅은 곳은 작은 점 드문드문
       const mc = document.createElement('canvas'); mc.width = w; mc.height = h;
       const mg = mc.getContext('2d', { willReadFrequently: true });
       artMaskDraw(mg, mark, w, h);
       const img = mg.getImageData(0, 0, w, h).data;
-      const cell = Math.max(12, Math.floor(Math.min(w, h) / 34));
-      g.fillStyle = '#000'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = (cell * 1.05).toFixed(0) + 'px monospace';
-      let k = 0;
+      const cell = Math.max(10, Math.floor(Math.min(w, h) / 42));
       const cs = [...(chars || '·')];
+      const rnd2 = (a, b) => { const s2 = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s2 - Math.floor(s2); };
+      const targets = [];
+      let k = 0;
       for (let y = Math.floor(cell / 2); y < h; y += cell) {
         for (let x = Math.floor(cell / 2); x < w; x += cell) {
-          if (img[(y * w + x) * 4 + 3] > 128) {
-            g.fillText(cs[k % cs.length], x, y); k++;
-          }
+          const v = img[(y * w + x) * 4 + 3];
+          const hsel = rnd2(x, y);
+          if (v > 150) targets.push({ ch: cs[k++ % cs.length], px: Math.round(cell * 1.05), a: 0.95, x, y });
+          else if (v > 60) {
+            if (hsel > 0.35) targets.push({ ch: cs[k++ % cs.length], px: Math.round(cell * 0.82), a: 0.8, x, y });
+            else targets.push({ ch: '·', px: Math.round(cell * 0.7), a: 0.6, x, y });
+          } else if (hsel > 0.76) targets.push({ ch: '·', px: Math.round(cell * 0.6), a: 0.4, x, y });
         }
       }
+      targets.sort((a, b) => a.px - b.px);   // 폰트 전환 최소화
+      cancelAnimationFrame(artAnim);
+      const g = artCv.getContext('2d');
+      const loop2 = () => {
+        if (!artOn) return;
+        artAnim = requestAnimationFrame(loop2);
+        if ((artFrame++ % 2) === 1) return;   // 30fps — 폰 배터리를 아낀다
+        const tm = performance.now() / 1000;
+        g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#000'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        let curF = '';
+        for (const tg of targets) {
+          const f = tg.px + 'px monospace';
+          if (f !== curF) { g.font = f; curF = f; }
+          const mv = artMotion(mark, tg.x, tg.y, w, h, tm);
+          g.globalAlpha = tg.a;
+          g.fillText(tg.ch, tg.x + mv.dx, tg.y + mv.dy);
+        }
+        g.globalAlpha = 1;
+      };
+      loop2();
     }
 
     function showArt(mark, chars) {
