@@ -714,47 +714,8 @@ function drawIntroScene(t) {
         leaf(fx2, fy2, S * (0.4 + ((i * 17) % 4) * 0.1), ((i * 43) % 63) / 10 - 3 - Math.sin(t * 0.6 + i) * 0.04,
           124 + (i % 6) * 14);
       }
-      // 매달린 열매 송이 — 위 덤불에서 내려온 줄기 끝에 2~3알씩. 전부 줄기에 연결(공중에 뜨지 않게).
-      const clusters = [   // 송이 8개 · 열매 18알(2배) — 화면 곳곳에 주렁주렁
-        { ax: 0.13, sway: 0.03, ny: 0.24, fr: [[-0.3, 0.36, 0.95], [0.28, 0.44, 0.8]] },
-        { ax: 0.27, sway: -0.05, ny: 0.5, fr: [[-0.28, 0.34, 0.85], [0.3, 0.4, 0.75], [0.0, 0.6, 0.9]] },
-        { ax: 0.4, sway: 0.04, ny: 0.74, fr: [[-0.3, 0.3, 0.8], [0.26, 0.38, 0.7]] },
-        { ax: 0.6, sway: -0.03, ny: 0.7, fr: [[-0.26, 0.34, 0.75], [0.3, 0.28, 0.85]] },
-        { ax: 0.7, sway: 0.05, ny: 0.22, fr: [[-0.32, 0.36, 1.0], [0.3, 0.3, 0.78], [0.02, 0.56, 0.88]] },
-        { ax: 0.85, sway: -0.04, ny: 0.52, fr: [[-0.06, 0.38, 0.9], [0.42, 0.3, 0.68]] },
-        { ax: 0.94, sway: 0.03, ny: 0.76, fr: [[-0.1, 0.34, 0.72], [0.28, 0.44, 0.6]] },
-        { ax: 0.06, sway: -0.03, ny: 0.62, fr: [[0.05, 0.36, 0.8], [0.38, 0.3, 0.65]] },
-      ];
+      // (열매·송이는 사용자 요청으로 제거 — 이 컷엔 잎과 핑토만 남긴다)
       ctx.lineCap = 'round';
-      clusters.forEach((c, ci) => {
-        const nx = W * c.ax + Math.sin(t * 0.4 + ci * 2.1) * 3;   // 바람에 살짝
-        const nyy = H * c.ny;
-        // 원줄기 — 굽이치며 내려오는 유기적 곡선(마디 4개, 송이마다 다른 흔들림)
-        const amp = S * (0.14 + hash01(ci * 7.7) * 0.12) * (c.sway > 0 ? 1 : -1);
-        wavyStem(nx + W * c.sway * 2, -12, nx, nyy,
-          [amp, -amp * 0.7, amp * 0.9, -amp * 0.4], S * 0.05, '#31352c');
-        // 노드의 옹이(마디 혹)
-        ctx.fillStyle = '#31352c';
-        ctx.beginPath(); ctx.arc(nx, nyy, S * 0.04, 0, 7); ctx.fill();
-        // 노드 → 각 열매로 꼭지줄기(pedicel) — 아래로 처지는 곡선
-        c.fr.forEach(([dx, dy, k], fi) => {
-          const fx = nx + S * dx, fy = nyy + S * dy;
-          const r = S * 0.27 * k;
-          ctx.strokeStyle = '#373b32'; ctx.lineWidth = Math.max(2.4, r * 0.15);
-          ctx.beginPath();
-          ctx.moveTo(nx, nyy);
-          ctx.quadraticCurveTo(
-            nx + (fx - nx) * 0.35 + (fi % 2 ? S * 0.06 : -S * 0.05),
-            nyy + (fy - nyy) * 0.75 + S * 0.09,
-            fx, fy - r * 0.8);
-          ctx.stroke();
-          tomatoFruit(fx, fy, r, false, true);
-        });
-      });
-      // 맨 위 안 익은 초록 토마토 — 역시 굽은 줄기에 매달려
-      wavyStem(W * 0.555, -10, W * 0.52, H * 0.07 - S * 0.25,
-        [S * 0.08, -S * 0.06, S * 0.04], S * 0.045, '#31352c');
-      tomatoFruit(W * 0.52, H * 0.07, S * 0.32, true, true);
       // 전경 보케 — 카메라 코앞의 잎이 크게 흐려져 프레임을 감싼다(시네마틱)
       ctx.filter = 'blur(6px)';
       leaf(W * 0.03, H * 0.92, S * 1.25, -2.4, 26);
