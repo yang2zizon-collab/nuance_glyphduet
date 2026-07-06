@@ -150,9 +150,9 @@ html, body { background: #ffffff; color: var(--ink); }
 /* 캐릭터 열 · 스코어칸 · 입력칸을 하나의 중앙 폭(--play-w)에 맞춰 가로세로로 정렬한다.
    스코어칸과 입력칸은 좌우 모서리를 공유하고, 캐릭터 열은 그 바깥에 같은 높이로 붙는다. */
 .theme-score {
-  --play-top: 9vh;
-  --play-w: min(900px, 64vw);
-  --play-h: 56vh;
+  --play-top: 8vh;
+  --play-w: min(1040px, 72vw);   /* 타이핑 용량 확장 — 칸을 살짝 키움 */
+  --play-h: 60vh;
   --play-gap: clamp(12px, 1.8vw, 24px);
 }
 
@@ -217,7 +217,7 @@ html, body { background: #ffffff; color: var(--ink); }
   border: 2px solid #000;
   padding: 0;
 }
-.theme-score .gcell { color: #000 !important; }
+.theme-score .gcell { color: #000 !important; font-size: clamp(10px, 1.35vw, 17px); }   /* 칸이 촘촘해진 만큼 글자도 작게 */
 
 /* 소통 게이지 — 기능 제거됨(숨김) */
 #connection { display: none !important; }

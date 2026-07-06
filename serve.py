@@ -99,6 +99,9 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if path == '/addnote':
             broadcast(json.dumps({'type': 'addnote'}))   # 합주 중 폰 터치 → 메인에 음표 하나 추가
             return self._json(200, {'ok': True})
+        if path == '/jam':
+            broadcast(json.dumps({'type': 'jam'}))       # 합주 종료 → 관객 합주(잼) 개시 알림
+            return self._json(200, {'ok': True})
         self.send_error(404)
 
     def _body_json(self):

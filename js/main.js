@@ -44,7 +44,7 @@ function moodRapport(m) { return m === 'happy' ? 0.9 : m === 'confused' ? 0.5 : 
 // 무드 → 엔딩 악보 가블(웅얼거림) 정도
 function garbleForMood(m) { return m === 'happy' ? 0.2 : m === 'confused' ? 0.85 : m === 'sad' ? 0.6 : m === 'angry' ? 0.8 : 0.5; }
 // ===== 스코어 그리드 — 사각형 공간을 칸으로 나누고, 글자가 빈 칸에 랜덤하게 채워진다 =====
-const GRID_CELL = 40;        // 한 칸의 대략 픽셀 크기(목표). 실제 칸 수는 패널 크기로 계산.
+const GRID_CELL = 28;        // 한 칸의 대략 픽셀 크기(목표) — 작을수록 칸이 많다(타이핑 용량 ≈2배↑).
 let gridCells = [];          // 칸 DOM 요소들
 let emptyCells = [];         // 아직 안 채워진 칸 인덱스들
 let fillableTotal = 0;       // 채울 수 있는 칸 수(스코어 테마=하트 안쪽 칸만)
@@ -257,7 +257,8 @@ function drawSlotWindow(t) {
 let introScene = null;    // { kind, start, dur, fx:{} }
 let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
 
-const INTRO_DUR = { tomato: 19000, phone: 17000, mouse: 16000 };  // 장면 내부 시계 기준(내레이션이 길어져 여유 있게)
+// 장면 내부 시계 기준. 마지막 내레이션이 다 찍힌 뒤 **4초 이상** 머물고 넘어가도록 여유를 뒀다.
+const INTRO_DUR = { tomato: 23000, phone: 22000, mouse: 19000 };
 const INTRO_PACE = 1.25;  // 전체 호흡 — 클수록 컷신이 여유 있게 흐른다(내부 s가 1/PACE로 느려짐)
 const TOMATO_CUT = 8.5;   // 토마토 장면 전환 시각(초) — 덩굴밭 → 상자
 const MOUSE_CUT = 6.5;    // 생쥐 장면 전환 시각(초) — 밤거리 → 부엌
@@ -714,11 +715,15 @@ function drawIntroScene(t) {
           124 + (i % 6) * 14);
       }
       // 매달린 열매 송이 — 위 덤불에서 내려온 줄기 끝에 2~3알씩. 전부 줄기에 연결(공중에 뜨지 않게).
-      const clusters = [
-        { ax: 0.17, sway: 0.03, ny: 0.26, fr: [[-0.3, 0.36, 1.0], [0.28, 0.44, 0.85]] },
-        { ax: 0.35, sway: -0.04, ny: 0.58, fr: [[-0.3, 0.32, 0.9], [0.32, 0.4, 0.8], [0.02, 0.6, 0.95]] },
-        { ax: 0.72, sway: 0.05, ny: 0.24, fr: [[-0.32, 0.36, 1.05], [0.3, 0.3, 0.8]] },
-        { ax: 0.85, sway: -0.03, ny: 0.58, fr: [[-0.06, 0.38, 0.95], [0.44, 0.3, 0.7]] },
+      const clusters = [   // 송이 8개 · 열매 18알(2배) — 화면 곳곳에 주렁주렁
+        { ax: 0.13, sway: 0.03, ny: 0.24, fr: [[-0.3, 0.36, 0.95], [0.28, 0.44, 0.8]] },
+        { ax: 0.27, sway: -0.05, ny: 0.5, fr: [[-0.28, 0.34, 0.85], [0.3, 0.4, 0.75], [0.0, 0.6, 0.9]] },
+        { ax: 0.4, sway: 0.04, ny: 0.74, fr: [[-0.3, 0.3, 0.8], [0.26, 0.38, 0.7]] },
+        { ax: 0.6, sway: -0.03, ny: 0.7, fr: [[-0.26, 0.34, 0.75], [0.3, 0.28, 0.85]] },
+        { ax: 0.7, sway: 0.05, ny: 0.22, fr: [[-0.32, 0.36, 1.0], [0.3, 0.3, 0.78], [0.02, 0.56, 0.88]] },
+        { ax: 0.85, sway: -0.04, ny: 0.52, fr: [[-0.06, 0.38, 0.9], [0.42, 0.3, 0.68]] },
+        { ax: 0.94, sway: 0.03, ny: 0.76, fr: [[-0.1, 0.34, 0.72], [0.28, 0.44, 0.6]] },
+        { ax: 0.06, sway: -0.03, ny: 0.62, fr: [[0.05, 0.36, 0.8], [0.38, 0.3, 0.65]] },
       ];
       ctx.lineCap = 'round';
       clusters.forEach((c, ci) => {
@@ -818,12 +823,12 @@ function drawIntroScene(t) {
       ctx.lineTo(crR + oxP, crT - oyP);
       ctx.lineTo(crR, crT); ctx.lineTo(crL, crT);
       ctx.closePath(); ctx.fill();
-      // 무더기 뒷줄 — 개구부 안쪽에서 작게 빼꼼(원근)
-      [[0.3, 1], [0.44, 0.9], [0.58, 0.95], [0.7, 0.85]].forEach(([fx2, k]) => {
+      // 무더기 뒷줄 — 개구부 안쪽에서 작게 빼꼼(원근) — 6알
+      [[0.26, 1], [0.35, 0.85], [0.45, 0.95], [0.55, 0.85], [0.65, 0.9], [0.73, 0.8]].forEach(([fx2, k]) => {
         tomatoFruit(W * fx2 + oxP * 0.7, crT - oyP * 0.55 - S * 0.08 * k, S * 0.23 * k, false);
       });
-      // 무더기 앞줄 — 크게, 접촉 그림자와 함께(가운데는 핑토 자리)
-      [[0.27, 1.0], [0.4, 0.92], [0.6, 0.95], [0.72, 1.0]].forEach(([fx2, k]) => {
+      // 무더기 앞줄 — 크게, 접촉 그림자와 함께(가운데는 핑토 자리) — 6알
+      [[0.25, 1.0], [0.36, 0.88], [0.44, 0.76], [0.56, 0.76], [0.64, 0.9], [0.74, 1.0]].forEach(([fx2, k]) => {
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.beginPath(); ctx.ellipse(W * fx2, crT + S * 0.1, S * 0.22 * k, S * 0.06 * k, 0, 0, 7); ctx.fill();
         tomatoFruit(W * fx2, crT - S * 0.1, S * 0.28 * k, false);
@@ -883,9 +888,10 @@ function drawIntroScene(t) {
       post(crR + oxP, crT - oyP - S * 0.04, crB - oyP + S * 0.04, S * 0.07, '#b2b2b2', '#878787');
       post(crL, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#eeeeee', '#b9b9b9');
       post(crR, crT - S * 0.05, crB + S * 0.05, S * 0.09, '#e2e2e2', '#a5a5a5');
-      // 바닥에 떨어진 토마토 두 알(풀 위)
+      // 바닥에 떨어진 토마토 세 알(풀 위)
       tomatoFruit(W * 0.1, crB - S * 0.08, S * 0.26, false);
       tomatoFruit(W * 0.92, crB - S * 0.2, S * 0.22, false);
+      tomatoFruit(W * 0.17, crB + S * 0.12, S * 0.2, false);
       // 앞 풀 — 상자 발치를 스치는 풀잎(깊이감)
       ctx.lineCap = 'round';
       for (let i = 0; i < 26; i++) {
@@ -1837,14 +1843,16 @@ function drawIntroScene(t) {
       }
     }
     sctx.save();
-    // 폰트 크기 — 상자 최대 폭에 맞춰 자동 축소(삐져나감 방지)
+    // 폰트 크기 — 상자 최대 폭에 맞춰 자동 축소(삐져나감 방지).
+    // 외계어 글리프(◆ 등)는 영문보다 훨씬 넓으므로 "전부 외계어가 된 경우"의 폭까지 재서 최악값으로 맞춘다.
+    const alien1 = (txt) => [...txt].map((c) => (c === ' ' ? ' ' : '◆')).join('');
     let fk = Math.max(14, Math.round(Math.min(W, H) * 0.025));
     sctx.font = `${fk}px Galmuri11, Datatype, monospace`;
-    const wK0 = sctx.measureText(ln.ko).width;
+    const wK0 = Math.max(sctx.measureText(ln.ko).width, sctx.measureText(alien1(ln.ko)).width);
     let fe = Math.round(fk * 0.68);
     sctx.font = `${fe}px Galmuri11, Datatype, monospace`;
-    const wE0 = ln.en ? sctx.measureText(ln.en).width : 0;
-    const maxTextW = W * 0.86 - fk * 2.2;
+    const wE0 = ln.en ? Math.max(sctx.measureText(ln.en).width, sctx.measureText(alien1(ln.en)).width) : 0;
+    const maxTextW = W * 0.86 - fk * 3.0;   // 캐럿(▌) 여유 포함
     const fit = Math.min(1, maxTextW / Math.max(wK0, wE0, 1));
     fk = Math.max(11, Math.floor(fk * fit)); fe = Math.max(9, Math.floor(fe * fit));
     const textW = Math.max(wK0, wE0) * fit;
@@ -3142,6 +3150,14 @@ let scoreStartWall = 0, scoreTotalMs = 0;      // 비주얼 진행 계산용
 let endingPhase = 0;                            // 0=없음, 1=순차 듀엣, 2=오케스트라 합주
 let orchestraT0 = 0;                            // 합주 시작 시각 — 색 반전(흰→검) 스윕 기준
 let endingHudTimer = null;                      // 소통 게이지·문구 8초 후 페이드아웃 타이머
+let jamOn = false;                              // 합주가 끝난 뒤 = 관객 합주(터치 잼) — 카메라도 우주유영
+let jamTimer = null;                            // rAF가 멈춰도(탭 백그라운드) 잼은 정시에 열리게 하는 타이머
+
+function startJam() {
+  if (jamOn || endingPhase !== 2) return;
+  jamOn = true;
+  try { fetch('/jam', { method: 'POST' }).catch(() => {}); } catch (e) { /* 정적 서버 — 무시 */ }
+}
 let orchestraScore = null;                      // 2단계 다성부 악보 데이터
 const SCORE_TEMPO = 156;
 
@@ -3457,7 +3473,13 @@ function drawScore3D(ctx, W, H, t, progress) {
   // 카메라 — 1단계: 리드 약간 앞에서 -z로 음악과 함께 전진(잔잔한 sway).
   //          2단계: 위치 고정, 중심(원점)을 기준으로 천천히 공전(=구가 회전하는 느낌).
   let cam, target;
-  if (sphere) {
+  if (sphere && jamOn) {
+    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 크게 유영하는 카메라
+    const tt = t * 0.85;
+    const camR = 15 + Math.sin(tt * 0.7) * 9 + Math.sin(tt * 0.23) * 4;   // 6~28 — 가까이 스쳤다 멀어진다
+    cam = { x: Math.sin(tt) * camR, y: Math.sin(tt * 0.53) * 8 + 1.5, z: Math.cos(tt * 0.81) * camR };
+    target = { x: Math.sin(tt * 0.37) * 3, y: Math.sin(tt * 0.29) * 2, z: Math.cos(tt * 0.41) * 3 };
+  } else if (sphere) {
     const orbit = t * 0.17;                      // 느린 회전
     const camR = 17.5;
     cam = { x: Math.sin(orbit) * camR, y: 2.2 + Math.sin(t * 0.12) * 1.0, z: Math.cos(orbit) * camR };
@@ -3536,6 +3558,18 @@ function drawScore3D(ctx, W, H, t, progress) {
     }
   });
 
+  // 합주가 다 연주되면 → 관객 합주(잼) 개시. 폰에 알리고, 카메라는 우주유영으로.
+  if (sphere && progress >= 1 && orchestraT0) startJam();
+  // 관객 참여 안내 — 합주 동안 화면 아래 작게(색 반전에 함께 뒤집혀 검정 바탕에선 흰 글씨가 된다)
+  if (sphere) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `${Math.max(13, Math.round(Math.min(W, H) * 0.017))}px Galmuri11, Datatype, monospace`;
+    ctx.fillText(jamOn ? '지금이에요 — 핸드폰 화면을 터치해 함께 연주하세요'
+      : '핸드폰 화면을 터치하면 합주에 음표가 태어납니다', W / 2, H * 0.965);
+    ctx.restore();
+  }
   // 합주(2단계) 진입 — 스스슥 색 반전: 검정 바탕에 흰 그래픽.
   // difference 합성으로 화면 전체를 원본↔반전 사이에서 부드럽게 크로스페이드한다.
   const inv = orchestraT0 ? easeIO((performance.now() - orchestraT0) / 2600) : 0;
@@ -3956,6 +3990,9 @@ function startOrchestraPhase() {
     const duration = scoreTotalMs / 1000;
     stopEnsemble = playEnsemble(tracks, { speed: 1, duration, loop: false });
   }
+  // 잼 개시 타이머 — 캔버스 프레임이 멈춰 있어도 합주 종료 시각에 정확히 열린다
+  clearTimeout(jamTimer);
+  jamTimer = setTimeout(startJam, scoreTotalMs + 600);
 }
 
 function stopEndingScore() {
@@ -3965,6 +4002,8 @@ function stopEndingScore() {
   endingPhase = 0;
   orchestraScore = null;
   orchestraT0 = 0;
+  jamOn = false;
+  clearTimeout(jamTimer); jamTimer = null;
   clearTimeout(endingHudTimer); endingHudTimer = null;
   document.body.classList.remove('score-invert', 'ending-hud-off');
 }
@@ -3991,8 +4030,10 @@ function addAudienceNote() {
     (performance.now() - scoreStartWall) / 1000 / spb));
   const p = orchestraScore.parts[Math.floor(Math.random() * orchestraScore.parts.length)];
   const glyphs = '◇○●△▽□♪✳*';
+  // 잼(합주가 끝난 뒤)에는 구름 전체에 흩뿌려지도록 랜덤 박에 심는다
+  const maxB = Math.max(0.1, orchestraScore.totalBeats - p.startBeat - 0.1);
   p.notes.push({
-    beat: Math.max(0, playBeat - p.startBeat),
+    beat: jamOn ? Math.random() * maxB : Math.max(0, playBeat - p.startBeat),
     midi: 55 + Math.floor(Math.random() * 18),
     glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
     accent: Math.random() > 0.7,
@@ -4035,12 +4076,13 @@ function showEnding() {
     ? `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%  /  ${state.messages.length} words exchanged · ${pct}% rapport`
     : `주고받은 말 ${state.messages.length}마디 · 소통 ${pct}%`;
   show('ending');
-  // 소통 게이지·문구는 8초만 보여주고 스스르 사라진다 — 스코어만 꽉 차게
+  // 대화가 하나의 악보가 되어 연주된다
+  startEndingScore();
+  // 소통 게이지·문구는 8초만 보여주고 스스르 사라진다 — 스코어만 꽉 차게.
+  // (반드시 startEndingScore 뒤에 — 그 안의 stopEndingScore가 타이머를 지우기 때문)
   document.body.classList.remove('ending-hud-off');
   clearTimeout(endingHudTimer);
   endingHudTimer = setTimeout(() => document.body.classList.add('ending-hud-off'), 8000);
-  // 대화가 하나의 악보가 되어 연주된다
-  startEndingScore();
 }
 
 // 대화를 "스코어"로 — 보낸 말을 외계 기호로 바꿔, 글자 하나하나를
@@ -4155,6 +4197,9 @@ document.body.addEventListener('click', (e) => {
   }
   if (btn.dataset.dex !== undefined) { uiClick(0.5); dexView = +btn.dataset.dex; highlightDex(); }
 });
+
+// 상태 프로브(읽기 전용) — 헤드리스 검증에서 잼/진행도 확인용
+window.__probe = () => ({ jam: jamOn, phase: endingPhase, prog: scoreProgress(), total: scoreTotalMs, screen: state.screen });
 
 // ===== 시작 =====
 resize();
