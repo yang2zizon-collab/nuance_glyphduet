@@ -276,6 +276,18 @@ html, body { background: #ffffff; color: var(--ink); }
 #ending-title { text-shadow: none; color: #000; }
 #ending-meter { background: #eee; border-color: #000; }
 #ending-fill { background: #000 !important; }
+/* 합주(2단계) 진입 색 반전 — 캔버스(difference 스윕)와 함께 DOM 글자·게이지도 스스슥 흰색으로.
+   body.score-invert는 startOrchestraPhase()가 붙이고 stopEndingScore()가 뗀다. */
+.theme-score #screen-ending, .theme-score #ending-title, .theme-score #ending-stat,
+.theme-score #ending-desc, .theme-score #ending-meter, .theme-score #ending-fill {
+  transition: color 2.6s ease, background 2.6s ease, border-color 2.6s ease;
+}
+.theme-score.score-invert #screen-ending,
+.theme-score.score-invert #ending-title,
+.theme-score.score-invert #ending-desc,
+.theme-score.score-invert #ending-stat { color: #fff; }
+.theme-score.score-invert #ending-meter { background: #1c1c1c; border-color: #fff; }
+.theme-score.score-invert #ending-fill { background: #fff !important; }
 /* 리플레이 버튼을 살짝 왼쪽으로 — 오른쪽 아래 흩어진 캐릭터들과 안 겹치게 */
 #screen-ending .row { transform: translateX(-9vw); }
 

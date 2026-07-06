@@ -2265,6 +2265,7 @@ let stopEnsemble = null;                        // 엔딩 합주(1·2 리듬 겹
 let scoreAnim = null;                          // 악보 애니메이션 rAF
 let scoreStartWall = 0, scoreTotalMs = 0;      // 비주얼 진행 계산용
 let endingPhase = 0;                            // 0=없음, 1=순차 듀엣, 2=오케스트라 합주
+let orchestraT0 = 0;                            // 합주 시작 시각 — 색 반전(흰→검) 스윕 기준
 let orchestraScore = null;                      // 2단계 다성부 악보 데이터
 const SCORE_TEMPO = 156;
 
@@ -2658,6 +2659,17 @@ function drawScore3D(ctx, W, H, t, progress) {
       ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * 0.62, 0, Math.PI * 2); ctx.stroke();
     }
   });
+
+  // 합주(2단계) 진입 — 스스슥 색 반전: 검정 바탕에 흰 그래픽.
+  // difference 합성으로 화면 전체를 원본↔반전 사이에서 부드럽게 크로스페이드한다.
+  const inv = orchestraT0 ? easeIO((performance.now() - orchestraT0) / 2600) : 0;
+  if (inv > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'difference';
+    ctx.fillStyle = `rgba(255,255,255,${inv.toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 }
 
 // 엔딩 화면 전체: 악보로 꽉 채우고, 맨 밑에 작은 캐릭터들이 음악에 맞춰 춤춘다.
@@ -3051,6 +3063,9 @@ function startOrchestraPhase() {
   endingPhase = 2;
   orchestraScore = buildOrchestra();
   if (!orchestraScore) { endingPhase = 0; return; }
+  // 다같이 트는 순간 — 스스슥 색 반전(검정 바탕에 흰 그래픽). DOM 글자도 CSS로 함께 반전.
+  orchestraT0 = performance.now();
+  document.body.classList.add('score-invert');
   const spb = 60 / SCORE_TEMPO;
   scoreTotalMs = orchestraScore.totalBeats * spb * 1000;
   scoreStartWall = performance.now() + 150;
@@ -3072,6 +3087,8 @@ function stopEndingScore() {
   if (scoreAnim) { cancelAnimationFrame(scoreAnim); scoreAnim = null; }
   endingPhase = 0;
   orchestraScore = null;
+  orchestraT0 = 0;
+  document.body.classList.remove('score-invert');
 }
 
 function showEnding() {
