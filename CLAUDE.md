@@ -18,8 +18,8 @@
   - **반드시 `headless: 'shell'`** — `'new'` 모드는 이 맥에서 컴포지터가 프레임을 안 만드는 상태에 빠질 수 있음
     (rAF 0 → `p.click()`류 CDP 입력이 무한 대기 → ProtocolError 타임아웃. 페이지 evaluate는 멀쩡해서 헷갈림).
   - 크롬 인자: `--autoplay-policy=no-user-gesture-required --mute-audio --force-color-profile=srgb`, viewport 1600×900 @2x
-  - 진입 흐름: QR 화면 `[data-action="qr-done"]` → 타이틀 `[data-action="start"]`(1번째=우웅 인트로로 머묾) →
-    다시 클릭(또는 인트로 종료 자동 전환) → select. 컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
+  - 진입 흐름: 타이틀 `[data-action="start"]`(한 번) → select(룰렛 4회) → `#slot-start` →
+    QR 화면 → `[data-action="qr-done"]` → play. 컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
 
 ## 파일 구조
 ```
@@ -56,9 +56,10 @@ serve.py                로컬 서버
   **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
   선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
   나열(title에 품목 텍스트 나열).
-- **QR 대기화면(#screen-qr)**: 앱의 첫 화면(타이틀 앞, `state.screen='qr'` 초기값·`screens.qr` 등록).
-  큰 QR(`renderBigQR`, 420px — /config의 lanUrl=터널 주소)과 주소 텍스트, ▶(`qr-done`)로 타이틀로.
-  주의: QR 화면 ▶이 오디오를 깨우므로 타이틀 인트로가 끝나면 select로 **자동 전환**된다(기존 동작).
+- **QR 화면(#screen-qr)**: **캐릭터 소개(select)가 끝난 뒤** 나온다 — 흐름: 타이틀 ▶(한 번, 시작
+  사운드 없음) → select(룰렛·컷신) → `to-setup` ▶ → **QR 화면** → `qr-done` ▶(randomMatch) → play.
+  큰 QR(`renderBigQR`, 420px — /config의 lanUrl=터널 주소)과 주소 텍스트.
+  타이틀 리버스 스웰(우웅) 인트로는 사용자 요청으로 **제거됨**(startTitleMusic 미사용).
 - **폰 선물 화면**: 메인이 `postPhase('round'|'gift'|'ending')`→서버 `/phase`→SSE `{type:'phase'}` 브로드캐스트.
   폰(tap.html)은 phase에 따라 **대기(#wait-ui "곧 참여가 시작됩니다", idle·ending 기본)** ↔ 투표
   패드(round) ↔ 선물 화면(gift) 전환(늦게 접속하면 /config의 phase로 동기화).

@@ -20,7 +20,7 @@ const SCORE = document.body.classList.contains('theme-score');
 setMinimal(MINIMAL || SCORE); // CRT·스코어 모드면 캐릭터를 플랫 미니멀 스타일로 그린다
 
 const state = {
-  screen: 'qr',           // 시작은 관객 QR 대기화면 — ▶로 타이틀로 넘어간다
+  screen: 'title',        // 첫 화면은 타이틀. QR 화면은 캐릭터 소개가 끝난 뒤에 나온다
   phase: 'talk',          // play 화면 내 단계: 'talk'(대화) → 'mark'(부호 탭)
   picks: [0, 3],          // 캐릭터 인덱스
   turn: 0,                // 현재 차례
@@ -1903,7 +1903,6 @@ function show(name) {
   if (name === 'play') startPlay();
   if (SCORE && name === 'title') {   // 처음으로 — 단계 상태 정리
     asciiArt = null;
-    titleIntroStarted = false;       // 다음 공연도 ▶ 1회차 = 우웅부터
     document.body.classList.remove('ascii-time', 'gift-time', 'ending-hud-off');
     postPhase('idle');
   }
@@ -1918,7 +1917,7 @@ function startScreenAudio(name) {
   playScreenWav(name).then((played) => {
     if (played) return;                 // WAV가 깔렸으면 합성 배경 생략
     if (state.screen !== name) return;  // 그새 화면이 바뀌었으면 무시
-    if (name === 'title') { if (titleIntroStarted) { startTitleMusic(); scheduleIntroAdvance(); } }   // ▶를 눌러야 우웅
+    if (name === 'title') { /* 시작 사운드 제거 — 타이틀은 조용히 */ }
     else if (name === 'select') startSelectTone();
     else if (name === 'play') startPlayBeat();   // 타자에 박자를 입히는 킥 그리드
     // 대화(play) 화면은 합성 엠비언스 없음 — 타자 킥만 그리드에 스냅된다.
@@ -1946,17 +1945,7 @@ window.addEventListener('pointerdown', (e) => {
   addAudienceNote();
 });
 
-// 타이틀 인트로(리버스 스웰)가 끝나면 자동으로 캐릭터 선택 화면으로 넘어간다.
-// 인트로 ~10초 + 마지막 "커넥션" 피크 여운까지 들려준 뒤 전환.
-let titleIntroTimer = null;   // (친구의 컷신용 introTimer와 별개)
-let titleIntroStarted = false;   // 타이틀 ▶ 1회차 = 우웅(리버스 스웰), 2회차 = 다음 화면
-function scheduleIntroAdvance() {
-  clearTimeout(titleIntroTimer);
-  titleIntroTimer = setTimeout(() => {
-    titleIntroTimer = null;
-    if (state.screen === 'title') { updateSelectUI(); show('select'); }
-  }, 10500);
-}
+// (타이틀 리버스 스웰 인트로는 사용자 요청으로 제거 — ▶ 한 번에 바로 소개로 넘어간다)
 
 function base(player) { return (state.picks[player] % N) / N; }
 
@@ -4190,26 +4179,21 @@ document.body.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action], [data-pick-prev], [data-pick-next], [data-pick-set], [data-dex]');
   if (!btn) return;
   const act = btn.dataset.action;
-  if (act === 'qr-done') { uiClick(0.6); show('title'); }
+  if (act === 'qr-done') {
+    // QR 화면(소개 뒤) ▶ — 대화(플레이)로. to-setup이 하던 매칭을 여기서 한다.
+    uiClick(0.75);
+    if (SCORE) randomMatch();
+    show('play');
+  }
   else if (act === 'start') {
-    // 첫 클릭은 오디오를 깨우고 리버스 스웰 인트로를 시작한다(머문다).
-    // 같은 제스처로 바로 넘어가면 인트로가 안 들리므로, 방금 깨운
-    // 경우엔 화면을 넘기지 않고 인트로를 들려준다(끝나면 자동 전환).
-    if (!audioReady || performance.now() - audioWokenAt < 600) { ensureAudio(); return; }
-    // 첫 ▶ — 우웅(리버스 스웰) 인트로를 들려주며 머문다. (QR 화면에서 이미 오디오가 깨어 있어도)
-    if (!titleIntroStarted) {
-      titleIntroStarted = true;
-      startTitleMusic(); scheduleIntroAdvance();
-      return;
-    }
-    // 인트로 도중 다시 누르면 건너뛰고 바로 캐릭터 선택으로.
-    clearTimeout(titleIntroTimer); titleIntroTimer = null;
+    // 타이틀 ▶ — 시작 사운드(우웅 인트로) 없이 한 번에 캐릭터 소개로.
+    ensureAudio();
     updateSelectUI(); show('select');
   }
   else if (act === 'random') { uiClick(Math.random()); randomMatch(); }
   // 대화 시작 — 이해도 설정 건너뜀(모두 미지의 언어). 스코어 도감은 고르기를 안 하므로
   // 플레이할 두 캐릭터를 이때 무작위로 배정한다(인게임 좌/우 열에서 교체 가능).
-  else if (act === 'to-setup') { uiClick(0.75); if (SCORE) randomMatch(); show('play'); }
+  else if (act === 'to-setup') { uiClick(0.6); show(SCORE ? 'qr' : 'play'); }   // 소개 끝 ▶ → 관객 QR 화면
   else if (act === 'to-select') { uiClick(0.4); show('select'); }
   else if (act === 'slot-pull') { pullSlot(); }
   else if (act === 'mark-tap') { castVote(btn.dataset.mark, 'perf'); }

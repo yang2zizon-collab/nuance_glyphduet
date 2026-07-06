@@ -21,19 +21,19 @@
 
     <!-- ===== 화면들 (DOM 오버레이) ===== -->
 
-    <!-- 0. 관객 QR 대기화면 — 공연 전, 관객이 폰으로 미리 접속해 둔다 -->
-    <section id="screen-qr" class="screen active">
+    <!-- 1. 타이틀 — 첫 화면 -->
+    <section id="screen-title" class="screen active">
+      <p class="subtitle">"Nuance" Glyph Duet</p>
+      <button class="btn icon big" data-action="start" aria-label="게임 시작" title="게임 시작 · Start">▶</button>
+    </section>
+
+    <!-- 2.5 관객 QR 화면 — 캐릭터 소개가 끝난 뒤, 대화 시작 전에 관객이 폰으로 접속한다 -->
+    <section id="screen-qr" class="screen">
       <p class="subtitle">"Nuance" Glyph Duet</p>
       <div id="big-qr"></div>
       <p id="qr-caption">스캔해서 공연 참여하기 · Scan to join</p>
       <p id="qr-url"></p>
-      <button class="btn icon big" data-action="qr-done" aria-label="시작 화면으로" title="시작 화면으로 · Continue">▶</button>
-    </section>
-
-    <!-- 1. 타이틀 -->
-    <section id="screen-title" class="screen">
-      <p class="subtitle">"Nuance" Glyph Duet</p>
-      <button class="btn icon big" data-action="start" aria-label="게임 시작" title="게임 시작 · Start">▶</button>
+      <button class="btn icon big" data-action="qr-done" aria-label="대화 시작" title="대화 시작 · Begin">▶</button>
     </section>
 
     <!-- 2. 캐릭터 소개 — 슬롯머신. 레버를 내릴 때마다 다음 캐릭터가 차례로 소개된다 -->
