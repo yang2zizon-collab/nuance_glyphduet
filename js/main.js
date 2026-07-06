@@ -257,7 +257,7 @@ let introScene = null;    // { kind, start, dur, fx:{} }
 let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
 
 const INTRO_DUR = { tomato: 8000, phone: 11000, mouse: 8000 };
-const INTRO_PX = 3.2;     // 도트 한 알의 크기(CSS px)
+const INTRO_PX = 2.0;     // 도트 한 알의 크기(CSS px) — 촘촘할수록 실사에 가깝다
 let introCanvas = null, introCtx = null;
 let introColorCanvas = null, introColorCtx = null;   // 캐릭터(컬러) 레이어
 const BAYER8 = [
@@ -664,49 +664,197 @@ function drawIntroScene(t) {
     g = ctx.createLinearGradient(0, floorY, 0, H);
     g.addColorStop(0, '#bdbdbd'); g.addColorStop(1, '#606060');
     ctx.fillStyle = g; ctx.fillRect(0, floorY, W, H - floorY);
-    // ── 부엌 ── 위 찬장 + 타일 백스플래시 + 조리대(싱크·수도꼭지) + 아래 수납장
-    // 위 찬장(오른쪽 절반)
-    ctx.fillStyle = '#1b1b1b';
-    ctx.fillRect(W * 0.52, H * 0.06, W * 0.46, H * 0.2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
-    ctx.strokeRect(W * 0.545, H * 0.08, W * 0.2, H * 0.16);    // 찬장 문 두 짝
-    ctx.strokeRect(W * 0.765, H * 0.08, W * 0.19, H * 0.16);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillRect(W * 0.735, H * 0.15, W * 0.012, H * 0.03);    // 손잡이
-    ctx.fillRect(W * 0.775, H * 0.15, W * 0.012, H * 0.03);
-    // 백스플래시 타일(찬장~조리대 사이)
-    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.2;
-    for (let ty = H * 0.26; ty <= H * 0.46; ty += H * 0.05) {
-      ctx.beginPath(); ctx.moveTo(W * 0.52, ty); ctx.lineTo(W * 0.98, ty); ctx.stroke();
+    // ── 부엌(사진 레퍼런스) ── 흰 액자식 찬장·서브웨이 타일·레인지후드·걸린 조리도구·서랍장·원목 마루
+    const KX = W * 0.42;                                       // 부엌 가구 시작
+    const counterY = H * 0.47, counterTh = S * 0.10;           // 상판 높이·두께
+    const cabTop = H * 0.045, cabBot = H * 0.265;              // 위 찬장 상·하단
+    // 액자식(섀이커) 문 한 짝 — 몰딩 패널 + 안쪽 그늘 + 둥근 노브
+    const cabDoor = (x, y, w2, h2, knobSide = 1) => {
+      ctx.fillStyle = '#ececec'; ctx.fillRect(x, y, w2, h2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w2, h2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.6;
+      ctx.strokeRect(x + w2 * 0.14, y + h2 * 0.10, w2 * 0.72, h2 * 0.80);
+      ctx.fillStyle = '#d3d3d3';
+      ctx.fillRect(x + w2 * 0.14, y + h2 * 0.10, w2 * 0.72, h2 * 0.055);   // 패널 위쪽 그늘
+      ctx.fillStyle = '#6e6e6e';
+      ctx.beginPath();
+      ctx.arc(x + (knobSide > 0 ? w2 * 0.90 : w2 * 0.10), y + h2 * 0.52, Math.max(2.5, w2 * 0.035), 0, 7);
+      ctx.fill();
+    };
+    // 위 찬장 몸체 + 문 4짝
+    ctx.fillStyle = '#f2f2f2'; ctx.fillRect(KX, cabTop, W * 0.435, cabBot - cabTop);
+    for (let d = 0; d < 4; d++) {
+      cabDoor(KX + W * (0.010 + d * 0.107), cabTop + H * 0.012, W * 0.098, cabBot - cabTop - H * 0.024, d % 2 ? -1 : 1);
     }
-    for (let tx = W * 0.52; tx <= W * 0.98; tx += W * 0.045) {
-      ctx.beginPath(); ctx.moveTo(tx, H * 0.26); ctx.lineTo(tx, H * 0.46); ctx.stroke();
-    }
-    // 조리대 상판 + 아래 수납장
-    ctx.fillStyle = '#dedede';
-    ctx.fillRect(W * 0.5, H * 0.46, W * 0.5, S * 0.12);        // 상판(밝게)
-    ctx.fillStyle = '#141414';
-    ctx.fillRect(W * 0.52, H * 0.46 + S * 0.12, W * 0.46, floorY - (H * 0.46 + S * 0.12));
-    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2;
-    ctx.strokeRect(W * 0.545, H * 0.5 + S * 0.12, W * 0.19, floorY - H * 0.52 - S * 0.12);   // 수납장 문
-    ctx.strokeRect(W * 0.755, H * 0.5 + S * 0.12, W * 0.2, floorY - H * 0.52 - S * 0.12);
-    // 싱크볼(상판에 파인 홈) + 수도꼭지
-    ctx.fillStyle = '#8e8e8e';
-    ctx.fillRect(W * 0.66, H * 0.462, W * 0.14, S * 0.07);
-    ctx.strokeStyle = '#0d0d0d'; ctx.lineWidth = S * 0.045; ctx.lineCap = 'round';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(KX, cabBot, W * 0.435, H * 0.009);   // 찬장 밑면 그늘
+    // 레인지후드(스테인리스) + 덕트 — 오른쪽 끝
+    const hoodL = W * 0.868, hoodR = W * 0.998, hoodY = H * 0.30;
+    ctx.fillStyle = '#9a9a9a';
+    ctx.fillRect((hoodL + hoodR) / 2 - W * 0.021, 0, W * 0.042, hoodY - H * 0.075);
+    let hg = ctx.createLinearGradient(hoodL, 0, hoodR, 0);
+    hg.addColorStop(0, '#c9c9c9'); hg.addColorStop(0.45, '#f1f1f1'); hg.addColorStop(1, '#8f8f8f');
+    ctx.fillStyle = hg;
     ctx.beginPath();
-    ctx.moveTo(W * 0.73, H * 0.455);
-    ctx.lineTo(W * 0.73, H * 0.385);
-    ctx.quadraticCurveTo(W * 0.73, H * 0.36, W * 0.705, H * 0.36);
-    ctx.lineTo(W * 0.69, H * 0.36);
+    ctx.moveTo(hoodL + W * 0.026, hoodY - H * 0.075);
+    ctx.lineTo(hoodR - W * 0.026, hoodY - H * 0.075);
+    ctx.lineTo(hoodR, hoodY); ctx.lineTo(hoodL, hoodY);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#5f5f5f'; ctx.fillRect(hoodL, hoodY, hoodR - hoodL, H * 0.012);      // 하단 립
+    // 서브웨이 타일 백스플래시(엇갈린 벽돌식, 은은한 광)
+    g = ctx.createLinearGradient(0, cabBot, 0, counterY);
+    g.addColorStop(0, '#d8d8d8'); g.addColorStop(1, '#f4f4f4');
+    ctx.fillStyle = g; ctx.fillRect(KX, cabBot + H * 0.009, W - KX, counterY - cabBot - H * 0.009);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.1;
+    const tH2 = H * 0.030, tW2 = W * 0.052;
+    let rowI = 0;
+    for (let ty = cabBot + H * 0.009; ty < counterY; ty += tH2, rowI++) {
+      ctx.beginPath(); ctx.moveTo(KX, ty); ctx.lineTo(W, ty); ctx.stroke();
+      for (let tx = KX + (rowI % 2) * tW2 * 0.5; tx <= W; tx += tW2) {
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, Math.min(ty + tH2, counterY)); ctx.stroke();
+      }
+    }
+    // 조리도구 걸이봉 — 나무국자·뒤집개·팬이 대롱대롱(사진 레퍼런스)
+    const railY = cabBot + H * 0.045;
+    ctx.strokeStyle = '#4a4a4a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(KX + W * 0.015, railY); ctx.lineTo(KX + W * 0.225, railY); ctx.stroke();
+    const hang = (hx2, len, head) => {
+      ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(hx2, railY + 4, 3.6, 0, 7); ctx.stroke();                  // 고리
+      ctx.beginPath(); ctx.moveTo(hx2, railY + 7); ctx.lineTo(hx2, railY + len); ctx.stroke();
+      head(hx2, railY + len);
+    };
+    hang(KX + W * 0.035, S * 0.30, (x2, y2) => {   // 나무 국자 — 둥근 볼
+      ctx.fillStyle = '#8a8272';
+      ctx.beginPath(); ctx.ellipse(x2, y2 + S * 0.05, S * 0.062, S * 0.075, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4; ctx.stroke();
+    });
+    hang(KX + W * 0.085, S * 0.36, (x2, y2) => {   // 뒤집개 — 구멍 뚫린 판
+      ctx.fillStyle = '#b9b9b9';
+      ctx.fillRect(x2 - S * 0.05, y2, S * 0.10, S * 0.14);
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.4;
+      ctx.strokeRect(x2 - S * 0.05, y2, S * 0.10, S * 0.14);
+      ctx.fillStyle = '#5a5a5a';
+      for (let sl = 0; sl < 3; sl++) ctx.fillRect(x2 - S * 0.03, y2 + S * (0.03 + sl * 0.036), S * 0.06, S * 0.012);
+    });
+    hang(KX + W * 0.14, S * 0.26, (x2, y2) => {    // 작은 팬 — 옆모습
+      ctx.fillStyle = '#2c2c2c';
+      ctx.beginPath(); ctx.ellipse(x2, y2 + S * 0.05, S * 0.085, S * 0.06, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(x2, y2 + S * 0.035, S * 0.07, S * 0.03, 0, Math.PI, 0); ctx.stroke();
+    });
+    hang(KX + W * 0.19, S * 0.33, (x2, y2) => {    // 거품기 — 타원 살
+      ctx.strokeStyle = '#7d7d7d'; ctx.lineWidth = 1.5;
+      for (let wk = -1; wk <= 1; wk++) {
+        ctx.beginPath(); ctx.ellipse(x2, y2 + S * 0.07, S * 0.028 * (1 + Math.abs(wk)), S * 0.085, wk * 0.35, 0, 7); ctx.stroke();
+      }
+    });
+    // 조리대 상판 — 밝은 석재 슬랩(앞면 두께·그늘)
+    g = ctx.createLinearGradient(0, counterY, 0, counterY + counterTh);
+    g.addColorStop(0, '#f5f5f5'); g.addColorStop(1, '#b5b5b5');
+    ctx.fillStyle = g; ctx.fillRect(KX - W * 0.012, counterY, W - KX + W * 0.012, counterTh);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 2;
+    ctx.strokeRect(KX - W * 0.012, counterY, W - KX + W * 0.012, counterTh);
+    // 싱크볼 + 구스넥 수도꼭지
+    ctx.fillStyle = '#8e8e8e';
+    ctx.fillRect(W * 0.56, counterY + counterTh * 0.14, W * 0.125, counterTh * 0.6);
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(W * 0.56, counterY + counterTh * 0.14, W * 0.125, counterTh * 0.6);
+    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = S * 0.045; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.665, counterY - H * 0.002);
+    ctx.lineTo(W * 0.665, H * 0.385);
+    ctx.quadraticCurveTo(W * 0.665, H * 0.358, W * 0.64, H * 0.358);
+    ctx.lineTo(W * 0.625, H * 0.358);
     ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W * 0.69, H * 0.36); ctx.lineTo(W * 0.69, H * 0.375); ctx.stroke();   // 물 나오는 입
-    // 창문(왼쪽) + 빛
-    const wx = W * 0.1, wy = H * 0.1, ww = W * 0.13, wh = H * 0.28;
-    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillRect(wx, wy, ww, wh);
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(W * 0.625, H * 0.358); ctx.lineTo(W * 0.625, H * 0.374); ctx.stroke();
+    // 도마(벽에 기대 세움) + 유리병
+    ctx.fillStyle = '#a99f8a';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.445, counterY); ctx.lineTo(W * 0.452, H * 0.365);
+    ctx.quadraticCurveTo(W * 0.472, H * 0.352, W * 0.492, H * 0.365);
+    ctx.lineTo(W * 0.50, counterY); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.fillStyle = 'rgba(230,230,230,0.9)';
+    ctx.fillRect(W * 0.515, H * 0.415, W * 0.022, counterY - H * 0.415);   // 병
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.4;
+    ctx.strokeRect(W * 0.515, H * 0.415, W * 0.022, counterY - H * 0.415);
+    ctx.fillStyle = '#777'; ctx.fillRect(W * 0.515, H * 0.408, W * 0.022, H * 0.009);      // 뚜껑
+    // 가스레인지(후드 아래) — 화구 두 개 + 김 나는 냄비
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillRect(W * 0.875, counterY - H * 0.006, W * 0.115, H * 0.008);   // 쿡탑 슬림 슬랩
+    ctx.fillStyle = '#3c3c3c';
+    ctx.beginPath(); ctx.ellipse(W * 0.955, counterY - H * 0.004, W * 0.017, H * 0.006, 0, 0, 7); ctx.fill();   // 빈 화구
+    const potX = W * 0.905, potW2 = S * 0.34, potH2 = S * 0.26, potY = counterY - H * 0.004;
+    g = ctx.createLinearGradient(potX - potW2 / 2, 0, potX + potW2 / 2, 0);
+    g.addColorStop(0, '#4a4a4a'); g.addColorStop(0.35, '#0f0f0f'); g.addColorStop(1, '#000');
+    ctx.fillStyle = g;
+    ctx.fillRect(potX - potW2 / 2, potY - potH2, potW2, potH2);            // 냄비 몸통
+    ctx.fillStyle = '#5d5d5d';
+    ctx.fillRect(potX - potW2 * 0.56, potY - potH2, potW2 * 1.12, potH2 * 0.12);   // 뚜껑
+    ctx.beginPath(); ctx.arc(potX, potY - potH2 * 1.12, potW2 * 0.07, 0, 7); ctx.fill();   // 꼭지
+    ctx.strokeStyle = '#5d5d5d'; ctx.lineWidth = S * 0.035;
+    [[-1], [1]].forEach(([sgn]) => {                                        // 양쪽 손잡이
+      ctx.beginPath();
+      ctx.arc(potX + sgn * potW2 * 0.52, potY - potH2 * 0.62, potW2 * 0.1, sgn > 0 ? -Math.PI / 2 : Math.PI / 2, sgn > 0 ? Math.PI / 2 : -Math.PI / 2 + Math.PI * 2 * 0);
+      ctx.stroke();
+    });
+    // 김 — 하늘하늘 올라가는 세 줄기(살아있는 부엌)
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    for (let st2 = 0; st2 < 3; st2++) {
+      const sx2 = potX - potW2 * 0.25 + st2 * potW2 * 0.25;
+      ctx.beginPath();
+      for (let yy = 0; yy <= 6; yy++) {
+        const u = yy / 6;
+        const px2 = sx2 + Math.sin(u * Math.PI * 2 + t * 2.4 + st2 * 1.7) * S * 0.05 * u;
+        const py2 = potY - potH2 * 1.2 - u * S * 0.55;
+        yy === 0 ? ctx.moveTo(px2, py2) : ctx.lineTo(px2, py2);
+      }
+      ctx.stroke();
+    }
+    // 아래 수납장 — 문 4짝 + 오른쪽 서랍 3단(사진 레퍼런스) + 토킥 그늘
+    const lowY = counterY + counterTh;
+    ctx.fillStyle = '#e6e6e6'; ctx.fillRect(KX, lowY, W - KX, floorY - lowY);
+    for (let d = 0; d < 4; d++) {
+      cabDoor(KX + W * (0.012 + d * 0.118), lowY + H * 0.012, W * 0.11, floorY - lowY - H * 0.05, d % 2 ? -1 : 1);
+    }
+    const drwX = KX + W * 0.492, drwW = W * 0.095;
+    const drwH = (floorY - lowY - H * 0.05) / 3;
+    for (let d = 0; d < 3; d++) {
+      const dy2 = lowY + H * 0.012 + d * drwH;
+      ctx.fillStyle = '#ececec'; ctx.fillRect(drwX, dy2, drwW, drwH - H * 0.006);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+      ctx.strokeRect(drwX, dy2, drwW, drwH - H * 0.006);
+      ctx.fillStyle = '#6e6e6e';                                            // 바 손잡이
+      ctx.fillRect(drwX + drwW * 0.3, dy2 + drwH * 0.24, drwW * 0.4, Math.max(3, drwH * 0.07));
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(KX, floorY - H * 0.016, W - KX, H * 0.016);   // 토킥
+    // 창문(왼쪽) — 2×2 창살 + 창턱 + 화분, 그리고 빛
+    const wx = W * 0.09, wy = H * 0.09, ww = W * 0.15, wh = H * 0.30;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.fillRect(wx, wy, ww, wh);
+    g = ctx.createLinearGradient(wx, wy, wx + ww, wy + wh);                 // 유리의 은은한 결
+    g.addColorStop(0, 'rgba(200,200,200,0)'); g.addColorStop(0.5, 'rgba(190,190,190,0.35)'); g.addColorStop(1, 'rgba(200,200,200,0)');
+    ctx.fillStyle = g; ctx.fillRect(wx, wy, ww, wh);
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 4;
     ctx.strokeRect(wx, wy, ww, wh);
+    ctx.lineWidth = 2.4;
     ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2); ctx.stroke();
+    ctx.fillStyle = '#cfcfcf'; ctx.fillRect(wx - ww * 0.06, wy + wh, ww * 1.12, H * 0.014);       // 창턱
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1.6;
+    ctx.strokeRect(wx - ww * 0.06, wy + wh, ww * 1.12, H * 0.014);
+    ctx.fillStyle = '#5a5a5a';                                              // 화분 + 풀 몇 가닥
+    ctx.beginPath();
+    ctx.moveTo(wx + ww * 0.72, wy + wh); ctx.lineTo(wx + ww * 0.78, wy + wh - H * 0.028);
+    ctx.lineTo(wx + ww * 0.92, wy + wh - H * 0.028); ctx.lineTo(wx + ww * 0.98, wy + wh);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3f3f3f'; ctx.lineWidth = 1.8;
+    for (let lf = 0; lf < 4; lf++) {
+      ctx.beginPath();
+      ctx.moveTo(wx + ww * 0.85, wy + wh - H * 0.028);
+      ctx.quadraticCurveTo(wx + ww * (0.72 + lf * 0.09), wy + wh - H * 0.055, wx + ww * (0.66 + lf * 0.13), wy + wh - H * (0.065 + (lf % 2) * 0.02));
+      ctx.stroke();
+    }
     const lg2 = ctx.createLinearGradient(wx, wy + wh, wx + ww * 1.6, H);
     lg2.addColorStop(0, 'rgba(255,255,255,0.5)'); lg2.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = lg2;
@@ -714,8 +862,20 @@ function drawIntroScene(t) {
     ctx.moveTo(wx, wy + wh); ctx.lineTo(wx + ww, wy + wh);
     ctx.lineTo(wx + ww * 2.3, H * 0.96); ctx.lineTo(wx - ww * 0.3, H * 0.96);
     ctx.closePath(); ctx.fill();
+    // 원목 마루 — 널판 결(가로선 + 엇갈린 이음매)
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(W, floorY); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1.5;
+    let prevY = floorY;
+    for (let r2 = 1; r2 <= 4; r2++) {
+      const py = floorY + Math.pow(r2 / 4, 1.35) * (H - floorY);
+      ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+      const off = ((r2 * 137) % 29) / 29;
+      for (let px2 = off * W * 0.34; px2 < W; px2 += W * 0.34) {            // 널판 세로 이음
+        ctx.beginPath(); ctx.moveTo(px2, prevY + 1); ctx.lineTo(px2 - W * 0.008, py - 1); ctx.stroke();
+      }
+      prevY = py;
+    }
     // 부스러기 길 — 오른쪽(싱크대 밑)에서 왼쪽으로 점점이
     const crumbs = [];
     for (let i = 0; i < 9; i++) crumbs.push([W * (0.76 - i * 0.055), floorY + S * 0.32 + Math.sin(i * 2.1) * S * 0.07]);
@@ -813,33 +973,61 @@ function drawIntroScene(t) {
       // 스윙 — 자루 위쪽(손 근처)을 축으로 좌우로 쓸어낸다
       const swing = s > 4.5 ? Math.sin((s - 4.5) * 3.2) * 0.16 * (1 - seg2(s, 6.6, 7.4)) : 0;
       const hx = W * (1.04 - broomIn * 0.3), hy = floorY - H * 0.78;    // 축(손 위치) — 더 높이
-      const bLen = H * 0.86;                                            // 자루 길이 — 큼직하게
+      const bLen = H * 0.58;                                            // 자루 길이 — 짚단이 화면을 크게 차지하도록
       const ang = Math.PI * 0.62 + swing;                               // 기울기
-      const bx2 = hx + Math.cos(ang) * bLen, by2 = hy + Math.sin(ang) * bLen;   // 빗살 목
+      const bx2 = hx + Math.cos(ang) * bLen, by2 = hy + Math.sin(ang) * bLen;   // 짚단 목
       ctx.save();
-      // 자루 — 가늘고 긴 나무 막대(밝은 결 한 줄)
-      ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = S * 0.11; ctx.lineCap = 'round';
+      // 자루 — 굵은 나무 막대(결 두 줄)
+      ctx.strokeStyle = '#241d14'; ctx.lineWidth = S * 0.13; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(hx, hy - S * 0.3); ctx.lineTo(bx2, by2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = S * 0.028;
-      ctx.beginPath(); ctx.moveTo(hx - S * 0.02, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.02, by2); ctx.stroke();
-      // 페룰(빗살 묶는 띠)
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = S * 0.026;
+      ctx.beginPath(); ctx.moveTo(hx - S * 0.028, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.028, by2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = S * 0.02;
+      ctx.beginPath(); ctx.moveTo(hx + S * 0.032, hy - S * 0.3); ctx.lineTo(bx2 + S * 0.032, by2); ctx.stroke();
+      // 짚단(사진 레퍼런스) — 목에서 부풀어 내려와 부챗살로 넓게 퍼지는 볏짚
       ctx.save();
       ctx.translate(bx2, by2); ctx.rotate(ang - Math.PI / 2);
-      ctx.fillStyle = '#e0e0e0';
-      ctx.fillRect(-S * 0.22, -S * 0.03, S * 0.44, S * 0.2);
-      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2;
-      ctx.strokeRect(-S * 0.22, -S * 0.03, S * 0.44, S * 0.2);
-      // 빗살 — 부챗살로 퍼지는 결(끝이 바닥에 닿아 살짝 휜다) — 큼직하게
-      const tipY = Math.max(S * 0.8, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.94);
-      for (let i = 0; i < 21; i++) {
-        const u = i / 20 - 0.5;
-        const g2 = 0.35 + ((i * 13) % 5) * 0.1;
-        ctx.strokeStyle = `rgba(${20 + ((i * 37) % 40)},${18 + ((i * 29) % 40)},${16 + ((i * 41) % 40)},${g2 + 0.45})`;
-        ctx.lineWidth = 2.6 + (i % 2);
+      const brushLen = Math.max(S * 1.5, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.97);
+      const neckW = S * 0.17, tipW = S * 0.95;   // 반폭 — 아래 전체 폭 ≈ S*1.9
+      // 짚단 실루엣 — 중간이 불룩한 종 모양
+      const strawG = ctx.createLinearGradient(-tipW, 0, tipW, 0);
+      strawG.addColorStop(0, '#8f8571'); strawG.addColorStop(0.42, '#d3c6a2'); strawG.addColorStop(1, '#736a58');
+      ctx.fillStyle = strawG;
+      ctx.beginPath();
+      ctx.moveTo(-neckW, -S * 0.06);
+      ctx.bezierCurveTo(-S * 0.52, brushLen * 0.32, -tipW * 1.04, brushLen * 0.7, -tipW, brushLen);
+      ctx.lineTo(tipW, brushLen);
+      ctx.bezierCurveTo(tipW * 1.04, brushLen * 0.7, S * 0.52, brushLen * 0.32, neckW, -S * 0.06);
+      ctx.closePath(); ctx.fill();
+      // 짚 가닥 — 결을 따라 흐르는 수십 가닥(명암 섞어 볏짚 질감)
+      for (let i = 0; i < 38; i++) {
+        const u = i / 37 - 0.5;
+        const tone = 55 + ((i * 53) % 130);
+        ctx.strokeStyle = `rgba(${tone},${Math.max(0, tone - 10)},${Math.max(0, tone - 30)},0.85)`;
+        ctx.lineWidth = 1.4 + (i % 3) * 0.9;
         ctx.beginPath();
-        ctx.moveTo(u * S * 0.36, S * 0.16);
-        ctx.quadraticCurveTo(u * S * 0.8, tipY * 0.6, u * S * 1.15 + swing * S * 1.8, tipY + ((i * 7) % 3) * 2.5);
+        ctx.moveTo(u * neckW * 2, S * 0.02);
+        ctx.quadraticCurveTo(u * S * 0.95, brushLen * 0.55, u * tipW * 2 + swing * S * 1.6, brushLen + ((i * 7) % 4) * 3 - 5);
         ctx.stroke();
+      }
+      // 끝단 — 낱낱이 갈라진 잔가닥(들쭉날쭉)
+      ctx.lineWidth = 1.3;
+      for (let i = 0; i < 30; i++) {
+        const u = i / 29 - 0.5;
+        ctx.strokeStyle = `rgba(${40 + ((i * 31) % 50)},${34 + ((i * 23) % 45)},${26 + ((i * 17) % 38)},0.85)`;
+        ctx.beginPath();
+        ctx.moveTo(u * tipW * 1.9 + swing * S * 1.6, brushLen - S * 0.12);
+        ctx.lineTo(u * tipW * 2.06 + swing * S * 1.8, brushLen + S * 0.07 + ((i * 11) % 5) * 2.4);
+        ctx.stroke();
+      }
+      // 노끈 감기 — 목을 여러 번 감은 띠(부푸는 폭을 따라 점점 넓게)
+      for (let b = 0; b < 5; b++) {
+        const by3 = S * (0.05 + b * 0.09);
+        const wHere = neckW + (S * 0.52 - neckW) * (by3 / (brushLen * 0.32));
+        ctx.fillStyle = b % 2 ? '#ddd5bd' : '#c2b99f';
+        ctx.fillRect(-wHere, by3, wHere * 2, S * 0.055);
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4;
+        ctx.strokeRect(-wHere, by3, wHere * 2, S * 0.055);
       }
       ctx.restore();
       // 쓸릴 때 먼지·부스러기 튐
@@ -862,6 +1050,12 @@ function drawIntroScene(t) {
       fxOnce('phew', () => speakVoiceEvents([{ rel: 0, ch: 'u' }], characterVoice(3), 'sad'));
     }
   }
+
+  // 필름 비네트 — 가장자리를 살짝 어둡게(실사 톤, 카메라와 무관하게 화면 고정)
+  ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.44, W / 2, H / 2, Math.max(W, H) * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
 
   // 등장/퇴장 페이드(도트 밀도가 차오르고 흩어진다)
   const fade = Math.min(1, s / 0.5, (durS - s) / 0.5);
