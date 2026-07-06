@@ -272,6 +272,17 @@ html, body { background: #ffffff; color: var(--ink); }
 .fx-knob { accent-color: #000; }
 .fx-val { color: #000; }
 
+/* 관객 QR 대기화면 — 타이틀 앞, 크게 하나 */
+#screen-qr { gap: 2.6vh; }
+#big-qr {
+  width: min(48vmin, 440px); height: min(48vmin, 440px);
+  padding: 2vmin; background: #fff; border: 3px solid #000;
+  display: flex; align-items: center; justify-content: center;
+}
+#big-qr img, #big-qr canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+#qr-caption { color: #000; font-size: 1.05rem; letter-spacing: 0.12em; margin: 0; }
+#qr-url { color: #888; font-size: 0.78rem; margin: 0; word-break: break-all; max-width: 80vw; text-align: center; }
+
 /* 엔딩 */
 #ending-title { text-shadow: none; color: #000; }
 #ending-meter { background: #eee; border-color: #000; }

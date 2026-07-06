@@ -21,8 +21,17 @@
 
     <!-- ===== 화면들 (DOM 오버레이) ===== -->
 
+    <!-- 0. 관객 QR 대기화면 — 공연 전, 관객이 폰으로 미리 접속해 둔다 -->
+    <section id="screen-qr" class="screen active">
+      <p class="subtitle">"Nuance" Glyph Duet</p>
+      <div id="big-qr"></div>
+      <p id="qr-caption">폰으로 함께합니다 · Scan to join</p>
+      <p id="qr-url"></p>
+      <button class="btn icon big" data-action="qr-done" aria-label="시작 화면으로" title="시작 화면으로 · Continue">▶</button>
+    </section>
+
     <!-- 1. 타이틀 -->
-    <section id="screen-title" class="screen active">
+    <section id="screen-title" class="screen">
       <p class="subtitle">"Nuance" Glyph Duet</p>
       <button class="btn icon big" data-action="start" aria-label="게임 시작" title="게임 시작 · Start">▶</button>
     </section>
