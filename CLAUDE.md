@@ -15,8 +15,11 @@
   - `python3 serve.py 8777` → http://localhost:8777/
 - 폰트(Datatype, Galmuri)는 CDN 로드 → **인터넷 필요**. 첫 화면 ▶ 클릭해야 오디오가 켜진다(자동재생 정책).
 - **변경 검증은 헤드리스 puppeteer 스크린샷으로** 한다(인앱 미리보기는 Desktop 파일 접근 제한이 있어 우회).
+  - **반드시 `headless: 'shell'`** — `'new'` 모드는 이 맥에서 컴포지터가 프레임을 안 만드는 상태에 빠질 수 있음
+    (rAF 0 → `p.click()`류 CDP 입력이 무한 대기 → ProtocolError 타임아웃. 페이지 evaluate는 멀쩡해서 헷갈림).
   - 크롬 인자: `--autoplay-policy=no-user-gesture-required --mute-audio --force-color-profile=srgb`, viewport 1600×900 @2x
-  - 진입 흐름: `[data-action="start"]` 클릭(1번째=오디오 깨우기) → 다시 클릭 → `[data-action="to-setup"]` → 플레이.
+  - 진입 흐름: QR 화면 `[data-action="qr-done"]` → 타이틀 `[data-action="start"]`(1번째=우웅 인트로로 머묾) →
+    다시 클릭(또는 인트로 종료 자동 전환) → select. 컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
 
 ## 파일 구조
 ```

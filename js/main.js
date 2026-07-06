@@ -1939,6 +1939,13 @@ function ensureAudio() {
 window.addEventListener('pointerdown', ensureAudio);
 window.addEventListener('keydown', ensureAudio);
 
+// 합주·잼 동안엔 메인 화면 터치/클릭도 소리+음표 트리거 — 무대 위에서도 같이 연주한다
+window.addEventListener('pointerdown', (e) => {
+  if (state.screen !== 'ending' || endingPhase !== 2) return;
+  if (e.target && e.target.closest && e.target.closest('button')) return;   // 버튼 클릭은 제외
+  addAudienceNote();
+});
+
 // 타이틀 인트로(리버스 스웰)가 끝나면 자동으로 캐릭터 선택 화면으로 넘어간다.
 // 인트로 ~10초 + 마지막 "커넥션" 피크 여운까지 들려준 뒤 전환.
 let titleIntroTimer = null;   // (친구의 컷신용 introTimer와 별개)
@@ -3474,10 +3481,10 @@ function drawScore3D(ctx, W, H, t, progress) {
   //          2단계: 위치 고정, 중심(원점)을 기준으로 천천히 공전(=구가 회전하는 느낌).
   let cam, target;
   if (sphere && jamOn) {
-    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 크게 유영하는 카메라
-    const tt = t * 0.85;
-    const camR = 15 + Math.sin(tt * 0.7) * 9 + Math.sin(tt * 0.23) * 4;   // 6~28 — 가까이 스쳤다 멀어진다
-    cam = { x: Math.sin(tt) * camR, y: Math.sin(tt * 0.53) * 8 + 1.5, z: Math.cos(tt * 0.81) * camR };
+    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 유영하는 카메라(느긋하게)
+    const tt = t * 0.5;
+    const camR = 15 + Math.sin(tt * 0.7) * 8 + Math.sin(tt * 0.23) * 4;   // 7~27 — 가까이 스쳤다 멀어진다
+    cam = { x: Math.sin(tt) * camR, y: Math.sin(tt * 0.53) * 7 + 1.5, z: Math.cos(tt * 0.81) * camR };
     target = { x: Math.sin(tt * 0.37) * 3, y: Math.sin(tt * 0.29) * 2, z: Math.cos(tt * 0.41) * 3 };
   } else if (sphere) {
     const orbit = t * 0.17;                      // 느린 회전
@@ -4038,7 +4045,9 @@ function addAudienceNote() {
     glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
     accent: Math.random() > 0.7,
   });
-  typeKey('a', 0.4, Math.floor(Math.random() * 8));   // 태어나는 소리도 하나
+  // 태어나는 소리 — 터치가 곧 음. 또렷하게(랜덤 음높이 글자 + 볼륨 업)
+  resumeAudio();
+  typeKey('aeioumko'[Math.floor(Math.random() * 8)], 0.6, Math.floor(Math.random() * 8));
 }
 
 function showEnding() {
