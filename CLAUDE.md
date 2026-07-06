@@ -181,10 +181,14 @@ serve.py                로컬 서버
   태어납니다"). 폰 터치 → POST `/addnote` → SSE → 메인 `addAudienceNote()`가 총보 랜덤 파트의 현재
   박에 글리프 음표를 삽입(+소리 typeKey). 폰엔 터치 리플+글리프 팝+"내가 보탠 음표 n개" 카운터.
   라운드/idle에서 스틸 해제(서버도 clear). 폰 라운드 안내문: "가장 많이 눌린 기호가 음악의 말투가 됩니다".
+- **관객 음표 소리·강조**: addAudienceNote는 `uiClick`(마스터 직결 — 뉘앙스 이펙트/합주 리버브에
+  안 묻혀 **합주 중에도 처음부터 들림**) + `typeVoice`(캐릭터 목소리 색) 두 겹. 음표엔 `aud/born`
+  마크 → drawScore3D가 1.4초 팝(×2.2)+이중 확산 링으로 탄생 강조, 이후에도 가는 링 유지.
+- **독주(1단계) 2배속**: startEndingScore가 rhythm rel을 SOLO_SPEED=2로 압축, GAP 0.3.
 - **관객 잼(합주 종료 후)**: 합주 progress≥1 → `startJam()`(드로우 프레임 + `jamTimer` 폴백 —
   rAF가 백그라운드로 멈춰도 정시 개시) → POST `/jam` → SSE `{type:'jam'}` → 폰 캡션 "이제 당신의
   차례! 터치로 함께 연주하세요"/서브 "관객 합주". 잼 동안 `addAudienceNote`는 **랜덤 박**에 심어
-  구름 전체에 흩뿌려짐. **잼 카메라** = SF 우주유영(camR 6~28 출렁이며 점구름을 스치고 관통).
+  구름 전체에 흩뿌려짐. **잼 카메라** = SF 우주유영(camR 6~28, 시간 배율 t*0.3 — 아주 느긋).
   메인 하단엔 합주 내내 작은 안내("핸드폰 화면을 터치하면…" → 잼엔 "지금이에요 —…") — 캔버스에
   그려져 색 반전과 함께 뒤집힘. 잼 상태는 stopEndingScore가 riset.
   **주의**: showEnding의 HUD 타이머는 반드시 `startEndingScore()` **뒤에** 걸 것(안의

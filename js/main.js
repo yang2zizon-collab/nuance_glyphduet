@@ -3400,7 +3400,7 @@ function flatScoreNotes() {
   if (endingPhase === 2 && orchestraScore) {
     const out = [];
     orchestraScore.parts.forEach((p, pi) => {
-      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, part: pi, player: p.player, glyph: n.glyph, accent: n.accent }));
+      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, part: pi, player: p.player, glyph: n.glyph, accent: n.accent, aud: n.aud, born: n.born }));
     });
     return { notes: out, lo: orchestraScore.lo, span: orchestraScore.span, totalBeats: orchestraScore.totalBeats, phase: 2 };
   }
@@ -3481,8 +3481,8 @@ function drawScore3D(ctx, W, H, t, progress) {
   //          2단계: 위치 고정, 중심(원점)을 기준으로 천천히 공전(=구가 회전하는 느낌).
   let cam, target;
   if (sphere && jamOn) {
-    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 유영하는 카메라(느긋하게)
-    const tt = t * 0.5;
+    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 유영하는 카메라(아주 느긋하게)
+    const tt = t * 0.3;
     const camR = 15 + Math.sin(tt * 0.7) * 8 + Math.sin(tt * 0.23) * 4;   // 7~27 — 가까이 스쳤다 멀어진다
     cam = { x: Math.sin(tt) * camR, y: Math.sin(tt * 0.53) * 7 + 1.5, z: Math.cos(tt * 0.81) * camR };
     target = { x: Math.sin(tt * 0.37) * 3, y: Math.sin(tt * 0.29) * 2, z: Math.cos(tt * 0.41) * 3 };
@@ -3551,15 +3551,31 @@ function drawScore3D(ctx, W, H, t, progress) {
 
   // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝. 2단계는 점구름이라 더 작게.
   const sizeBase = sphere ? 0.3 : 0.5, sizeMax = sphere ? 40 : 64;
+  const nowMs = performance.now();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   placed.forEach(({ d, pr }) => {
     const fresh = (playBeat - d.beat) < 0.45;
-    const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0));
-    const fpx = Math.max(8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    // 관객 음표 탄생 강조 — 1.4초 동안 크게 팝 + 퍼지는 링 두 겹
+    const audAge = d.born ? (nowMs - d.born) / 1000 : 99;
+    const audK = d.aud && audAge < 1.4 ? 1 - audAge / 1.4 : 0;
+    const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0) + audK * 0.6);
+    let fpx = Math.max(8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    if (audK > 0) fpx *= 1 + audK * 1.2;
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
     ctx.font = `${fpx.toFixed(1)}px Datatype, Galmuri11, monospace`;
     ctx.fillText(d.glyph || '◇', pr.sx, pr.sy);
-    if (d.accent) {
+    if (audK > 0) {
+      const spread = 1 - audK;   // 0→1 로 퍼진다
+      ctx.strokeStyle = `rgba(0,0,0,${(audK * 0.85).toFixed(3)})`; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * (0.7 + spread * 1.8), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(0,0,0,${(audK * 0.45).toFixed(3)})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * (0.7 + spread * 3.0), 0, Math.PI * 2); ctx.stroke();
+    } else if (d.aud) {
+      // 태어난 뒤에도 관객 음표는 가는 링을 계속 둘러 표가 난다
+      ctx.strokeStyle = `rgba(0,0,0,${(a * 0.5).toFixed(3)})`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * 0.72, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (d.accent && !d.aud) {
       ctx.strokeStyle = `rgba(0,0,0,${(a * 0.7).toFixed(3)})`; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * 0.62, 0, Math.PI * 2); ctx.stroke();
     }
@@ -3954,11 +3970,13 @@ function startEndingScore() {
   const msgs = state.messages.filter((m) => m.rhythm && m.rhythm.length);
   const timers = [];
   let tSec = 0.2;
-  const GAP = 0.55;                                    // 문장 사이 숨
+  const SOLO_SPEED = 2;                                // 독주(순차 듀엣) 배속 — 2배 빠르게
+  const GAP = 0.3;                                     // 문장 사이 숨(배속에 맞춰 촘촘히)
   msgs.forEach((m) => {
-    const last = m.rhythm[m.rhythm.length - 1];
-    const dur = (last ? last.rel : 0) + 0.5;           // 이 발화의 실제 길이
-    timers.push(setTimeout(() => speakVoiceEvents(m.rhythm, m.voiceId, m.mood), tSec * 1000));
+    const fast = m.rhythm.map((e) => ({ ...e, rel: e.rel / SOLO_SPEED }));   // 리듬 압축
+    const last = fast[fast.length - 1];
+    const dur = (last ? last.rel : 0) + 0.35;          // 이 발화의 실제 길이(배속 반영)
+    timers.push(setTimeout(() => speakVoiceEvents(fast, m.voiceId, m.mood), tSec * 1000));
     timers.push(setTimeout(() => playMark(m.nuance || 'period', 0, 0.9), (tSec + dur) * 1000));  // 문장부호
     tSec += dur + GAP;
   });
@@ -4044,10 +4062,14 @@ function addAudienceNote() {
     midi: 55 + Math.floor(Math.random() * 18),
     glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
     accent: Math.random() > 0.7,
+    aud: true, born: performance.now(),   // 관객 음표 — 태어날 때 강조 연출용
   });
-  // 태어나는 소리 — 터치가 곧 음. 또렷하게(랜덤 음높이 글자 + 볼륨 업)
+  // 태어나는 소리 — 합주가 크게 울리는 동안에도 처음부터 또렷하게 들리도록
+  // ① uiClick: 마스터 직결 종소리(뉘앙스 이펙트·합주 리버브에 안 묻힘)
+  // ② typeVoice: 캐릭터 목소리 색 한 톨(억양 포함)
   resumeAudio();
-  typeKey('aeioumko'[Math.floor(Math.random() * 8)], 0.6, Math.floor(Math.random() * 8));
+  uiClick(0.25 + Math.random() * 0.6, 0.5);
+  typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.8, Math.floor(Math.random() * 8));
 }
 
 function showEnding() {
