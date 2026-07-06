@@ -1699,50 +1699,91 @@ const ASCII_FLY = 2400;    // 비행 시간(ms)
 const ASCII_HOLD = 5000;   // 완성 후 머무는 시간(ms)
 let asciiArt = null;       // { targets, start, cell, mark, done }
 
-// 부호별 그림(마스크) — 검정으로 칠한 곳에 글자가 앉는다. 화면 가득 채우는 구도.
+// 부호별 그림(마스크) — 검정으로 칠한 곳에 글자가 앉는다.
+// 부호를 그대로 그리지 않고, 각 뉘앙스의 "느낌"만 남긴 추상 구도로 화면을 채운다.
+// (tap.html의 artMaskDraw와 같은 그림 — 고치면 둘 다 고칠 것)
 function asciiMaskDraw(g, mark, w, h) {
   g.clearRect(0, 0, w, h);
   g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineCap = 'round'; g.lineJoin = 'round';
   const m = Math.min(w, h);
+  const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };   // 고정 시드 — 메인·폰이 같은 그림
   if (mark === 'tilde') {
-    // 커다란 파도 세 겹
-    for (let k = 0; k < 3; k++) {
-      g.lineWidth = m * (0.11 - k * 0.02);
+    // 물결치듯 — 서로 간섭하며 흐르는 물결 다발
+    for (let k = 0; k < 7; k++) {
+      g.lineWidth = m * (0.016 + rnd(k) * 0.05);
       g.beginPath();
-      for (let x = w * 0.05; x <= w * 0.95; x += 8) {
-        const y = h * (0.28 + k * 0.22) + Math.sin((x / w) * Math.PI * 2.2 + k * 0.9) * h * 0.11;
-        x <= w * 0.05 + 8 ? g.moveTo(x, y) : g.lineTo(x, y);
+      for (let x = 0; x <= w; x += 6) {
+        const u = x / w;
+        const y = h * (0.13 + k * 0.118)
+          + Math.sin(u * Math.PI * (1.6 + k * 0.5) + k * 1.7) * h * (0.05 + 0.06 * rnd(k + 9))
+          + Math.sin(u * Math.PI * 5.3 + k * 2.1) * h * 0.022;
+        x === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
       }
       g.stroke();
     }
   } else if (mark === 'bang') {
-    // 하늘을 가르는 번개 + 아래 점
-    const cx = w * 0.5;
-    g.beginPath();
-    g.moveTo(cx + m * 0.10, h * 0.05); g.lineTo(cx - m * 0.17, h * 0.42); g.lineTo(cx - m * 0.03, h * 0.44);
-    g.lineTo(cx - m * 0.21, h * 0.74); g.lineTo(cx + m * 0.17, h * 0.36); g.lineTo(cx + m * 0.03, h * 0.34);
-    g.lineTo(cx + m * 0.23, h * 0.05); g.closePath(); g.fill();
-    g.beginPath(); g.arc(cx - m * 0.05, h * 0.88, m * 0.055, 0, 7); g.fill();
+    // 힘주어 — 한 점에서 사방으로 터지는 방사선
+    const cx = w * 0.5, cy = h * 0.46;
+    g.beginPath(); g.arc(cx, cy, m * 0.085, 0, 7); g.fill();
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2 + rnd(i) * 0.2;
+      const r0 = m * (0.13 + rnd(i + 40) * 0.05);
+      const r1 = m * (0.24 + rnd(i + 80) * 0.36);
+      g.lineWidth = m * (0.012 + rnd(i + 120) * 0.034);
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0 * 0.96);
+      g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1 * 0.96);
+      g.stroke();
+      // 몇 갈래는 끝에 파편 하나
+      if (rnd(i + 200) > 0.6) {
+        const rr = r1 + m * 0.06;
+        g.beginPath(); g.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.96, m * 0.014, 0, 7); g.fill();
+      }
+    }
   } else if (mark === 'period') {
-    // 지평선 위 커다란 해(마침표)
-    g.beginPath(); g.arc(w * 0.5, h * 0.40, m * 0.27, 0, 7); g.fill();
-    g.lineWidth = m * 0.05;
-    g.beginPath(); g.moveTo(w * 0.07, h * 0.80); g.lineTo(w * 0.93, h * 0.80); g.stroke();
+    // 담담하게 — 고요한 물에 번지는 파문(무거운 점과 동심원)
+    const cx = w * 0.5, cy = h * 0.5;
+    g.beginPath(); g.arc(cx, cy, m * 0.12, 0, 7); g.fill();
+    for (let k = 1; k <= 4; k++) {
+      g.lineWidth = m * (0.052 - k * 0.01);
+      g.beginPath(); g.arc(cx, cy, m * (0.12 + k * 0.117), 0, 7); g.stroke();
+    }
   } else if (mark === 'ellipsis') {
-    // 발자국처럼 이어지는 세 점
-    [[0.22, 0.72], [0.5, 0.5], [0.78, 0.28]].forEach(([fx, fy], i) => {
-      g.beginPath(); g.arc(w * fx, h * fy, m * (0.11 + i * 0.03), 0, 7); g.fill();
-    });
+    // 머뭇거리며 — 흩어지며 잦아드는 점들의 행렬
+    for (let i = 0; i < 36; i++) {
+      const u = i / 35;
+      const x = w * (0.10 + u * 0.80) + (rnd(i) - 0.5) * w * 0.09;
+      const y = h * (0.70 - u * 0.44) + Math.sin(u * Math.PI * 2.4) * h * 0.13 + (rnd(i + 50) - 0.5) * h * 0.09;
+      const r = m * (0.078 * (1 - u * 0.82) + 0.009);
+      g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    }
   } else if (mark === 'semicolon') {
-    // 화면 가득 세미콜론 — 잠깐 멈춤의 기호
-    g.font = `${Math.floor(h * 0.94)}px Datatype, Galmuri11, monospace`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(';', w * 0.5, h * 0.5);
+    // 망설이듯 — 흘러내리다 허공에서 끊기는 획들, 그 아래 잠깐의 점
+    for (let i = 0; i < 9; i++) {
+      const x = w * (0.12 + (i / 8) * 0.76) + (rnd(i) - 0.5) * w * 0.03;
+      const y0 = h * (0.05 + rnd(i + 20) * 0.08);
+      const len = h * (0.18 + rnd(i + 40) * 0.56);
+      const xe = x + (rnd(i + 99) - 0.5) * w * 0.16;
+      g.lineWidth = m * (0.02 + rnd(i + 60) * 0.038);
+      g.beginPath(); g.moveTo(x, y0);
+      g.quadraticCurveTo(x + (rnd(i + 80) - 0.5) * w * 0.10, y0 + len * 0.6, xe, y0 + len);
+      g.stroke();
+      g.beginPath(); g.arc(xe + (rnd(i + 5) - 0.5) * w * 0.02, y0 + len + h * (0.07 + rnd(i + 7) * 0.05), m * (0.013 + rnd(i + 3) * 0.02), 0, 7); g.fill();
+    }
   } else {
-    // 화면 가득 물음표
-    g.font = `${Math.floor(h * 0.94)}px Datatype, Galmuri11, monospace`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('?', w * 0.5, h * 0.52);
+    // 되묻듯 — 안으로 말려드는 소용돌이와 그 중심에 맺히는 점
+    const cx = w * 0.5, cy = h * 0.48;
+    const TURNS = Math.PI * 6.2;
+    g.lineWidth = m * 0.052;
+    g.beginPath();
+    for (let a = 0; a <= TURNS; a += 0.05) {
+      const r = m * 0.47 * Math.pow(1 - a / (TURNS + 0.6), 1.12);
+      const x = cx + Math.cos(a - Math.PI / 2) * r;
+      const y = cy + Math.sin(a - Math.PI / 2) * r * 0.94;
+      a === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke();
+    g.beginPath(); g.arc(cx, cy, m * 0.04, 0, 7); g.fill();
   }
 }
 
