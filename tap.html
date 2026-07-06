@@ -49,7 +49,13 @@
     <h1 id="title">"뉘앙스" 부호 탭</h1>
     <p id="subtitle">마음에 드는 말투를 눌러 악보에 얹어 주세요</p>
   </header>
-  <div id="pad">
+  <!-- 대기 화면 — 라운드(대화 타이핑)가 시작되면 자동으로 부호 패드로 바뀐다 -->
+  <div id="wait-ui" style="display:flex; flex:1 1 auto; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center;">
+    <div id="wait-mark" style="font-size:46px; line-height:1;">✳</div>
+    <p style="font-size:22px; font-weight:700; margin:0;">곧 참여가 시작됩니다</p>
+    <p style="font-size:14px; color:#777; margin:0; line-height:1.6;">The performance will begin soon.<br />Keep this screen open — your phone is part of the piece.</p>
+  </div>
+  <div id="pad" style="display:none;">
     <button class="key" data-mark="period"><span class="sym">.</span><span class="cap">담담하게</span></button>
     <button class="key" data-mark="question"><span class="sym">?</span><span class="cap">되묻듯</span></button>
     <button class="key" data-mark="bang"><span class="sym">!</span><span class="cap">힘주어</span></button>
@@ -83,6 +89,30 @@
   </div>
   <footer><span id="status">연결됨</span></footer>
 
+  <!-- 캐릭터 스프라이트 — 메인과 같은 그림을 폰 버튼에도 그린다(라인아트 → 캐릭터 색으로 틴트) -->
+  <script type="module">
+    import { drawCharacter, setMinimal } from './js/sprites.js';
+    setMinimal(true);
+    const COLORS = ['#ff5d8f', '#3a4fa0', '#ff9d3b', '#b9a6e8'];
+    window.charImg = (i, px = 96) => {
+      const cv = document.createElement('canvas'); cv.width = px; cv.height = px;
+      const c = cv.getContext('2d');
+      c.imageSmoothingEnabled = false;
+      drawCharacter(c, i, 0, 0, px, i * 1.3);
+      // 어두운 잉크 픽셀만 캐릭터 색으로(흰 눈·별 등은 보존)
+      const im = c.getImageData(0, 0, px, px), d = im.data;
+      const hex = COLORS[i];
+      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+      for (let k = 0; k < d.length; k += 4) {
+        if (d[k + 3] > 0 && d[k] + d[k + 1] + d[k + 2] < 620) { d[k] = r; d[k + 1] = g; d[k + 2] = b; }
+      }
+      c.putImageData(im, 0, 0);
+      cv.style.imageRendering = 'pixelated';
+      return cv;
+    };
+    // 이미 선물 화면이 떠 있으면 캐릭터 그림으로 다시 그린다
+    if (window.rerenderGift) window.rerenderGift();
+  </script>
   <script>
     const statusEl = document.getElementById('status');
     const CHARS = [
@@ -140,23 +170,44 @@
     let giftGiver = null;
     let giftLock = false;   // 전송 직후 잠깐 잠금(더블탭 방지)
 
-    // 방향별 선물 품목(메인과 동일) — 전달 확인에 품목 이름을 보여준다
+    // 방향별 선물 품목(메인과 동일) — 전달 확인·받는이 버튼에 품목 이름/아이콘을 보여준다
     const GIFT_NAMES = {
       0: { 1: '모자', 2: '둥지', 3: '액자' },
       1: { 0: '잠수안경', 2: '물방울', 3: '돌미역' },
       2: { 0: '무지개', 1: '구름', 3: '치즈' },
       3: { 0: '용과', 1: '바질', 2: '반지' },
     };
+    const GIFT_ICONS = {
+      0: { 1: '🎩', 2: '🪺', 3: '🖼️' },
+      1: { 0: '🥽', 2: '💧', 3: '🌿' },
+      2: { 0: '🌈', 1: '☁️', 3: '🧀' },
+      3: { 0: '🍈', 1: '🌱', 2: '💍' },
+    };
+
+    // 캐릭터 얼굴 캔버스(모듈이 아직 안 떴으면 색 동그라미로 대체)
+    function charFace(i, px) {
+      if (window.charImg) {
+        const cv = window.charImg(i, px * 2);   // 레티나 또렷하게
+        cv.style.width = px + 'px'; cv.style.height = px + 'px';
+        return cv;
+      }
+      const sp = document.createElement('span');
+      sp.className = 'flow-dot';
+      sp.style.cssText = 'width:' + px + 'px;height:' + px + 'px;background:' + CHARS[i][1];
+      return sp;
+    }
 
     function slotChip(el, idx, placeholder) {
       if (idx == null) { el.className = 'flow-slot'; el.innerHTML = placeholder; return; }
       const [name, color] = CHARS[idx];
       el.className = 'flow-slot filled';
       el.style.borderColor = color;
-      el.innerHTML = '<span class="flow-dot" style="background:' + color + '"></span>' + name;
+      el.innerHTML = '';
+      el.appendChild(charFace(idx, 26));
+      el.appendChild(document.createTextNode(name));
     }
 
-    function charBtn(i, disabled) {
+    function charBtn(i, disabled, giftInfo) {
       const [name, color] = CHARS[i];
       const b = document.createElement('button');
       b.className = 'key';
@@ -164,7 +215,19 @@
       b.style.boxShadow = '5px 5px 0 ' + color;
       b.disabled = !!disabled;
       if (disabled) b.style.opacity = '0.25';
-      b.innerHTML = '<span class="sym" style="font-size:6vh;color:' + color + '">●</span><span class="cap">' + name + '</span>';
+      const face = charFace(i, Math.round(window.innerHeight * 0.11));
+      b.appendChild(face);
+      const cap = document.createElement('span');
+      cap.className = 'cap';
+      cap.style.color = color; cap.style.fontWeight = '700';
+      cap.textContent = name;
+      b.appendChild(cap);
+      if (giftInfo) {   // 받는이 고르기 단계 — 이 캐릭터가 받게 될 선물을 미리 보여준다
+        const gi = document.createElement('span');
+        gi.className = 'cap';
+        gi.textContent = giftInfo.icon + ' ' + giftInfo.item;
+        b.appendChild(gi);
+      }
       return b;
     }
 
@@ -178,7 +241,10 @@
       giftBack.style.display = picking ? 'none' : 'block';
       giftChars.innerHTML = '';
       for (let i = 0; i < 4; i++) {
-        const b = charBtn(i, !picking && i === giftGiver);
+        const info = !picking && i !== giftGiver
+          ? { icon: (GIFT_ICONS[giftGiver] || {})[i] || '🎁', item: (GIFT_NAMES[giftGiver] || {})[i] || '선물' }
+          : null;
+        const b = charBtn(i, !picking && i === giftGiver, info);
         b.addEventListener('pointerdown', async (e) => {
           e.preventDefault();
           if (b.disabled || giftLock) return;
@@ -188,19 +254,21 @@
           giftLock = true;
           slotChip(flowRecip, recip, '');
           const item = (GIFT_NAMES[giver] || {})[recip] || '선물';
+          const icon = (GIFT_ICONS[giver] || {})[recip] || '🎁';
           try {
             await post('/gift', { giver, recip });
-            giftStep.textContent = '🎁 ' + CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' : ' + item + ' 전달!';
+            giftStep.textContent = icon + ' ' + CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' : ' + item + ' 전달!';
             setStatus(true, '전달했어요 — 또 줄 수 있어요');
           } catch (err) {
             giftStep.textContent = '전달 실패 — 다시 시도해 주세요';
             setStatus(false, '연결 끊김');
           }
-          setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1300);
+          setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1500);
         });
         giftChars.appendChild(b);
       }
     }
+    window.rerenderGift = () => { if (giftEl.style.display !== 'none') renderGift(); };
     giftBack.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!giftLock) { giftGiver = null; renderGift(); } });
 
     // ===== 아스키아트 — 공연에서 완성된 부호 그림을 폰 규격으로 그린다 =====
@@ -322,12 +390,14 @@
       artOn = true;
       padEl.style.display = 'none';
       giftEl.style.display = 'none';
+      document.getElementById('wait-ui').style.display = 'none';
       artEl.style.display = 'flex';
       titleEl.textContent = '"뉘앙스" 스코어';
       subEl.textContent = '오늘의 대화가 하나의 그림이 되었습니다';
       requestAnimationFrame(() => renderArt(mark, chars));
     }
 
+    const waitEl = document.getElementById('wait-ui');
     let curPhase = null;
     function setMode(phase) {
       if (phase === 'round' || phase === 'idle') artOn = false;   // 새 라운드 — 그림 내리기
@@ -335,11 +405,15 @@
       curPhase = phase;
       if (artOn) return;                                          // 그림은 엔딩 동안 유지
       const gift = phase === 'gift';
-      padEl.style.display = gift ? 'none' : 'grid';
+      const round = phase === 'round';
+      padEl.style.display = round ? 'grid' : 'none';
       giftEl.style.display = gift ? 'flex' : 'none';
+      waitEl.style.display = (!gift && !round) ? 'flex' : 'none';   // 라운드 전(대기)·엔딩(그림 없을 때)
       artEl.style.display = 'none';
-      titleEl.textContent = gift ? '"뉘앙스" 선물' : '"뉘앙스" 부호 탭';
-      subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다' : '마음에 드는 말투를 눌러 악보에 얹어 주세요';
+      titleEl.textContent = gift ? '"뉘앙스" 선물' : round ? '"뉘앙스" 부호 탭' : '"뉘앙스" 글리프 듀엣';
+      subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다'
+        : round ? '마음에 드는 말투를 눌러 악보에 얹어 주세요'
+        : '잠시만 기다려 주세요 · hold on';
       if (gift) { giftGiver = null; giftLock = false; renderGift(); }
     }
 

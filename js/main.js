@@ -257,8 +257,10 @@ function drawSlotWindow(t) {
 let introScene = null;    // { kind, start, dur, fx:{} }
 let introTimer = null;    // 착지 후 컷신 시작 지연 타이머
 
-const INTRO_DUR = { tomato: 12000, phone: 11000, mouse: 8000 };   // tomato: 덩굴밭→상자 2장면
+const INTRO_DUR = { tomato: 12000, phone: 11000, mouse: 12500 };  // 장면 내부 시계 기준(초 값들은 그대로)
+const INTRO_PACE = 1.25;  // 전체 호흡 — 클수록 컷신이 여유 있게 흐른다(내부 s가 1/PACE로 느려짐)
 const TOMATO_CUT = 5.2;   // 토마토 장면 전환 시각(초) — 덩굴밭 → 상자
+const MOUSE_CUT = 4.5;    // 생쥐 장면 전환 시각(초) — 밤거리 → 부엌
 
 // 컷신 내레이션 — 맨 아래 대화창에 한 글자씩 타이핑되고, 잠시 뒤 일부 글자가 외계어로 변한다.
 const INTRO_ALIEN = '◆●■▲▼◇○□△▽◐◑♪☆';
@@ -274,9 +276,10 @@ const INTRO_NARR = {
     { at: 7.3, text: '따르릉 — 두 세계가 처음으로 연결되었습니다.' },
   ],
   mouse: [
-    { at: 0.5, text: '도시의 생쥐는 부스러기를 따라 부엌으로 숨어들었습니다.' },
-    { at: 3.2, text: '쓱쓱 — 빗자루가 생쥐를 쫓아냅니다.' },
-    { at: 6.2, text: '그래도 생쥐는, 다시 빼꼼.' },
+    { at: 0.5, text: '밤의 도시 — 생쥐 한 마리가 거리를 내달립니다.' },
+    { at: 5.0, text: '부스러기를 따라, 어느 집 부엌으로 숨어들었습니다.' },
+    { at: 7.7, text: '쓱쓱 — 빗자루가 생쥐를 쫓아냅니다.' },
+    { at: 10.7, text: '그래도 생쥐는, 다시 빼꼼.' },
   ],
 };
 const INTRO_PX = 2.0;     // 도트 한 알의 크기(CSS px) — 촘촘할수록 실사에 가깝다
@@ -306,7 +309,7 @@ function ditherIntroCanvas() {
 
 function startIntroScene(kind) {
   if (state.screen !== 'select') return;
-  introScene = { kind, start: performance.now(), dur: INTRO_DUR[kind] || 8000, fx: {} };
+  introScene = { kind, start: performance.now(), dur: (INTRO_DUR[kind] || 8000) * INTRO_PACE, fx: {} };
   const sm = $('#slot-machine'); if (sm) sm.style.visibility = 'hidden';
 }
 function endIntroScene() {
@@ -343,9 +346,10 @@ function drawIntroScene(t) {
   cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, W, H);
   cctx.imageSmoothingEnabled = false;
 
-  const s = (performance.now() - introScene.start) / 1000;
+  // 장면 내부 시계 — INTRO_PACE 로 나눠 전체 호흡을 늦춘다(장면 안 초 값들은 그대로 유효)
+  const s = (performance.now() - introScene.start) / 1000 / INTRO_PACE;
   const kind = introScene.kind;
-  const durS = introScene.dur / 1000;
+  const durS = introScene.dur / 1000 / INTRO_PACE;
   const S = Math.min(W, H) * 0.17;
   const ink = '#000';
 
@@ -367,17 +371,25 @@ function drawIntroScene(t) {
     if (s < TOMATO_CUT) { zoom = 1.0 + easeIO(s / TOMATO_CUT) * 0.42; ox = W * 0.5; oy = H * 0.52; }
     else { zoom = 1.0 + seg2(s, TOMATO_CUT + 0.4, durS - 0.8) * 1.0; ox = W * 0.5; oy = H * 0.38; }
   }
+  else if (kind === 'mouse' && s < MOUSE_CUT) {
+    // 밤거리 — 내달리는 생쥐를 옆에서 트래킹(라따뚜이처럼 낮은 시점)
+    const runX = W * (0.06 + seg2(s, 0.3, 4.2) * 0.75);
+    ox = Math.max(W * 0.32, Math.min(W * 0.68, runX));
+    oy = H * 0.68;
+    zoom = 1.14;
+  }
   else if (kind === 'mouse') {
-    // 도망가는 생쥐를 따라가다가, 마지막엔 왼쪽에서 빼꼼하는 얼굴로 줌인
+    // 부엌(컷 이후 로컬 시계) — 도망가는 생쥐를 따라가다, 마지막엔 왼쪽에서 빼꼼하는 얼굴로 줌인
+    const sK = s - MOUSE_CUT;
     const floorY0 = H * 0.68;
-    const runU0 = Math.min(1, (s < 1.4 ? seg2(s, 0.2, 1.4) * 0.45 : s < 1.9 ? 0.45 : 0.45 + seg2(s, 1.9, 3.1) * 0.55));
-    const dashOut0 = seg2(s, 3.5, 4.3);
+    const runU0 = Math.min(1, (sK < 1.4 ? seg2(sK, 0.2, 1.4) * 0.45 : sK < 1.9 ? 0.45 : 0.45 + seg2(sK, 1.9, 3.1) * 0.55));
+    const dashOut0 = seg2(sK, 3.5, 4.3);
     const mx0 = W * (0.78 - runU0 * 0.36) - dashOut0 * W * 0.55;
     const track = Math.max(W * 0.2, Math.min(W * 0.72, mx0));
-    const peekT = seg2(s, 5.0, 6.3);
+    const peekT = seg2(sK, 5.0, 6.3);
     ox = track * (1 - peekT) + S * 0.62 * peekT;             // 빼꼼 얼굴 위치로
     oy = (floorY0 + S * 0.1) * (1 - peekT) + (floorY0 - S * 0.18) * peekT;
-    zoom = 1.05 + seg2(s, 3.5, 4.5) * 0.3 + peekT * 0.85;   // 도망에 살짝, 빼꼼에 크게
+    zoom = 1.05 + seg2(sK, 3.5, 4.5) * 0.3 + peekT * 0.85;  // 도망에 살짝, 빼꼼에 크게
     panX = peekT * W * 0.17;                                 // 왼쪽 끝 얼굴을 화면 안쪽으로
   }
   else { zoom = 1.04 + Math.min(1, s / durS) * 0.10; ox = W / 2; oy = H * 0.55; }
@@ -640,25 +652,54 @@ function drawIntroScene(t) {
         leaf(fx2, fy2, S * (0.42 + ((i * 17) % 4) * 0.1), ((i * 43) % 63) / 10 - 3 - Math.sin(t * 0.6 + i) * 0.04,
           128 + (i % 5) * 16);
       }
-      // 매달린 열매들 — 사진①처럼 클러스터로, 잎 위에 또렷하게. 맨 위 하나는 안 익은 초록.
-      const fruitsA = [[0.16, 0.24, 1.0], [0.29, 0.42, 0.85], [0.24, 0.62, 0.75], [0.66, 0.2, 0.9],
-        [0.78, 0.38, 1.1], [0.71, 0.6, 0.8], [0.86, 0.72, 0.9], [0.4, 0.78, 0.95], [0.58, 0.72, 0.7]];
-      fruitsA.forEach(([fx2, fy2, k], i) => {
-        const bx = W * fx2, by = H * fy2, r = S * 0.29 * k;
-        ctx.strokeStyle = 'rgba(30,32,28,0.85)'; ctx.lineWidth = Math.max(2, r * 0.12); ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(bx - r * 0.1, by - r - S * 0.16); ctx.lineTo(bx, by - r * 0.8); ctx.stroke();
-        tomatoFruit(bx, by, r, false, true);
+      // 매달린 열매 송이 — 위 덤불에서 내려온 줄기 끝에 2~3알씩. 전부 줄기에 연결(공중에 뜨지 않게).
+      const clusters = [
+        { ax: 0.17, sway: 0.03, ny: 0.26, fr: [[-0.3, 0.36, 1.0], [0.28, 0.44, 0.85]] },
+        { ax: 0.35, sway: -0.04, ny: 0.58, fr: [[-0.3, 0.32, 0.9], [0.32, 0.4, 0.8], [0.02, 0.6, 0.95]] },
+        { ax: 0.72, sway: 0.05, ny: 0.24, fr: [[-0.32, 0.36, 1.05], [0.3, 0.3, 0.8]] },
+        { ax: 0.85, sway: -0.03, ny: 0.58, fr: [[-0.06, 0.38, 0.95], [0.44, 0.3, 0.7]] },
+      ];
+      ctx.lineCap = 'round';
+      clusters.forEach((c, ci) => {
+        const nx = W * c.ax + Math.sin(t * 0.4 + ci * 2.1) * 3;   // 바람에 살짝
+        const nyy = H * c.ny;
+        // 원줄기 — 화면 위 덤불에서 송이 노드까지 내려온다
+        ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.055;
+        ctx.beginPath();
+        ctx.moveTo(nx + W * c.sway * 2, -12);
+        ctx.quadraticCurveTo(nx + W * c.sway * 3.2, nyy * 0.55, nx, nyy);
+        ctx.stroke();
+        // 노드 → 각 열매로 꼭지줄기(pedicel)
+        c.fr.forEach(([dx, dy, k]) => {
+          const fx = nx + S * dx, fy = nyy + S * dy;
+          const r = S * 0.27 * k;
+          ctx.strokeStyle = '#373b32'; ctx.lineWidth = Math.max(2.4, r * 0.15);
+          ctx.beginPath();
+          ctx.moveTo(nx, nyy);
+          ctx.quadraticCurveTo((nx + fx) / 2, (nyy + fy - r) / 2 + S * 0.05, fx, fy - r * 0.8);
+          ctx.stroke();
+          tomatoFruit(fx, fy, r, false, true);
+        });
       });
-      tomatoFruit(W * 0.52, H * 0.07, S * 0.32, true, true);   // 맨 위 안 익은 초록 토마토
+      // 맨 위 안 익은 초록 토마토 — 역시 줄기에 매달려
+      ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.545, -10);
+      ctx.quadraticCurveTo(W * 0.535, H * 0.02, W * 0.52, H * 0.07 - S * 0.25);
+      ctx.stroke();
+      tomatoFruit(W * 0.52, H * 0.07, S * 0.32, true, true);
       // 전경 보케 — 카메라 코앞의 잎이 크게 흐려져 프레임을 감싼다(시네마틱)
       ctx.filter = 'blur(6px)';
       leaf(W * 0.03, H * 0.92, S * 1.25, -2.4, 26);
       leaf(W * 0.97, H * 0.05, S * 1.05, 0.9, 30);
       ctx.filter = 'none';
-      // 핑토 — 덩굴 가운데 매달려 있다(컬러 레이어)
+      // 핑토 — 덩굴 가운데, 위 덤불에서 내려온 제 줄기에 매달려 있다(컬러 레이어)
       const px2 = W * 0.5, py2 = H * 0.5;
-      ctx.strokeStyle = 'rgba(30,32,28,0.9)'; ctx.lineWidth = S * 0.06;
-      ctx.beginPath(); ctx.moveTo(px2, py2 - S * 0.75); ctx.lineTo(px2, py2 - S * 0.4); ctx.stroke();
+      ctx.strokeStyle = '#31352c'; ctx.lineWidth = S * 0.06; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(px2 + S * 0.18, -12);
+      ctx.quadraticCurveTo(px2 + S * 0.26, H * 0.22, px2, py2 - S * 0.4);
+      ctx.stroke();
       silhouetteDraw(cctx, 0, px2 - S * 0.5, py2 - S * 0.5, S, t, false, 'neutral', false, characterColor(0));
       fxOnce('wind', () => uiClick(0.28));
     } else {
@@ -1007,7 +1048,117 @@ function drawIntroScene(t) {
       if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
     });
   } else if (kind === 'mouse') {
-    // ── ③ 부엌의 생쥐 — 부스러기 쫄쫄쫄 → 커다란 발 + 빗자루 ──
+    // ── ③-A 밤의 도시(라따뚜이 무드) — 가로등 불빛의 자갈길을 생쥐가 내달린다 ──
+    if (s < MOUSE_CUT) {
+      const stFloor = H * 0.72;
+      // 밤하늘
+      let g = ctx.createLinearGradient(0, 0, 0, stFloor);
+      g.addColorStop(0, '#060606'); g.addColorStop(0.7, '#1c1c1c'); g.addColorStop(1, '#2f2f2f');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, stFloor);
+      // 달
+      const moonX = W * 0.8, moonY = H * 0.13;
+      const mg2 = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, S * 0.55);
+      mg2.addColorStop(0, 'rgba(255,255,255,0.95)'); mg2.addColorStop(0.22, 'rgba(255,255,255,0.88)'); mg2.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = mg2; ctx.fillRect(moonX - S, moonY - S, S * 2, S * 2);
+      // 멀리 철탑 실루엣 — 흐릿하게(파리의 밤)
+      ctx.filter = 'blur(2px)';
+      ctx.strokeStyle = 'rgba(70,70,70,0.9)'; ctx.lineWidth = 3;
+      const eifX = W * 0.62, eifB = stFloor, eifH2 = H * 0.34;
+      ctx.beginPath();
+      ctx.moveTo(eifX - S * 0.36, eifB);
+      ctx.quadraticCurveTo(eifX - S * 0.1, eifB - eifH2 * 0.55, eifX - S * 0.03, eifB - eifH2);
+      ctx.lineTo(eifX + S * 0.03, eifB - eifH2);
+      ctx.quadraticCurveTo(eifX + S * 0.1, eifB - eifH2 * 0.55, eifX + S * 0.36, eifB);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(eifX - S * 0.22, eifB - eifH2 * 0.32); ctx.lineTo(eifX + S * 0.22, eifB - eifH2 * 0.32); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(eifX - S * 0.12, eifB - eifH2 * 0.6); ctx.lineTo(eifX + S * 0.12, eifB - eifH2 * 0.6); ctx.stroke();
+      ctx.filter = 'none';
+      // 오스만풍 건물 파사드 — 창문 몇 개는 따뜻하게 불이 켜져 있다
+      const facade = (x0, wF, hTop) => {
+        const fg2 = ctx.createLinearGradient(x0, 0, x0 + wF, 0);
+        fg2.addColorStop(0, '#101010'); fg2.addColorStop(0.5, '#232323'); fg2.addColorStop(1, '#0b0b0b');
+        ctx.fillStyle = fg2; ctx.fillRect(x0, hTop, wF, stFloor - hTop);
+        ctx.fillStyle = '#050505'; ctx.fillRect(x0, hTop - H * 0.012, wF, H * 0.012);   // 지붕선
+        const cols = Math.max(2, Math.round(wF / (S * 0.55)));
+        for (let r2 = 0; r2 < 4; r2++) for (let c2 = 0; c2 < cols; c2++) {
+          const wx2 = x0 + wF * (0.12 + c2 * 0.76 / Math.max(1, cols - 1)) - S * 0.09;
+          const wy2 = hTop + H * 0.05 + r2 * H * 0.115;
+          if (wy2 + S * 0.24 > stFloor - H * 0.02) continue;
+          const lit = hash01(x0 * 0.13 + r2 * 7.7 + c2 * 3.1) > 0.55;
+          ctx.fillStyle = lit ? `rgba(255,244,214,${0.72 + 0.16 * Math.sin(t * 2 + c2)})` : '#181818';
+          ctx.fillRect(wx2, wy2, S * 0.18, S * 0.24);
+          ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 1.4;
+          ctx.strokeRect(wx2, wy2, S * 0.18, S * 0.24);
+          ctx.beginPath(); ctx.moveTo(wx2 + S * 0.09, wy2); ctx.lineTo(wx2 + S * 0.09, wy2 + S * 0.24); ctx.stroke();
+          if (lit) {                                                    // 창 불빛 번짐
+            const wg2 = ctx.createRadialGradient(wx2 + S * 0.09, wy2 + S * 0.12, 0, wx2 + S * 0.09, wy2 + S * 0.12, S * 0.3);
+            wg2.addColorStop(0, 'rgba(255,240,200,0.25)'); wg2.addColorStop(1, 'rgba(255,240,200,0)');
+            ctx.fillStyle = wg2; ctx.fillRect(wx2 - S * 0.2, wy2 - S * 0.18, S * 0.6, S * 0.6);
+          }
+        }
+      };
+      facade(-W * 0.02, W * 0.34, H * 0.1);
+      facade(W * 0.36, W * 0.22, H * 0.22);
+      facade(W * 0.84, W * 0.2, H * 0.14);
+      // 카페 차양 — 왼쪽 건물 1층(줄무늬)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath();
+      ctx.moveTo(W * 0.02, stFloor - H * 0.125); ctx.lineTo(W * 0.3, stFloor - H * 0.125);
+      ctx.lineTo(W * 0.27, stFloor - H * 0.06); ctx.lineTo(W * 0.05, stFloor - H * 0.06);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2.4;
+      for (let i2 = 0; i2 < 6; i2++) {
+        const ax2 = W * (0.05 + i2 * 0.042);
+        ctx.beginPath(); ctx.moveTo(ax2, stFloor - H * 0.122); ctx.lineTo(ax2 - W * 0.005, stFloor - H * 0.063); ctx.stroke();
+      }
+      // 창 불빛이 새어나오는 카페 창
+      ctx.fillStyle = `rgba(255,240,200,${0.55 + 0.1 * Math.sin(t * 1.6)})`;
+      ctx.fillRect(W * 0.07, stFloor - H * 0.05, W * 0.08, H * 0.045);
+      ctx.fillRect(W * 0.18, stFloor - H * 0.05, W * 0.08, H * 0.045);
+      // 자갈길 — 원근 아치 줄
+      g = ctx.createLinearGradient(0, stFloor, 0, H);
+      g.addColorStop(0, '#404040'); g.addColorStop(1, '#0f0f0f');
+      ctx.fillStyle = g; ctx.fillRect(0, stFloor, W, H - stFloor);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4;
+      for (let r2 = 0; r2 < 5; r2++) {
+        const py = stFloor + (H - stFloor) * Math.pow((r2 + 1) / 5, 1.3);
+        const cw = S * (0.16 + r2 * 0.09);
+        for (let x2 = -cw; x2 < W + cw; x2 += cw) {
+          ctx.beginPath(); ctx.arc(x2 + (r2 % 2) * cw * 0.5, py, cw * 0.55, Math.PI, 0); ctx.stroke();
+        }
+      }
+      // 가로등 — 따뜻한 불빛과 바닥 웅덩이
+      [[0.33], [0.72]].forEach(([fx2]) => {
+        const lx = W * fx2, lampY = stFloor - H * 0.3;
+        ctx.strokeStyle = '#050505'; ctx.lineWidth = S * 0.05; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(lx, stFloor + H * 0.02); ctx.lineTo(lx, lampY); ctx.stroke();
+        ctx.fillStyle = '#050505';
+        ctx.beginPath(); ctx.arc(lx, lampY - S * 0.09, S * 0.09, 0, 7); ctx.fill();
+        const lg2 = ctx.createRadialGradient(lx, lampY - S * 0.06, 0, lx, lampY - S * 0.06, S * 1.5);
+        lg2.addColorStop(0, 'rgba(255,238,190,0.85)'); lg2.addColorStop(0.12, 'rgba(255,238,190,0.4)'); lg2.addColorStop(1, 'rgba(255,238,190,0)');
+        ctx.fillStyle = lg2; ctx.fillRect(lx - S * 1.6, lampY - S * 1.6, S * 3.2, S * 3.2);
+        ctx.save();
+        ctx.translate(lx, stFloor + (H - stFloor) * 0.42); ctx.scale(1, 0.3);
+        const pg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 1.1);
+        pg2.addColorStop(0, 'rgba(255,238,190,0.32)'); pg2.addColorStop(1, 'rgba(255,238,190,0)');
+        ctx.fillStyle = pg2; ctx.beginPath(); ctx.arc(0, 0, S * 1.1, 0, 7); ctx.fill();
+        ctx.restore();
+      });
+      // 생쥐 — 자갈길을 총총 내달린다. 중간에 한 번 멈춰 두리번('…')
+      const pauseA = s > 1.85 && s < 2.25;
+      const runU = seg2(s, 0.3, 4.2) - (seg2(s, 1.7, 1.85) - seg2(s, 2.25, 2.4)) * 0.1;
+      const mx2 = W * (0.06 + runU * 0.75);
+      const hop = pauseA ? 0 : Math.abs(Math.sin(s * 11)) * S * 0.05;
+      const my2 = stFloor + (H - stFloor) * 0.35 - hop;
+      shadow(mx2, stFloor + (H - stFloor) * 0.42, S * 0.42, S * 0.09, 0.5);
+      silhouetteDraw(cctx, 3, mx2 - S * 0.45, my2 - S * 0.8, S * 0.9, t, false, 'neutral', true, characterColor(3));
+      if (s > 1.9 && s < 2.5) drawIntroMark(ctx, '…', mx2, my2 - S * 1.15, S * 0.34, seg2(s, 1.9, 2.1) * (1 - seg2(s, 2.3, 2.5)), '#fff');
+      fxOnce('night', () => uiClick(0.2));
+      fxOnce('scurry', () => { [0, 220, 440, 660, 880].forEach((d) => setTimeout(() => typeKey('m', 0.25, characterVoice(3)), d)); });
+    } else {
+    // ── ③-B 부엌 — 컷 이후 로컬 시계(장면 안 초 값은 그대로) ──
+    const sKitchen = s - MOUSE_CUT;
+    { const s = sKitchen;
     const floorY = H * 0.68;
     let g = ctx.createLinearGradient(0, 0, 0, floorY);
     g.addColorStop(0, '#8f8f8f'); g.addColorStop(1, '#dedede');
@@ -1328,6 +1479,14 @@ function drawIntroScene(t) {
       if (s > 6.8) drawIntroMark(ctx, '…', S * 1.25, floorY - S * 0.85, S * 0.42, seg2(s, 6.8, 7.3));
       fxOnce('phew', () => speakVoiceEvents([{ rel: 0, ch: 'u' }], characterVoice(3), 'sad'));
     }
+    } // ③-B 로컬 시계 블록 끝
+    } // if(밤거리)/else(부엌) 끝
+    // 장면 전환 화이트 플래시
+    {
+      const f = 1 - Math.min(1, Math.abs(s - MOUSE_CUT) / 0.22);
+      if (f > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, pw, ph); ctx.restore(); }
+      if (s > MOUSE_CUT) fxOnce('mcut', () => uiClick(0.5));
+    }
   }
 
   // 필름 비네트 — 가장자리를 살짝 어둡게(실사 톤, 카메라와 무관하게 화면 고정)
@@ -1377,7 +1536,7 @@ function drawIntroScene(t) {
     sctx.restore();
   }
 
-  if (s * 1000 >= introScene.dur) endIntroScene();
+  if (s >= durS) endIntroScene();
 }
 
 // 숨겨진 입력기 (한글 IME 대응)

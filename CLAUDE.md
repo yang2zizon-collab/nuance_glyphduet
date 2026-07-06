@@ -57,7 +57,11 @@ serve.py                로컬 서버
   큰 QR(`renderBigQR`, 420px — /config의 lanUrl=터널 주소)과 주소 텍스트, ▶(`qr-done`)로 타이틀로.
   주의: QR 화면 ▶이 오디오를 깨우므로 타이틀 인트로가 끝나면 select로 **자동 전환**된다(기존 동작).
 - **폰 선물 화면**: 메인이 `postPhase('round'|'gift'|'ending')`→서버 `/phase`→SSE `{type:'phase'}` 브로드캐스트.
-  폰(tap.html)은 phase에 따라 투표 패드↔선물 화면 전환(늦게 접속하면 /config의 phase로 동기화).
+  폰(tap.html)은 phase에 따라 **대기(#wait-ui "곧 참여가 시작됩니다", idle·ending 기본)** ↔ 투표
+  패드(round) ↔ 선물 화면(gift) 전환(늦게 접속하면 /config의 phase로 동기화).
+  선물 버튼·흐름 칩은 **캐릭터 스프라이트**(module script가 sprites.js drawCharacter를 import,
+  라인아트를 캐릭터 색으로 틴트한 `window.charImg(i,px)`; 모듈 로드 전엔 색 동그라미 폴백).
+  받는이 버튼엔 받을 선물 미리보기(GIFT_ICONS 이모지+GIFT_NAMES), 전달 확인에도 이모지.
   폰 선물: 누가→누구에게 두 번 탭→POST `/gift {giver,recip}`→SSE `{type:'gift'}`→메인이 선물 단계일 때만
   `giveSpecificGift` 적용.
   - audio.js: `giftedVoices` Set + `giftBus()` + `destFor(voiceId)`. 확장 시 같은 패턴으로 딜레이/피치 추가 가능.
@@ -125,8 +129,13 @@ serve.py                로컬 서버
     울퉁불퉁 바위 능선 2겹(ridge), 해초 9가닥 — 에서 심해어도 폰 발견(!)
     ③클로즈업 — 둘 다 **무선전화기 수화기**(cordlessHandset: 세로 바디·이어슬릿·화면·키패드, 사진
     레퍼런스)를 들고 벨(호 확산)→'?'/'?'→'♪'. 비트 전환은 화이트 플래시. 베이스 전화기(비트①②)는 rotary.
-  - mouse(8s): 부엌(싱크대·창문 빛), 부스러기 따라 쫄쫄쫄(먹으면 사라짐)→**빗자루가 들어와(3.0s~)
-    스윽스윽 쓸어냄**(발 쿵 장면은 사용자 요청으로 삭제)→줄행랑→왼쪽에서 빼꼼 '…'.
+  - mouse(12.5s, 2장면): A(0~4.5s=MOUSE_CUT) **밤의 도시(라따뚜이 무드)** — 달·흐릿한 철탑 실루엣·
+    오스만풍 파사드(따뜻한 불 켜진 창+빛 번짐)·카페 차양·자갈길 원근 아치·가로등 불빛 웅덩이,
+    생쥐가 총총 내달리다 멈칫 두리번('…') → 화이트 플래시 → B(4.5~12.5s) 부엌(내부 로컬 시계
+    `{ const s = sKitchen }` — 장면 안 초 값은 그대로): 부스러기 쫄쫄쫄→빗자루(3.0s~)가 쓸어냄
+    (발 쿵 장면은 사용자 요청으로 삭제)→줄행랑→왼쪽에서 빼꼼 '…'.
+  - **INTRO_PACE=1.25**: 컷신 내부 시계 s를 1/PACE로 늦춰 전체 호흡을 여유 있게. dur은 PACE배.
+    장면 코드의 초 값·INTRO_NARR의 at은 전부 "장면 내부 초" 기준이라 그대로 유효.
   - 캐릭터만 컬러(cctx+characterColor), 배경 흑백 망점. 마지막(생쥐) 컷신 후 ▶ ready.
 - **캐릭터 디자인(sprites.js MINI_DRAW)**: 핑토(0)만 신규 — 동그란 몸 + 흰 별 꼭지 + 흰 눈·세모 입.
   심해어/새/생쥐(1·2·3)는 **원래 라인아트 디자인**(검정 잉크, silhouetteFill로 통짜 실루엣화).
