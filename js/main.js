@@ -529,12 +529,12 @@ function introPhotoReady(key) { const e = introPhotos[key]; return !!(e && e.ok 
 // 그 뒤 기존 dither가 도트로 바꾸면 "만화 스크린톤" 톤이 된다. 로드 시 1회만 만들어 캐시.
 // 미니멀 흑백 — 대비 S커브로 중간톤을 흑/백으로 몰아 도트 노이즈를 줄이고(=깔끔),
 // 톤을 몇 단계로만 뭉치고, 굵직한 윤곽선만 남긴다. 그 뒤 dither가 도트로. 로드 시 1회 캐시.
-const CARTOON_LEVELS = 5;      // 톤 밴드 수 — 5단계면 형태·명암이 살아난다(덜 미니멀)
-const CARTOON_EDGE = 100;      // 잉크 선 문턱 — 윤곽이 좀 더 보이게
-const CARTOON_MIX = 0.6;       // 포스터화 vs 대비-사진 혼합 — 사진 쪽 비중을 늘려 형태 유지
-const PHOTO_CONTRAST = 1.4;    // 대비 — 적당히(형태 뭉개지지 않게)
-const PHOTO_LIFT = 0.08;       // 밝기 살짝만 — 너무 날아가지 않게
-const PHOTO_BLUR = 2.5;        // 사전 블러(px) — 잔노이즈만 살짝 정리(형태는 유지)
+const CARTOON_LEVELS = 3;      // 톤 밴드 수 — 3단계(밝음/중간/어둠)로 미니멀
+const CARTOON_EDGE = 122;      // 잉크 선 문턱 — 굵직한 윤곽선만 남겨 깔끔
+const CARTOON_MIX = 0.82;      // 포스터화(평평·미니멀) 비중을 높게
+const PHOTO_CONTRAST = 1.85;   // 대비 강하게 — 중간톤을 흑/백으로 몰아 도트 노이즈↓
+const PHOTO_LIFT = 0.17;       // 하이키 — 밝은 곳을 흰색으로 날려 깨끗한 여백을 만든다
+const PHOTO_BLUR = 6;          // 사전 블러(px) — 잔디테일을 뭉개 큰 형태만 남긴다(미니멀의 핵심)
 function cartoonizePhoto(img) {
   const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return img;
   const w = Math.min(1400, iw), h = Math.round(ih * w / iw);
