@@ -1234,6 +1234,64 @@ function drawIntroScene(t) {
       g = ctx.createLinearGradient(0, splitY, 0, H);
       g.addColorStop(0, '#5a5a5a'); g.addColorStop(1, '#121212');
       ctx.fillStyle = g; ctx.fillRect(0, splitY, W, H - splitY);
+      // ── 배경 살짝 — 위(하늘): 흘러가는 구름·햇빛 / 아래(심해): 빛줄기·바위·해초·기포 ──
+      // 햇빛 번짐(왼쪽 위) — 은은하게
+      const sunG3 = ctx.createRadialGradient(W * 0.18, H * 0.06, 0, W * 0.18, H * 0.06, H * 0.4);
+      sunG3.addColorStop(0, 'rgba(255,255,255,0.55)'); sunG3.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sunG3; ctx.fillRect(0, 0, W, splitY);
+      // 구름 — 천천히 흘러가는 뭉게구름 세 덩이(흰 몸통 + 아랫배 그늘로 또렷하게)
+      [[0.14, 0.16, 1.0], [0.46, 0.09, 0.72], [0.86, 0.2, 0.85]].forEach(([fx0, fy0, k], ci2) => {
+        const cxc = ((fx0 + t * 0.008 * (1 + ci2 * 0.3)) % 1.2) * W - W * 0.1;
+        const cyc = H * fy0;
+        ctx.fillStyle = 'rgba(90,90,90,0.5)';                                     // 아랫배 그늘
+        ctx.beginPath(); ctx.ellipse(cxc + S * 0.06 * k, cyc + S * 0.14 * k, S * 0.78 * k, S * 0.16 * k, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';                                 // 몸통
+        [[0, 0, 0.95], [-0.6, 0.12, 0.62], [0.62, 0.1, 0.7], [0.2, -0.16, 0.58]].forEach(([dx3, dy3, kk]) => {
+          ctx.beginPath();
+          ctx.ellipse(cxc + S * dx3 * k, cyc + S * dy3 * k, S * 0.5 * k * kk, S * 0.26 * k * kk, 0, 0, 7);
+          ctx.fill();
+        });
+      });
+      // 심해 빛줄기 — 수면에서 비스듬히 스미는 두 가닥
+      [[0.2, 0.3, 0.1], [0.62, 0.2, -0.06]].forEach(([fx0, a, spread]) => {
+        const lg3 = ctx.createLinearGradient(0, splitY, 0, H);
+        lg3.addColorStop(0, `rgba(255,255,255,${a})`); lg3.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = lg3;
+        ctx.beginPath();
+        ctx.moveTo(W * fx0 - S * 0.12, splitY); ctx.lineTo(W * fx0 + S * 0.14, splitY);
+        ctx.lineTo(W * (fx0 + spread) + S * 0.5, H); ctx.lineTo(W * (fx0 + spread) - S * 0.5, H);
+        ctx.closePath(); ctx.fill();
+      });
+      // 해저 바위 둔덕 두 개(구석) — 밝은 윤곽으로 어둠 속에서 드러난다 + 해초(밝은 실루엣)
+      [[0.08, 0.98, 1.1, 0.42], [0.95, 0.99, 1.3, 0.5]].forEach(([fx0, fy0, rx0, ry0]) => {
+        const rg3 = ctx.createRadialGradient(W * fx0 - S * 0.3, H * fy0 - S * ry0 * 0.9, 0, W * fx0, H * fy0, S * rx0);
+        rg3.addColorStop(0, '#6f6f6f'); rg3.addColorStop(0.6, '#2e2e2e'); rg3.addColorStop(1, '#0a0a0a');
+        ctx.fillStyle = rg3;
+        ctx.beginPath(); ctx.ellipse(W * fx0, H * fy0, S * rx0, S * ry0, 0, Math.PI, 0); ctx.fill();
+      });
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const sx2 = i < 3 ? W * (0.03 + i * 0.05) : W * (0.9 + (i - 3) * 0.055);
+        const hgt = H * (0.12 + ((i * 37) % 30) / 100 * 0.35);
+        ctx.strokeStyle = `rgba(205,205,205,${0.35 + (i % 3) * 0.1})`;   // 빛 받은 해초 — 어둠 위에 밝게
+        ctx.lineWidth = S * 0.032;
+        ctx.beginPath();
+        for (let yy = 0; yy <= 5; yy++) {
+          const u = yy / 5;
+          const px3 = sx2 + Math.sin(u * Math.PI * 2 + t * 1.2 + i * 1.7) * S * 0.1 * u;
+          const py3 = H * 0.99 - u * hgt;
+          yy === 0 ? ctx.moveTo(px3, py3) : ctx.lineTo(px3, py3);
+        }
+        ctx.stroke();
+      }
+      // 기포 — 심해어 쪽에서 올라가는 작은 방울들
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.3;
+      for (let i = 0; i < 5; i++) {
+        const bu = ((t * 0.07 + i * 0.21) % 1);
+        const bx3 = W * (0.12 + ((i * 47) % 55) / 100 * 0.5) + Math.sin(t + i) * 5;
+        ctx.beginPath(); ctx.arc(bx3, H - bu * (H - splitY) * 0.92, 1.8 + (i % 3), 0, 7); ctx.stroke();
+      }
+      // 수면 경계선(물결)
       ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
       ctx.beginPath();
       for (let x = 0; x <= W; x += 7) {
