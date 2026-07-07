@@ -961,7 +961,32 @@ function drawIntroScene(t) {
       // dither가 명도만 남겨 흑백 도트가 된다.
       if (introPhotoReady('tomatoB')) { drawPhotoCover(ctx, introPhotos.tomatoB.styled || introPhotos.tomatoB.img, W, H); }
       else { ctx.imageSmoothingEnabled = true; ctx.drawImage(buildTomBColor(W, H, S), 0, 0, W, H); }
-      // 핑토 — 배경 위에 얹는다(컬러 레이어). 눈물 또르르.
+      // 빨간 토마토 캐릭터들 — 핑토처럼 색+테두리를 가진 스프라이트로 상자 가장자리에 둘러 앉는다(컬러 레이어).
+      const tomatoChar = (cx, cy, r) => {
+        cctx.fillStyle = '#141414';                                    // 캐릭터 같은 어두운 테두리
+        cctx.beginPath(); cctx.arc(cx, cy, r * 1.1, 0, 7); cctx.fill();
+        const rg = cctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+        rg.addColorStop(0, '#ff6a52'); rg.addColorStop(0.6, '#e23423'); rg.addColorStop(1, '#9c160e');
+        cctx.fillStyle = rg; cctx.beginPath(); cctx.arc(cx, cy, r, 0, 7); cctx.fill();
+        cctx.fillStyle = 'rgba(255,255,255,0.82)';                     // 광택 하이라이트
+        cctx.beginPath(); cctx.ellipse(cx - r * 0.34, cy - r * 0.4, r * 0.16, r * 0.09, -0.6, 0, 7); cctx.fill();
+        cctx.strokeStyle = '#2f6a28'; cctx.lineCap = 'round';          // 초록 꽃받침(별)
+        for (let p2 = 0; p2 < 5; p2++) {
+          const a = p2 * (Math.PI * 2 / 5) - Math.PI / 2 + 0.3;
+          cctx.lineWidth = Math.max(1.6, r * 0.14);
+          cctx.beginPath(); cctx.moveTo(cx, cy - r * 0.86);
+          cctx.quadraticCurveTo(cx + Math.cos(a) * r * 0.5, cy - r * 0.9 + Math.sin(a) * r * 0.22, cx + Math.cos(a) * r * 0.9, cy - r * 0.66 + Math.sin(a) * r * 0.5);
+          cctx.stroke();
+        }
+        cctx.lineWidth = Math.max(1.6, r * 0.12);
+        cctx.beginPath(); cctx.moveTo(cx, cy - r * 0.88); cctx.lineTo(cx - r * 0.06, cy - r * 1.12); cctx.stroke();
+      };
+      // 상자 테두리 라인을 따라 핑토 양옆으로 — 가장자리로 갈수록 작게(원근)
+      [[0.16, 0.06, 0.32], [0.26, 0.0, 0.42], [0.36, 0.06, 0.4],
+       [0.64, 0.06, 0.4], [0.74, 0.0, 0.42], [0.84, 0.06, 0.32]].forEach(([fx, off, k]) => {
+        tomatoChar(W * fx, py2 + off * S2 + Math.sin(t * 0.6 + fx * 9) * 2, S2 * k);
+      });
+      // 핑토 — 배경·토마토들 위에 얹는다(컬러 레이어). 눈물 또르르.
       silhouetteDraw(cctx, 0, px2 - S2 * 0.55, py2 - S2 * 0.55, S2 * 1.1, t, false, 'sad', false, characterColor(0));
       if (s > 13.0) {
         const drop = (sd, side) => {
@@ -1001,6 +1026,11 @@ function drawIntroScene(t) {
         ctx.beginPath(); ctx.ellipse(cx2, cy2, r, r * 0.78, 0, 0, 7); ctx.fill();
         ctx.filter = 'none';
       };
+      if (introPhotoReady('tree')) {
+      // 배경을 tree 사진(assets/intro/tree)으로 대체 — 흑백 도트. 전화기는 그 위에.
+      drawPhotoCover(ctx, introPhotos.tree.styled || introPhotos.tree.img, W, H);
+      rotary(W * 0.44, branchY - S * 0.06, 1, true);
+      } else {
       plate('tree', () => {
       let g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#c9c9c9'); g.addColorStop(0.55, '#f0f0f0'); g.addColorStop(1, '#e2e2e2');
@@ -1102,6 +1132,7 @@ function drawIntroScene(t) {
       // 가지 위 옛날 전화기
       rotary(W * 0.44, branchY - S * 0.06, 1, true);
       });   // ── tree 플레이트 끝
+      }   // ── tree 사진/손그림 분기 끝
       // 새(귤색) — 오른쪽 위에서 날아와 착지
       const fly = seg2(s, 0.2, 2.2);
       const bx = W * (1.06 - 0.46 * fly), by = H * (0.16 + 0.26 * fly) - Math.sin(fly * Math.PI) * H * 0.1;
@@ -4273,6 +4304,7 @@ window.__probe = () => ({ jam: jamOn, phase: endingPhase, prog: scoreProgress(),
 resize();
 // 소개 컷신 배경 사진(있으면) 미리 로드 — 없으면 손그림 폴백. 저작권 있는 스톡 사진 금지.
 loadIntroPhoto('tomatoA', ['assets/intro/tomato-a.jpg', 'assets/intro/tomato-a.png', 'assets/intro/tomato-a.jpeg']);
+loadIntroPhoto('tree', ['assets/intro/tree.jpg', 'assets/intro/tree.png', 'assets/intro/tree.jpeg']);
 loadIntroPhoto('tomatoB', ['assets/intro/tomato-b.jpg', 'assets/intro/tomato-b.png', 'assets/intro/tomato-b.jpeg']);
 buildPickColumns();   // 플레이 중 좌/우 캐릭터 선택 열 생성
 if (SCORE) setupGift();   // 선물 아이콘 + 드래그&드롭(리버브) 준비
