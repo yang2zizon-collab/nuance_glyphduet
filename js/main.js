@@ -639,7 +639,7 @@ function drawIntroScene(t) {
   if (kind === 'tomato') {
     // A(덩굴밭): 잔잔한 푸시인 → B(상자): 무더기 속 핑토에게 줌인
     if (s < TOMATO_CUT) { zoom = 1.0 + easeIO(s / TOMATO_CUT) * 0.42; ox = W * 0.5; oy = H * 0.52; }
-    else { zoom = 1.0 + seg2(s, TOMATO_CUT + 0.4, durS - 0.8) * 1.0; ox = W * 0.5; oy = H * 0.38; }
+    else { zoom = 0.85 + seg2(s, TOMATO_CUT + 0.4, durS - 0.8) * 0.22; ox = W * 0.5; oy = H * 0.44; }   // 상자 작게(줌 축소)
   }
   else if (kind === 'mouse' && s < MOUSE_CUT) {
     // 밤거리 — 내달리는 생쥐를 옆에서 트래킹(라따뚜이처럼 낮은 시점)
