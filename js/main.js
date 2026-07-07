@@ -1275,18 +1275,28 @@ function drawIntroScene(t) {
       const sunG3 = ctx.createRadialGradient(W * 0.18, H * 0.06, 0, W * 0.18, H * 0.06, H * 0.4);
       sunG3.addColorStop(0, 'rgba(255,255,255,0.55)'); sunG3.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sunG3; ctx.fillRect(0, 0, W, splitY);
-      // 구름 — 천천히 흘러가는 뭉게구름 세 덩이(흰 몸통 + 아랫배 그늘로 또렷하게)
-      [[0.14, 0.16, 1.0], [0.46, 0.09, 0.72], [0.86, 0.2, 0.85]].forEach(([fx0, fy0, k], ci2) => {
-        const cxc = ((fx0 + t * 0.008 * (1 + ci2 * 0.3)) % 1.2) * W - W * 0.1;
-        const cyc = H * fy0;
-        ctx.fillStyle = 'rgba(90,90,90,0.5)';                                     // 아랫배 그늘
-        ctx.beginPath(); ctx.ellipse(cxc + S * 0.06 * k, cyc + S * 0.14 * k, S * 0.78 * k, S * 0.16 * k, 0, 0, 7); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.92)';                                 // 몸통
-        [[0, 0, 0.95], [-0.6, 0.12, 0.62], [0.62, 0.1, 0.7], [0.2, -0.16, 0.58]].forEach(([dx3, dy3, kk]) => {
-          ctx.beginPath();
-          ctx.ellipse(cxc + S * dx3 * k, cyc + S * dy3 * k, S * 0.5 * k * kk, S * 0.26 * k * kk, 0, 0, 7);
-          ctx.fill();
+      // 구름 — 새털구름(권운): 머리는 도톰, 꼬리로 갈수록 가늘게 흩어지는 깃털 결 다발
+      const cirrus = (cx3, cy3, len, k, seed) => {
+        // 결 세 가닥 — 가운데 본줄기 + 위아래 얇은 곁줄기
+        [[0, 1, 0.85], [-0.32, 0.62, 0.4], [0.3, 0.5, 0.32]].forEach(([oy, kk, a0], si) => {
+          const n = 22;
+          for (let i2 = 0; i2 < n; i2++) {
+            const u = i2 / (n - 1);                                               // 0=머리, 1=꼬리
+            const px3 = cx3 + len * (0.06 * si + u * kk);
+            const py3 = cy3 + oy * S * 0.16 * k
+              + Math.sin(u * Math.PI * 1.3 + seed + si * 2) * S * 0.05 * k
+              - u * S * 0.12 * k;                                                 // 꼬리가 살짝 쓸려 올라간다
+            const rw = S * (0.19 - 0.13 * u) * k * kk;
+            ctx.fillStyle = `rgba(60,60,60,${0.9 * a0 * (1 - u * 0.7)})`;         // 결 아래 음영 — 밝은 하늘에서도 읽히게
+            ctx.beginPath(); ctx.ellipse(px3, py3 + rw * 0.45, rw * 0.96, rw * 0.36, -0.07, 0, 7); ctx.fill();
+            ctx.fillStyle = `rgba(255,255,255,${a0 * (1 - u * 0.7)})`;
+            ctx.beginPath(); ctx.ellipse(px3, py3, rw, rw * 0.3, -0.07, 0, 7); ctx.fill();
+          }
         });
+      };
+      [[0.03, 0.16, 1.0, 3.0], [0.3, 0.1, 0.75, 2.4], [0.5, 0.26, 0.6, 1.8], [0.72, 0.12, 0.9, 2.6]].forEach(([fx0, fy0, k, ln], ci2) => {
+        const cxc = ((fx0 + t * 0.003 * (1 + ci2 * 0.3)) % 1.3) * W - W * 0.15;
+        cirrus(cxc, H * fy0, S * ln, k, ci2 * 1.7);
       });
       // 심해 빛줄기 — 수면에서 비스듬히 스미는 두 가닥
       [[0.2, 0.3, 0.1], [0.62, 0.2, -0.06]].forEach(([fx0, a, spread]) => {
