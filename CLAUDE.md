@@ -121,6 +121,10 @@ serve.py                로컬 서버
   POST `/ascii {mark,chars}`(점 제외 실제 글자만)→SSE로 폰도 같은 밀도 필드+움직임을 렌더
   (tap.html artMaskDraw/artMotion/renderArt — RAF 30fps, 라운드/idle에서 내려감).
 - **소개 컷신 배경 사진 필터(사용자 제공 이미지)**:
+  tomatoB는 로드 시 `composeTomatoB`로 **사진 자체를 합성 편집**: 위쪽 수풀 밴드를 확대해 배경으로
+  깔고(하단 그늘 그라디언트), 상자+토마토 영역을 크롭해 **50% 축소**(살짝 어둡게 + 타원 페더)해
+  하단 중앙에 얹는다 → 토마토가 방울토마토 스케일이 됨. 그 뒤 카툰 필터(edge 62). 핑토는 pk=S*0.62로
+  축소, py2=H*0.56(토마토 줄 위). loadIntroPhoto(key,srcs,edge,pre)의 pre 인자로 연결.
   로드 시 `cartoonizePhoto`로 **살짝 만화 느낌**(톤 포스터화 CARTOON_LEVELS=6 + 소벨 에지 잉크선
   CARTOON_EDGE=78)을 1회 입혀 캐시(ent.styled) → 그 뒤 dither가 도트로 → 만화 스크린톤 톤.
    `assets/intro/tomato-a.(jpg|png|jpeg)` /
