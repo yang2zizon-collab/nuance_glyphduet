@@ -1150,7 +1150,6 @@ function drawIntroScene(t) {
       const fly = seg2(s, 0.2, 2.2);
       const bx = W * (1.06 - 0.46 * fly), by = H * (0.16 + 0.26 * fly) - Math.sin(fly * Math.PI) * H * 0.1;
       const flap = fly < 1 ? Math.sin(t * 16) * S * 0.06 : 0;
-      shadow(bx, branchY + S * 0.1, S * 0.4 * fly, S * 0.08 * fly, 0.3);
       silhouetteDraw(cctx, 2, bx - S / 2, by - S / 2 + flap, S, t, false, 'neutral', false, characterColor(2));
       fxOnce('flap1', () => { [0, 300, 600, 900].forEach((d) => setTimeout(() => typeKey('f', 0.6, characterVoice(2)), d)); });
       if (fly >= 1) fxOnce('land', () => uiClick(0.7));
