@@ -1763,73 +1763,52 @@ function drawIntroScene(t) {
     if (broomIn > 0) {
       // 스윙 — 자루 위쪽(손 근처)을 축으로 좌우로 쓸어낸다
       const swing = s > 3.7 ? Math.sin((s - 3.7) * 3.2) * 0.16 * (1 - seg2(s, 6.6, 7.4)) : 0;
-      const hx = W * (1.04 - broomIn * 0.3), hy = floorY - H * 0.78;    // 축(손 위치) — 더 높이
-      const bLen = H * 0.58;                                            // 자루 길이 — 짚단이 화면을 크게 차지하도록
+      const hx = W * (1.04 - broomIn * 0.3), hy = floorY - H * 0.78;    // 축(손 위치)
       const ang = Math.PI * 0.62 + swing;                               // 기울기
-      const bx2 = hx + Math.cos(ang) * bLen, by2 = hy + Math.sin(ang) * bLen;   // 짚단 목
+      // ── 짚 빗자루(참조 사진 기반) — 비트(픽셀) 스타일. 어두운 가는 자루 + 넓게 퍼지는 볏짚 ──
+      const cs = Math.max(4, S * 0.072);   // 픽셀 셀 한 변(비트이미지 해상도)
+      const cell = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(x - cs * 0.5, y, cs + 0.6, cs + 0.6); };
       ctx.save();
-      // 자루 — 굵은 나무 막대(결 두 줄)
-      ctx.strokeStyle = '#241d14'; ctx.lineWidth = S * 0.13; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(hx, hy - S * 0.3); ctx.lineTo(bx2, by2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = S * 0.026;
-      ctx.beginPath(); ctx.moveTo(hx - S * 0.028, hy - S * 0.3); ctx.lineTo(bx2 - S * 0.028, by2); ctx.stroke();
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = S * 0.02;
-      ctx.beginPath(); ctx.moveTo(hx + S * 0.032, hy - S * 0.3); ctx.lineTo(bx2 + S * 0.032, by2); ctx.stroke();
-      // 짚단(사진 레퍼런스) — 목에서 부풀어 내려와 부챗살로 넓게 퍼지는 볏짚
-      ctx.save();
-      ctx.translate(bx2, by2); ctx.rotate(ang - Math.PI / 2);
-      const brushLen = Math.max(S * 1.5, (floorY + S * 0.42 - by2) / Math.cos(ang - Math.PI / 2) * 0.97);
-      const neckW = S * 0.17, tipW = S * 0.95;   // 반폭 — 아래 전체 폭 ≈ S*1.9
-      // 짚단 실루엣 — 중간이 불룩한 종 모양
-      const strawG = ctx.createLinearGradient(-tipW, 0, tipW, 0);
-      strawG.addColorStop(0, '#8f8571'); strawG.addColorStop(0.42, '#d3c6a2'); strawG.addColorStop(1, '#736a58');
-      ctx.fillStyle = strawG;
-      ctx.beginPath();
-      ctx.moveTo(-neckW, -S * 0.06);
-      ctx.bezierCurveTo(-S * 0.52, brushLen * 0.32, -tipW * 1.04, brushLen * 0.7, -tipW, brushLen);
-      ctx.lineTo(tipW, brushLen);
-      ctx.bezierCurveTo(tipW * 1.04, brushLen * 0.7, S * 0.52, brushLen * 0.32, neckW, -S * 0.06);
-      ctx.closePath(); ctx.fill();
-      // 짚 가닥 — 결을 따라 흐르는 수십 가닥(명암 섞어 볏짚 질감)
-      for (let i = 0; i < 38; i++) {
-        const u = i / 37 - 0.5;
-        const tone = 55 + ((i * 53) % 130);
-        ctx.strokeStyle = `rgba(${tone},${Math.max(0, tone - 10)},${Math.max(0, tone - 30)},0.85)`;
-        ctx.lineWidth = 1.4 + (i % 3) * 0.9;
-        ctx.beginPath();
-        ctx.moveTo(u * neckW * 2, S * 0.02);
-        ctx.quadraticCurveTo(u * S * 0.95, brushLen * 0.55, u * tipW * 2 + swing * S * 1.6, brushLen + ((i * 7) % 4) * 3 - 5);
-        ctx.stroke();
+      ctx.translate(hx, hy - S * 0.3);
+      ctx.rotate(ang - Math.PI / 2);        // 로컬 +y = 빗자루 아래 방향
+      const bLen2 = H * 0.55;               // 자루 길이(가늘고 길게)
+      const brushLen = S * 1.9;             // 볏짚 길이 — 넓게 퍼짐
+      // ── 자루 — 어둡고 가는 막대(살짝 굽음) + 대나무 하이라이트 한 줄 ──
+      for (let y = 0; y <= bLen2; y += cs) {
+        const bend = Math.sin(y / bLen2 * 1.15) * S * 0.05;
+        cell(bend - cs * 0.5, y, '#1b1611'); cell(bend + cs * 0.5, y, '#241d15');   // 2셀 두께
+        if ((y / cs | 0) % 2 === 0) cell(bend + cs * 1.1, y, 'rgba(210,210,210,0.5)');   // 결 하이라이트
       }
-      // 끝단 — 낱낱이 갈라진 잔가닥(들쭉날쭉)
-      ctx.lineWidth = 1.3;
-      for (let i = 0; i < 30; i++) {
-        const u = i / 29 - 0.5;
-        ctx.strokeStyle = `rgba(${40 + ((i * 31) % 50)},${34 + ((i * 23) % 45)},${26 + ((i * 17) % 38)},0.85)`;
-        ctx.beginPath();
-        ctx.moveTo(u * tipW * 1.9 + swing * S * 1.6, brushLen - S * 0.12);
-        ctx.lineTo(u * tipW * 2.06 + swing * S * 1.8, brushLen + S * 0.07 + ((i * 11) % 5) * 2.4);
-        ctx.stroke();
-      }
-      // 노끈 감기 — 목을 여러 번 감은 띠(부푸는 폭을 따라 점점 넓게)
+      // ── 노끈 감기(목의 밴드) — 밝고 어두운 띠 교차 ──
+      const neckY = bLen2;
       for (let b = 0; b < 5; b++) {
-        const by3 = S * (0.05 + b * 0.09);
-        const wHere = neckW + (S * 0.52 - neckW) * (by3 / (brushLen * 0.32));
-        ctx.fillStyle = b % 2 ? '#ddd5bd' : '#c2b99f';
-        ctx.fillRect(-wHere, by3, wHere * 2, S * 0.055);
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.4;
-        ctx.strokeRect(-wHere, by3, wHere * 2, S * 0.055);
+        const y = neckY - cs + b * cs, hw = S * 0.1 + b * S * 0.018;
+        for (let cx3 = -hw; cx3 <= hw; cx3 += cs) cell(cx3, y, b % 2 ? '#d7ca9e' : '#8a7a54');
+      }
+      // ── 볏짚 — 부챗살로 아래로 넓어지고, 컬럼마다 끝이 갈라진다(프레이). 셀 단위로 채운다 ──
+      const strawTop = neckY + cs, colN = Math.ceil(S * 1.02 / cs);
+      for (let y = strawTop; y < strawTop + brushLen; y += cs) {
+        const prog = (y - strawTop) / brushLen;
+        const hw = S * 0.11 + (S * 1.02 - S * 0.11) * Math.pow(prog, 0.72);   // 아래로 넓게
+        for (let ci = -colN; ci <= colN; ci++) {
+          const cxl = ci * cs;
+          if (Math.abs(cxl) > hw) continue;
+          const colTip = brushLen * (1 - (Math.abs(ci) / colN) ** 2 * 0.3) - hash01(ci * 7.3) * S * 0.3;   // 프레이
+          if ((y - strawTop) > colTip) continue;
+          const strand = (ci % 2 === 0) ? '#d8c9a0' : '#9c8a62';                // 짚 가닥 명암
+          cell(cxl, y, Math.abs(cxl) > hw * 0.82 ? '#6f6144' : strand);         // 가장자리 어둡게
+        }
       }
       ctx.restore();
       // 쓸릴 때 먼지·부스러기 튐
       if (Math.abs(swing) > 0.08) {
+        const sweepX = hx + Math.cos(ang) * (bLen2 + brushLen * 0.6);
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         for (let i = 0; i < 4; i++) {
-          const dx2 = bx2 - S * 0.6 - i * 14 - swing * S * 2;
+          const dx2 = sweepX - S * 0.5 - i * 14 - swing * S * 2;
           ctx.beginPath(); ctx.arc(dx2, floorY + S * 0.4 - (i % 2) * 6, 2.2, 0, 7); ctx.fill();
         }
       }
-      ctx.restore();
       fxOnce('sweep', () => { [0, 550, 1100].forEach((d) => setTimeout(() => uiClick(0.18), d)); });
     }
     if (s > 3.2 && s < 4.0) drawIntroMark(ctx, '!', mx, my - S * 0.8, S * 0.42, seg2(s, 3.2, 3.45) * (1 - seg2(s, 3.7, 4.0)));
