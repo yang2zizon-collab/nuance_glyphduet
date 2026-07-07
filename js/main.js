@@ -1497,8 +1497,53 @@ function drawIntroScene(t) {
     const potX = W * 0.905, potW2 = S * 0.34, potH2 = S * 0.26, potY = H * 0.47 - H * 0.004;
     plate('kitchen', () => {
     let g = ctx.createLinearGradient(0, 0, 0, floorY);
-    g.addColorStop(0, '#8f8f8f'); g.addColorStop(1, '#dedede');
+    g.addColorStop(0, '#b2b2b2'); g.addColorStop(1, '#e6e6e6');   // 벽지가 읽히게 밝은 바탕
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, floorY);
+    // ── 벽지 — 윌리엄 모리스풍(Willow Boughs): 굽이치는 줄기 + 잎 부채살 + 열매 점, 잉크 톤 ──
+    {
+      const tw = S * 1.15, th = S * 1.9;
+      const tile = document.createElement('canvas');
+      tile.width = Math.ceil(tw); tile.height = Math.ceil(th);
+      const tg = tile.getContext('2d');
+      const stemX = (u, yy) => (u + Math.sin((yy / th) * Math.PI * 2) * 0.16) * tw;   // 주기=타일 높이 → 이음매 없음
+      const leaf = (lx, ly, ang, len) => {
+        tg.save(); tg.translate(lx, ly); tg.rotate(ang);
+        tg.beginPath();
+        tg.moveTo(0, 0);
+        tg.quadraticCurveTo(len * 0.5, -len * 0.23, len, 0);
+        tg.quadraticCurveTo(len * 0.5, len * 0.23, 0, 0);
+        tg.closePath();
+        tg.fillStyle = 'rgba(70,70,70,0.5)'; tg.fill();
+        tg.strokeStyle = 'rgba(30,30,30,0.6)'; tg.lineWidth = 1.5; tg.stroke();
+        tg.beginPath(); tg.moveTo(len * 0.12, 0); tg.lineTo(len * 0.85, 0);           // 잎맥
+        tg.strokeStyle = 'rgba(255,255,255,0.5)'; tg.lineWidth = 1; tg.stroke();
+        tg.restore();
+      };
+      [[0.26, 0], [0.76, th * 0.5]].forEach(([u, ph0]) => {
+        for (const dx of [-tw, 0, tw]) {                                              // 가로 랩
+          tg.strokeStyle = 'rgba(40,40,40,0.65)'; tg.lineWidth = 2.6; tg.beginPath();
+          for (let yy = -th * 0.1; yy <= th * 1.1; yy += th * 0.04) {
+            const xx = stemX(u, yy + ph0) + dx;
+            yy <= -th * 0.1 + 1e-6 ? tg.moveTo(xx, yy) : tg.lineTo(xx, yy);
+          }
+          tg.stroke();
+          for (let k = -1; k <= 8; k++) {                                             // 세로 랩 포함 잎 노드
+            const ly = (k / 7) * th;
+            const lx = stemX(u, ly + ph0) + dx;
+            const side = k % 2 ? 1 : -1;
+            const slope = Math.cos(((ly + ph0) / th) * Math.PI * 2) * 0.5;
+            const base = side * (Math.PI / 2.6) + slope;
+            leaf(lx, ly, base, tw * 0.3);                                             // 부채살 3장
+            leaf(lx, ly, base - side * 0.42, tw * 0.24);
+            leaf(lx, ly, base + side * 0.38, tw * 0.2);
+            tg.fillStyle = 'rgba(35,35,35,0.6)';                                      // 열매 점
+            tg.beginPath(); tg.arc(lx - side * tw * 0.055, ly - th * 0.02, 1.9, 0, 7); tg.fill();
+          }
+        }
+      });
+      const pat = ctx.createPattern(tile, 'repeat');
+      ctx.fillStyle = pat; ctx.fillRect(0, 0, W, floorY);
+    }
     g = ctx.createLinearGradient(0, floorY, 0, H);
     g.addColorStop(0, '#bdbdbd'); g.addColorStop(1, '#606060');
     ctx.fillStyle = g; ctx.fillRect(0, floorY, W, H - floorY);
