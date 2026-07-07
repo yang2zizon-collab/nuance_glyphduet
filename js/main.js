@@ -527,33 +527,47 @@ function introPhotoReady(key) { const e = introPhotos[key]; return !!(e && e.ok 
 
 // 살짝 만화 느낌 — 흑백 톤을 몇 단계로 뭉치고(포스터화) 가장자리에 은은한 잉크 선을 얹는다.
 // 그 뒤 기존 dither가 도트로 바꾸면 "만화 스크린톤" 톤이 된다. 로드 시 1회만 만들어 캐시.
-const CARTOON_LEVELS = 6;      // 톤 밴드 수(적을수록 만화틱). "살짝만" → 6
-const CARTOON_EDGE = 78;       // 잉크 선이 켜지는 경계 세기(낮을수록 선 많아짐)
-const CARTOON_MIX = 0.5;       // 카툰 효과 vs 원본 사진 혼합비(0=원본, 1=풀 카툰). 반반 → 0.5
+// 미니멀 흑백 — 대비 S커브로 중간톤을 흑/백으로 몰아 도트 노이즈를 줄이고(=깔끔),
+// 톤을 몇 단계로만 뭉치고, 굵직한 윤곽선만 남긴다. 그 뒤 dither가 도트로. 로드 시 1회 캐시.
+const CARTOON_LEVELS = 3;      // 톤 밴드 수 — 3단계(밝음/중간/어둠)로 미니멀
+const CARTOON_EDGE = 122;      // 잉크 선 문턱 — 굵직한 윤곽선만 남겨 깔끔
+const CARTOON_MIX = 0.82;      // 포스터화(평평·미니멀) 비중을 높게
+const PHOTO_CONTRAST = 1.85;   // 대비 강하게 — 중간톤을 흑/백으로 몰아 도트 노이즈↓
+const PHOTO_LIFT = 0.17;       // 하이키 — 밝은 곳을 흰색으로 날려 깨끗한 여백을 만든다
+const PHOTO_BLUR = 6;          // 사전 블러(px) — 잔디테일을 뭉개 큰 형태만 남긴다(미니멀의 핵심)
 function cartoonizePhoto(img) {
   const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return img;
   const w = Math.min(1400, iw), h = Math.round(ih * w / iw);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d', { willReadFrequently: true });
   g.imageSmoothingEnabled = true;
+  // 사전 블러 — 고주파(잎·결) 디테일을 지워 큰 톤 덩어리만 남긴다. 그 뒤 포스터화가 깔끔한 면이 됨.
+  g.filter = `blur(${PHOTO_BLUR}px)`;
   g.drawImage(img, 0, 0, w, h);
+  g.filter = 'none';
   const im = g.getImageData(0, 0, w, h), d = im.data;
   const n = w * h;
   const gray = new Float32Array(n);
   for (let i = 0, p = 0; i < d.length; i += 4, p++) gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  // 대비 S커브 + 밝기 리프트 — 중간톤을 흑/백으로 밀어 깔끔하게
+  const shade = new Float32Array(n);
+  for (let p = 0; p < n; p++) {
+    let x = (gray[p] / 255 - 0.5) * PHOTO_CONTRAST + 0.5 + PHOTO_LIFT;
+    shade[p] = Math.max(0, Math.min(255, x * 255));
+  }
   const out = new Float32Array(n);
   const step = 255 / (CARTOON_LEVELS - 1);
-  for (let p = 0; p < n; p++) out[p] = Math.round(gray[p] / step) * step;   // 포스터화(톤 뭉침)
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {          // 소벨 에지 → 잉크 선
+  for (let p = 0; p < n; p++) out[p] = Math.round(shade[p] / step) * step;   // 포스터화(톤 뭉침)
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {          // 소벨 에지 → 굵직한 잉크 선만
     const i0 = y * w + x;
     const gx = -gray[i0 - w - 1] - 2 * gray[i0 - 1] - gray[i0 + w - 1] + gray[i0 - w + 1] + 2 * gray[i0 + 1] + gray[i0 + w + 1];
     const gy = -gray[i0 - w - 1] - 2 * gray[i0 - w] - gray[i0 - w + 1] + gray[i0 + w - 1] + 2 * gray[i0 + w] + gray[i0 + w + 1];
     const mag = Math.sqrt(gx * gx + gy * gy);
     if (mag > CARTOON_EDGE) out[i0] = Math.max(0, out[i0] - Math.min(170, (mag - CARTOON_EDGE) * 1.1));
   }
-  // 카툰(out)과 원본 회색조(gray)를 반반 섞는다 — "처음 버전 + 카툰" 절충
+  // 포스터화(out)와 대비-사진(shade)을 섞는다 — 둘 다 이미 미니멀
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const v = CARTOON_MIX * out[p] + (1 - CARTOON_MIX) * gray[p];
+    const v = CARTOON_MIX * out[p] + (1 - CARTOON_MIX) * shade[p];
     d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
   }
   g.putImageData(im, 0, 0);
