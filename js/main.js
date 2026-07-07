@@ -529,6 +529,7 @@ function introPhotoReady(key) { const e = introPhotos[key]; return !!(e && e.ok 
 // 그 뒤 기존 dither가 도트로 바꾸면 "만화 스크린톤" 톤이 된다. 로드 시 1회만 만들어 캐시.
 const CARTOON_LEVELS = 6;      // 톤 밴드 수(적을수록 만화틱). "살짝만" → 6
 const CARTOON_EDGE = 78;       // 잉크 선이 켜지는 경계 세기(낮을수록 선 많아짐)
+const CARTOON_MIX = 0.5;       // 카툰 효과 vs 원본 사진 혼합비(0=원본, 1=풀 카툰). 반반 → 0.5
 function cartoonizePhoto(img) {
   const iw = img.naturalWidth, ih = img.naturalHeight; if (!iw || !ih) return img;
   const w = Math.min(1400, iw), h = Math.round(ih * w / iw);
@@ -550,7 +551,11 @@ function cartoonizePhoto(img) {
     const mag = Math.sqrt(gx * gx + gy * gy);
     if (mag > CARTOON_EDGE) out[i0] = Math.max(0, out[i0] - Math.min(170, (mag - CARTOON_EDGE) * 1.1));
   }
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) { const v = out[p]; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  // 카툰(out)과 원본 회색조(gray)를 반반 섞는다 — "처음 버전 + 카툰" 절충
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const v = CARTOON_MIX * out[p] + (1 - CARTOON_MIX) * gray[p];
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
   g.putImageData(im, 0, 0);
   cv._w = w; cv._h = h;
   return cv;
