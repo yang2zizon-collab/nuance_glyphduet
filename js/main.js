@@ -5,7 +5,7 @@ import { initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, pla
          stopAmbience, playMark, applyNuanceEffect, resetNuanceEffect,
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
          startPlayBeat, stopPlayBeat, beatKick, countTick, slotSpin, slotLand,
-         giftChime, startGiftAmbience, stopGiftAmbience, playEndingMusic,
+         giftChime, startGiftAmbience, stopGiftAmbience, playEndingMusic, onTitleGrain,
          playScreenWav, stopScreenWav, resumeAudio, setGift, clearGifts } from './audio.js';
 import { renderDisplay, isAlienLook } from './language.js';
 import { glyphForCode, glyphForChar, toAlien } from './glyphs.js';
@@ -2140,6 +2140,31 @@ window.addEventListener('pointerdown', (e) => {
 
 // (타이틀 리버스 스웰 인트로는 사용자 요청으로 제거 — ▶ 한 번에 바로 소개로 넘어간다)
 
+// ===== 타이틀 그래뉼러 시각화 =====
+// 오디오 알갱이가 태어날 때마다 화면에도 잉크 알갱이가 태어난다.
+// 음높이(p)가 세로 위치, 세기(a)가 크기. 위로 떠오르며 스러진다.
+const titleGrains = [];
+onTitleGrain((g) => {
+  titleGrains.push({ xr: Math.random(), p: g.p, a: g.a, born: performance.now(),
+                     drift: (Math.random() - 0.5) * 40, life: 700 + Math.random() * 700 });
+  if (titleGrains.length > 300) titleGrains.splice(0, 60);   // 안전 상한
+});
+function drawTitleGrains(W, H) {
+  const nowMs = performance.now();
+  for (let i = titleGrains.length - 1; i >= 0; i--) {
+    const g = titleGrains[i];
+    const age = (nowMs - g.born) / g.life;                    // 0..1 수명
+    if (age >= 1) { titleGrains.splice(i, 1); continue; }
+    const x = g.xr * W + g.drift * age;
+    const y = H * (0.82 - g.p * 0.62) - age * 46;             // 음높이 = 높이, 위로 떠오름
+    const s = (1.5 + g.a * 70) * (1 - age * 0.55);
+    sctx.globalAlpha = 1 - age;
+    sctx.fillStyle = '#000';
+    sctx.fillRect(x - s / 2, y - s / 2, s, s);
+  }
+  sctx.globalAlpha = 1;
+}
+
 function base(player) { return (state.picks[player] % N) / N; }
 
 // ===== 캔버스 크기 =====
@@ -2220,6 +2245,7 @@ function loop(now) {
   } else {
     // title
     if (MINIMAL || SCORE) drawMinimalBg(W, H); else drawBackground(t, W, H);
+    drawTitleGrains(W, H);   // 그래뉼러 알갱이 — 소리와 함께 화면에 흩뿌려진다
     // 스코어 테마: 타이틀 캐릭터 줄 없이 텅 빈 흰 화면
     if (!SCORE) {
       const size = Math.min(110, W / (N + 2));

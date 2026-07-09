@@ -1396,8 +1396,30 @@ export function startTitleMusic() {
   swellDrop(now + DUR, A, 1.4, 0.42);
   swellDrop(now + DUR + 0.02, B, 1.4, 0.42);
 
-  titleSeq = { out: swell, timer: null };
+  // 그래뉼러 반짝임 — 화려하게 흩뿌려지는 알갱이들. 인트로가 진행될수록 촘촘해진다.
+  // 알갱이 하나마다 onTitleGrain 콜백을 불러 화면에서도 보이게 한다.
+  const grainBus = ctx.createGain(); grainBus.gain.value = 0.8; grainBus.connect(swell);
+  const gVerb = ctx.createGain(); gVerb.gain.value = 0.9; grainBus.connect(gVerb); gVerb.connect(reverb);
+  const grainTimer = setInterval(() => {
+    const p = Math.min(1, (ctx.currentTime - now) / DUR);         // 인트로 진행도
+    if (Math.random() > 0.25 + p * 0.65) return;                  // 갈수록 촘촘하게
+    const cluster = 1 + ((Math.random() * (1 + p * 3)) | 0);      // 뒤로 갈수록 클러스터로
+    for (let k = 0; k < cluster; k++) {
+      const pitch01 = Math.random();
+      const amp = 0.015 + Math.random() * 0.05 * (0.5 + p);
+      const when = ctx.currentTime + k * 0.03;
+      pluck8(mtof(72 + pitch01 * 36), when, 0.05 + Math.random() * 0.12, amp,
+             Math.random() < 0.3 ? 'triangle' : 'sine', grainBus);
+      if (titleGrainCb) titleGrainCb({ p: pitch01, a: amp });      // 시각화 알림
+    }
+  }, 70);
+
+  titleSeq = { out: swell, timer: grainTimer };
 }
+
+// 타이틀 그래뉼러 알갱이 시각화 콜백 — main.js가 등록해 화면에 그린다.
+let titleGrainCb = null;
+export function onTitleGrain(cb) { titleGrainCb = cb; }
 
 export function stopTitleMusic() {
   if (!titleSeq) return;
@@ -1493,9 +1515,10 @@ export function stopPlayBeat() {
   p.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.2);
 }
 
-// 박마다 호출 — 트랩 한 박: 808 킥 + (백비트)클랩 + 빠른 하이햇 롤.
-// beatSec = 이 박의 길이(초). heat(0..1) = 고조 — 라운드가 갈수록
-// 킥이 세지고, 햇 롤이 촘촘해지고, 오프비트 킥·더블 클랩이 끼어든다.
+// 박마다 호출 — 트랩 한 박. heat(0..1) = 고조: 빨라질수록 레이어가 쌓여
+// 최고속에선 스펙트럼이 꽉 찬다 — 서브(킥·베이스)→중역(클랩·리드)→고역(햇·노이즈).
+const BEAT_BASS = [0, 0, 7, 5, 0, 3, 0, 10];   // 베이스 라인(반음)
+let beatStep = 0;
 export function beatKick(strong = false, beatSec = 0.5, snare = false, heat = 0) {
   if (!playBeat) return;
   const dest = playBeat.out;
@@ -1512,6 +1535,53 @@ export function beatKick(strong = false, beatSec = 0.5, snare = false, heat = 0)
     const ht = now + (i / sub) * beatSec;
     if (i === 0 || Math.random() < 0.75 + heat * 0.25) hat8(ht, dest, (i === 0 ? 0.055 : 0.03) * (1 + heat));
     if (Math.random() < 0.22 + heat * 0.5) hat8(ht + (beatSec / sub) * 0.5, dest, 0.022 * (1 + heat));  // 32분 롤
+  }
+  beatStep++;
+  // 로우패스 걸린 한 음 — 스탭/베이스용(어둡고 둥근 소리).
+  const darkTone = (type, freq, when, dur, gain, lpf, q = 1) => {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lpf; lp.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(gain, when + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    o.connect(lp); lp.connect(g); g.connect(dest);
+    o.start(when); o.stop(when + dur + 0.03);
+  };
+  const bassDeg = BEAT_BASS[beatStep % BEAT_BASS.length];
+  // ── 고조 레이어: 빨라질수록 하나씩 쌓인다 — 곡처럼, 어둡고 묵직하게 ──
+  // ① 서브 베이스(사인+톱니 블렌드) — 바닥을 무겁게 채운다. 필터는 어둡게만 열린다.
+  if (heat > 0.15) {
+    const f = mtof(33 + bassDeg);
+    darkTone('sine', f, now, beatSec * 0.95, 0.16 + heat * 0.18, 400);              // 서브(무게)
+    darkTone('sawtooth', f, now, beatSec * 0.9, 0.05 + heat * 0.1, 160 + heat * 640, 2);  // 배음(질감)
+  }
+  // ② 마이너 스탭 코드(중역) — 오프비트에서 어두운 코드가 밀어붙인다.
+  if (heat > 0.4 && (beatStep % 2 === 1 || heat > 0.8)) {
+    [0, 3, 7].forEach((d, k) =>
+      darkTone('sawtooth', mtof(45 + bassDeg + d) * (1 + (k - 1) * 0.002),
+               now + beatSec * 0.5, 0.16, 0.045 + heat * 0.045, 700 + heat * 1400, 1));
+  }
+  // ③ 다크 플럭 모티프(중고역) — 절제된 단선율 + 여린 에코 한 번.
+  if (heat > 0.55 && Math.random() < 0.7) {
+    const MINOR = [0, 2, 3, 5, 7, 8, 10];
+    const f = mtof(57 + MINOR[(beatStep * 2) % MINOR.length]);
+    const when = now + beatSec * 0.25;
+    darkTone('triangle', f, when, beatSec * 0.55, 0.06 + heat * 0.04, 2400);
+    darkTone('triangle', f, when + 0.22, beatSec * 0.5, (0.06 + heat * 0.04) * 0.4, 1800);  // 에코
+  }
+  // ④ 노이즈 스윕(최고역) — 꽉 찬 단계에서 박마다 쓸어 올린다.
+  if (heat > 0.7 && Math.random() < 0.6) {
+    const nz = ctx.createBufferSource(); nz.buffer = drumNoise(); nz.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
+    bp.frequency.setValueAtTime(600, now);
+    bp.frequency.exponentialRampToValueAtTime(9000, now + beatSec);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(0.05 + heat * 0.05, now + beatSec * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + beatSec);
+    nz.connect(bp); bp.connect(g); g.connect(dest);
+    nz.start(now); nz.stop(now + beatSec + 0.05);
   }
 }
 
@@ -1559,30 +1629,41 @@ export function slotSpin(dur = 1.5) {
 }
 
 // 선물 차임 — 리버브를 잔뜩 먹인 하이텐션 벨이 울려 퍼진다.
-// 높은 음역의 상승 아르페지오 + 반짝임을 거의 웻(wet)으로 보낸다.
+// 줄 때마다 고조된다: 점점 높아지고, 음이 많아지고, 빨라지고, 반짝임이 커진다.
+let giftChimeLevel = 0;   // startGiftAmbience에서 리셋
 export function giftChime() {
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume();
   ensureReverb();
+  const lvl = Math.min(6, giftChimeLevel++);            // 선물 순번에 따른 고조 단계
   const now = ctx.currentTime;
-  const dry = ctx.createGain(); dry.gain.value = 0.22; dry.connect(master);          // 원음은 살짝만
-  const wet = ctx.createGain(); wet.gain.value = 1.15; dry.connect(wet); wet.connect(reverb);  // 리버브 듬뿍
-  // 하이텐션 상승 아르페지오(장화음 + 9th) — 빠르게 치고 올라간다.
-  [0, 4, 7, 12, 14, 19, 24].forEach((d, k) =>
-    pluck8(mtof(88 + d), now + k * 0.045, 0.5, 0.16, 'triangle', dry));
-  // 꼭대기 반짝임 — 아주 높은 두 음이 길게 여운.
-  pluck8(mtof(112), now + 0.36, 1.2, 0.08, 'sine', dry);
-  pluck8(mtof(107), now + 0.42, 1.4, 0.07, 'sine', dry);
+  const dry = ctx.createGain(); dry.gain.value = 0.22 + lvl * 0.02; dry.connect(master);
+  const wet = ctx.createGain(); wet.gain.value = 1.15 + lvl * 0.08; dry.connect(wet); wet.connect(reverb);
+  // 상승 아르페지오 — 갈수록 반음 위로, 음이 늘고, 더 빠르게 치고 올라간다.
+  const base = 88 + lvl * 2;
+  const steps = [0, 4, 7, 12, 14, 19, 24, 26, 31, 36].slice(0, 7 + Math.min(3, lvl));
+  const rate = 0.045 * Math.pow(0.92, lvl);
+  steps.forEach((d, k) =>
+    pluck8(mtof(base + d), now + k * rate, 0.5, 0.16, lvl >= 3 ? 'square' : 'triangle', dry));
+  // 꼭대기 반짝임 — 갈수록 더 높이, 더 길게.
+  pluck8(mtof(112 + lvl * 2), now + 0.36, 1.2 + lvl * 0.15, 0.08 + lvl * 0.012, 'sine', dry);
+  pluck8(mtof(107 + lvl * 2), now + 0.42, 1.4 + lvl * 0.15, 0.07 + lvl * 0.012, 'sine', dry);
+  // 고조 단계에선 위로 쓸어 올리는 글리스까지.
+  if (lvl >= 2) slideTone(now + 0.1, mtof(base), mtof(base + 24), 0.5, 'sine', 0.05 + lvl * 0.015, dry);
 }
 
-// 선물 단계 배경 — 프리즈+리버브 워시("샤아아앙~").
-// 높은 메이저틱 클러스터(C·E·G·B·D)가 얼어붙은 듯 지속되며 목소리마다
-// 서로 다른 주기로 천천히 숨 쉰다. 거의 웻(리버브) 위주 — 화성 진행 없음.
+// 선물 단계 배경 — 프리즈+리버브 워시("샤아아앙~")가 시간에 따라 변질된다.
+// 처음엔 맑은 사인 클러스터, 갈수록 FM 변조가 깊어져 뾰족한 금속성이 되고
+// 노이즈가 차오르며 숨도 가빠진다 → 다음 단계(엔딩)로 넘어가는 청각적 흐름.
 let giftAmb = null;
+const GIFT_EVOLVE_SEC = 110;   // 변질에 걸리는 시간(선물 2분에 맞춤)
 export function startGiftAmbience() {
   if (!ctx || giftAmb) return;
   if (ctx.state === 'suspended') ctx.resume();
   ensureReverb();
+  giftChimeLevel = 0;                                        // 차임 고조 단계 리셋
+  const startAt = ctx.currentTime;
+  const prog = () => Math.min(1, (ctx.currentTime - startAt) / GIFT_EVOLVE_SEC);   // 0→1 변질 진행도
   const out = ctx.createGain(); out.gain.value = 0.0001;
   out.connect(master);                                       // 드라이는 아주 살짝
   out.gain.setTargetAtTime(0.2, ctx.currentTime, 0.8);
@@ -1592,23 +1673,38 @@ export function startGiftAmbience() {
   const NOTES = [72, 76, 79, 83, 86, 91];                    // C5 E5 G5 B5 D6 G6 — 밝지만 화성 진행 없이 정지
   let alive = true;
   const voices = NOTES.map((m) => {
-    const o = ctx.createOscillator(); o.type = 'sine';
-    o.frequency.value = mtof(m) * (1 + (Math.random() - 0.5) * 0.004);   // 미세 디튠 — 천천히 일렁임
+    const freq = mtof(m) * (1 + (Math.random() - 0.5) * 0.004);   // 미세 디튠 — 천천히 일렁임
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
     const g = ctx.createGain(); g.gain.value = 0.0001;
     o.connect(g); g.connect(out); o.start();
+    // FM 변조기 — 비정수비(2.37배)라 깊어질수록 금속성으로 뾰족해진다.
+    const mod = ctx.createOscillator(); mod.frequency.value = freq * 2.37;
+    const mg = ctx.createGain(); mg.gain.value = 0;
+    mod.connect(mg); mg.connect(o.frequency); mod.start();
+    mg.gain.setValueAtTime(0, startAt + 15);                              // 처음 15초는 맑게
+    mg.gain.linearRampToValueAtTime(freq * 1.1, startAt + GIFT_EVOLVE_SEC);   // 점점 깊은 FM
     let timer = null;
-    const breathe = () => {                                  // 목소리마다 다른 주기로 부풀었다 스러짐
+    const breathe = () => {                                  // 숨 — 변질될수록 크고 가쁘게
       if (!alive) return;
-      const t = ctx.currentTime;
-      const peak = 0.02 + Math.random() * 0.05;
-      const rise = 1.5 + Math.random() * 2.5;
+      const t = ctx.currentTime, p = prog();
+      const peak = (0.02 + Math.random() * 0.05) * (1 + p * 1.6);
+      const rise = (1.5 + Math.random() * 2.5) * (1 - p * 0.55);
       g.gain.setTargetAtTime(peak, t, rise * 0.5);
-      g.gain.setTargetAtTime(0.004, t + rise, 1.6);
-      timer = setTimeout(breathe, (rise + 1.5 + Math.random() * 2.5) * 1000);
+      g.gain.setTargetAtTime(0.004, t + rise, 1.6 * (1 - p * 0.5));
+      timer = setTimeout(breathe, (rise + (1.5 + Math.random() * 2.5) * (1 - p * 0.6)) * 1000);
     };
     timer = setTimeout(breathe, Math.random() * 1800);
-    return { o, g, get timer() { return timer; } };
+    return { o, mod, g, get timer() { return timer; } };
   });
+  // 노이즈 층 — 조용히 시작해 점점 차오르며 밴드가 위로 열린다.
+  const nz = ctx.createBufferSource(); nz.buffer = drumNoise(); nz.loop = true;
+  const nbp = ctx.createBiquadFilter(); nbp.type = 'bandpass'; nbp.Q.value = 1.2;
+  nbp.frequency.setValueAtTime(700, startAt);
+  nbp.frequency.linearRampToValueAtTime(6500, startAt + GIFT_EVOLVE_SEC);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, startAt + 25);                          // 처음 25초는 노이즈 없음
+  ng.gain.linearRampToValueAtTime(0.075, startAt + GIFT_EVOLVE_SEC);
+  nz.connect(nbp); nbp.connect(ng); ng.connect(out); nz.start();
   // 아주 낮은 몸통 한 음 — 바닥이 비지 않게.
   const low = ctx.createOscillator(); low.type = 'sine'; low.frequency.value = mtof(48);
   const lg = ctx.createGain(); lg.gain.value = 0.0001;
@@ -1621,7 +1717,12 @@ export function startGiftAmbience() {
       alive = false;
       out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.6);
       const end = ctx.currentTime + 2.5;
-      voices.forEach((v) => { clearTimeout(v.timer); try { v.o.stop(end); } catch (e) {} });
+      voices.forEach((v) => {
+        clearTimeout(v.timer);
+        try { v.o.stop(end); } catch (e) {}
+        try { v.mod.stop(end); } catch (e) {}
+      });
+      try { nz.stop(end); } catch (e) {}
       try { low.stop(end); } catch (e) {}
     },
   };
