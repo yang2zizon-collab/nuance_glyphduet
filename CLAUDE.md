@@ -108,6 +108,10 @@ serve.py                로컬 서버
   - **폰 접속 주소**: 같은 와이파이면 `/config`의 LAN 주소 QR. 데이터(셀룰러)로도 받으려면
     `cloudflared tunnel --url http://localhost:8777`로 공개주소를 만들고 메인을
     `?pub=<공개주소>`로 열면 QR이 그 주소를 가리킨다. 터널 없으면 LAN으로 폴백.
+  - **퀵 터널은 종종 혼자 죽는다**(프로세스는 살아 있는데 엣지 연결만 끊겨 000 — 오늘만 두 번).
+    `./start-show.sh`에 **워치독** 내장: 45초마다 공개주소 `/config`를 확인하고 죽어 있으면
+    자동으로 새 터널 발급 + public_url.txt 갱신(주소가 바뀌므로 메인 새로고침·폰 QR 재스캔 필요).
+    수동 복구: cloudflared kill → 재실행 → cf.log에서 URL 추출 → public_url.txt 갱신.
 - **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
   말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
 - **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→`startAsciiArt()`. 최다 득표 부호(winningNuance)의
