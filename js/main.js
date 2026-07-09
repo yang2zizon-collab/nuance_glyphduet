@@ -3179,18 +3179,30 @@ function drawDuetHeads(t) {
 // ===== 관객 폰 실시간 참여 =====
 // serve.py 의 SSE(/events)로 폰(/tap.html)이 보낸 부호를 받아 castVote(…, 'aud').
 // QR은 8초 라운드 동안 띄운다. 서버가 정적뿐이면(SSE 없음) 퍼포머 전용으로 동작.
-let audienceTapUrl = null;   // 폰이 열 주소 (?pub=공개주소 우선, 없으면 서버 LAN 주소)
+let audienceTapUrl = null;    // 폰이 열 주소 (?pub=공개주소 우선, 없으면 서버 /config 주소)
+let audienceUrlLocked = false; // ?pub= 로 수동 고정된 경우 — 자동 갱신 안 함
 let audienceES = null;
+
+// 폰 접속 주소 갱신 — 터널이 죽어 워치독이 새 주소를 발급하면 public_url.txt→/config가
+// 바뀐다. 화면을 새로고침하지 않아도 QR이 늘 최신(살아 있는) 주소를 가리키게 주기 갱신.
+function refreshAudienceUrl() {
+  fetch('/config').then((r) => r.json()).then((c) => {
+    if (audienceUrlLocked || !c || !c.lanUrl) return;
+    const bigEl = $('#big-qr');
+    const needFirst = bigEl && !bigEl.firstChild;      // 아직 QR을 못 그린 경우(라이브러리 늦은 로드 포함)
+    if (c.lanUrl !== audienceTapUrl || needFirst) {
+      audienceTapUrl = c.lanUrl;
+      renderBigQR();
+      if (cycleOn) renderMarkQR();
+    }
+  }).catch(() => {});
+}
 
 function setupAudience() {
   const pub = new URLSearchParams(location.search).get('pub');
-  if (pub) audienceTapUrl = pub.replace(/\/+$/, '') + '/tap.html';
-  // 서버가 알려주는 같은-와이파이 LAN 주소(공개주소가 없을 때만 사용)
-  fetch('/config').then((r) => r.json()).then((c) => {
-    if (!audienceTapUrl && c && c.lanUrl) audienceTapUrl = c.lanUrl;
-    if (cycleOn) renderMarkQR();   // 그새 사이클에 들어가 있었으면 갱신
-    renderBigQR();                 // 시작 전 QR 대기화면도 갱신
-  }).catch(() => {});
+  if (pub) { audienceTapUrl = pub.replace(/\/+$/, '') + '/tap.html'; audienceUrlLocked = true; }
+  refreshAudienceUrl();
+  setInterval(refreshAudienceUrl, 20000);   // 터널 재발급 자동 반영(워치독과 짝)
   if (audienceTapUrl) renderBigQR();   // ?pub= 로 이미 주소가 있으면 즉시
   try {
     audienceES = new EventSource('/events');
