@@ -3747,8 +3747,9 @@ function drawScore3D(ctx, W, H, t, progress) {
     }
   });
 
-  // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝. 2단계는 점구름이라 더 작게.
-  const sizeBase = sphere ? 0.3 : 0.5, sizeMax = sphere ? 40 : 64;
+  // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝.
+  // 2단계는 점구름이라 더 작게 — 기호가 많아지면 뭉텅이로 보여서 2/3로 줄임.
+  const sizeBase = sphere ? 0.2 : 0.5, sizeMax = sphere ? 27 : 64;
   const nowMs = performance.now();
   const audColored = [];   // 색 배정된 관객 음표 — 색 반전 뒤에 파스텔로 그린다(difference에 안 뒤집히게)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3758,7 +3759,7 @@ function drawScore3D(ctx, W, H, t, progress) {
     const audAge = d.born ? (nowMs - d.born) / 1000 : 99;
     const audK = d.aud && audAge < 1.4 ? 1 - audAge / 1.4 : 0;
     const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0) + audK * 0.6);
-    let fpx = Math.max(8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    let fpx = Math.max(sphere ? 6 : 8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
     if (audK > 0) fpx *= 1 + audK * 1.2;
     if (d.aud && d.cidx != null) { audColored.push({ d, pr, fpx, a, audK }); return; }
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
@@ -4295,11 +4296,17 @@ function captureScoreStill() {
 }
 
 // 합주 중 관객 폰 터치 — 총보에 음표(글리프) 하나를 그 자리에서 태어나게 한다.
-// 관객 음표 색 — 골든앵글(137.5°)로 색상환을 돌아 50명까지 최대한 안 겹치는 파스텔.
+// 관객 음표 색 — 골든앵글(137.5°) 색상 + 채도 4사이클·밝기 5사이클을 겹쳐,
+// 색상환이 한 바퀴 돌아 비슷한 색상(h)이 다시 나와도 톤이 달라 같은 색으로 안 보인다(50명 가정).
 // l(밝기)은 배경에 맞춰 보간해 쓴다(반전 전 흰 바탕=진하게, 반전 후 검정 바탕=파스텔).
+// ※ tap.html의 myColor와 반드시 같은 공식 유지.
+const AUD_SATS = [74, 52, 90, 63];
+const AUD_LOFF = [0, -9, 7, -4, 12];
 function audPastel(i, a = 1, l = 78) {
   const h = (i * 137.508) % 360;
-  return `hsla(${h.toFixed(1)}, 72%, ${l}%, ${a})`;
+  const s2 = AUD_SATS[((i % 4) + 4) % 4];
+  const l2 = Math.max(30, Math.min(92, l + AUD_LOFF[((i % 5) + 5) % 5]));
+  return `hsla(${h.toFixed(1)}, ${s2}%, ${l2}%, ${a})`;
 }
 // 관객 닉네임 — 형용사+명사 무작위 조합(말이 안 돼도 좋다). cidx로 결정돼 폰과 같다.
 // ※ 목록·해시는 tap.html 쪽 사본과 반드시 동일하게 유지할 것.

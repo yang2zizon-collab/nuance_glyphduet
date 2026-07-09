@@ -473,8 +473,15 @@
       try { localStorage.setItem('nuanceUid', myUid); } catch (er) {}
     }
     let myCidx = null;
-    const myColor = (l = 48) => myCidx == null ? '#000'
-      : 'hsl(' + ((myCidx * 137.508) % 360).toFixed(1) + ', 72%, ' + l + '%)';
+    // 색 공식 — main.js audPastel과 반드시 동일(골든앵글 색상 + 채도 4사이클 + 밝기 5사이클)
+    const AUD_SATS = [74, 52, 90, 63], AUD_LOFF = [0, -9, 7, -4, 12];
+    const myColor = (l = 48) => {
+      if (myCidx == null) return '#000';
+      const h = ((myCidx * 137.508) % 360).toFixed(1);
+      const s = AUD_SATS[myCidx % 4];
+      const l2 = Math.max(30, Math.min(92, l + AUD_LOFF[myCidx % 5]));
+      return 'hsl(' + h + ', ' + s + '%, ' + l2 + '%)';
+    };
     // 닉네임 — 형용사+명사 무작위 조합(말이 안 돼도 좋다). cidx로 결정돼 메인 랭킹과 같다.
     // ※ 목록·해시는 main.js(AUD_ADJS/AUD_NOUNS/audNick)와 반드시 동일하게 유지할 것.
     function h32(n) {

@@ -204,7 +204,9 @@ serve.py                로컬 서버
   마크 → drawScore3D가 1.4초 팝(×2.2)+이중 확산 링으로 탄생 강조, 이후에도 가는 링 유지.
 - **관객 음표 개인 파스텔 색(최대 ~50명)**: 폰이 uid(localStorage `nuanceUid`)를 `/addnote`에 실어
   보내면 서버 `aud_colors`가 **선착순 순번(cidx)** 을 배정(phase round/idle에 리셋), SSE와 응답 양쪽에
-  실어준다. 색 공식은 메인·폰 동일 — **골든앵글** `hue=(cidx*137.508)%360`(`audPastel(i,a,l)`), 겹침 최소.
+  실어준다. 색 공식은 메인·폰 동일 — **골든앵글** `hue=(cidx*137.508)%360` + **채도 4사이클
+  (AUD_SATS)·밝기 5사이클(AUD_LOFF)**(`audPastel(i,a,l)`) — 색상환이 돌아 비슷한 h가 나와도 톤이
+  달라 같은 색으로 안 보인다. 합주(2단계) 글리프는 뭉텅이 방지로 2/3 크기(sizeBase 0.2·max 27·min 6).
   메인은 음표에 cidx를 심고(**flatScoreNotes가 cidx도 복사해야 함 — 필드 추가 시 여기 잊지 말 것**),
   drawScore3D에서 색 음표는 본 패스에서 건너뛰고 **difference 반전 이후에** hsla로 그린다(색이 안
   뒤집힘). 밝기 l은 반전 진행도로 보간(흰 바탕 45 ↔ 검정 바탕 78). 폰은 첫 응답의 cidx로 리플·글리프·
