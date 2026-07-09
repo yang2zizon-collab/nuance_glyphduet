@@ -4354,15 +4354,18 @@ function startOrchestraPhase() {
   scoreTotalMs = Math.min(orchestraScore.totalBeats * spb * 1000, SHOW.orchCapSec * 1000);   // 합주는 최대 1분
   scoreStartWall = performance.now() + 150;
   // 파트마다 실제 리듬을 트랙으로 — startBeat(랜덤 입장)을 offset(초)으로 준다.
+  // 입장은 흩되 2.5초 안엔 모두 들어오게 감고(반전 직후 무음 방지), 파트를 loop로 계속
+  // 돌려 합주 내내 음이 촘촘히 차 있게 한다(1회전만 하면 짧은 대화에선 몇 초 만에
+  // 성겨져 "합주 때 소리가 안 난다"고 들리던 원인).
   const tracks = orchestraScore.parts.map((p) => ({
     voiceId: p.voiceId,
-    offset: p.startBeat * spb,
+    offset: Math.min(p.startBeat * spb, 2.5),
     events: (p.events || []).filter((e) => e.ch && e.ch !== ' ' && e.ch !== '\n'),
   })).filter((t) => t.events.length);
   orchestraTracks = tracks;   // 잼 음악 베드가 같은 파트들을 재활용한다
   if (tracks.length) {
     const duration = scoreTotalMs / 1000;
-    stopEnsemble = playEnsemble(tracks, { speed: 1, duration, loop: false });
+    stopEnsemble = playEnsemble(tracks, { speed: 1, duration, loop: true, gain: 1.15 });
   }
   // 잼 개시 타이머 — 캔버스 프레임이 멈춰 있어도 합주 종료 시각에 정확히 열린다
   clearTimeout(jamTimer);

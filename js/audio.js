@@ -793,24 +793,34 @@ export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true, g
   const MAX_NOTES = 700;     // 과부하 방지 하드 상한(이걸 넘으면 합주가 무음이 될 수 있음)
   let scheduled = 0;
 
-  // 각 목소리(리듬 덩어리)를 독립적으로 계속 루프시킨다 → 끊김 없는 층층 합주.
-  rhythms.forEach((r, ri) => {
-    if (!r.events || !r.events.length) return;
-    const prof = speakProfile(r.voiceId);
-    // 이 리듬의 한 바퀴 길이(배속 적용). 너무 짧으면 최소 길이를 줘 또랑또랑 반복.
+  // 예약될 음 수를 미리 세고, 상한을 넘으면 "고르게" 솎아낸다 — 예전엔 상한에 닿는
+  // 순간 나머지를 전부 버려서 합주 후반이 통째로 무음이 됐다(끝까지 성기게라도 울리게).
+  const cycleParams = rhythms.map((r, ri) => {
+    if (!r.events || !r.events.length) return null;
     let span = 0;
     r.events.forEach((e) => { if (e.rel > span) span = e.rel; });
     const loopLen = Math.max(0.6, span / speed + 0.28);
-    // 시작 엇갈림 — 트랙이 직접 offset(초)을 주면 그걸 쓰고(오케스트라 랜덤 입장),
-    // 없으면 기본 살짝 엇갈림(겹침의 맛).
     const offset = (r.offset != null) ? r.offset : (ri % rhythms.length) * 0.12;
-    // loop=false면 한 번만 연주(오케스트라 통과 1회). loop=true면 duration까지 반복.
     const step = loop ? loopLen : (duration + loopLen);
+    let cycles = 0;
+    for (let cs = offset; cs < duration; cs += step) cycles++;
+    return { loopLen, offset, step, planned: cycles * r.events.length };
+  });
+  const plannedTotal = cycleParams.reduce((s, c) => s + (c ? c.planned : 0), 0);
+  const keepEvery = Math.max(1, Math.ceil(plannedTotal / MAX_NOTES));
+  let gi = 0;   // 전역 이벤트 순번 — keepEvery 간격으로만 실제 예약
+
+  // 각 목소리(리듬 덩어리)를 독립적으로 계속 루프시킨다 → 끊김 없는 층층 합주.
+  rhythms.forEach((r, ri) => {
+    if (!cycleParams[ri]) return;
+    const prof = speakProfile(r.voiceId);
+    const { offset, step } = cycleParams[ri];
 
     for (let cycleStart = offset; cycleStart < duration; cycleStart += step) {
       const base = start + cycleStart;
       for (const ev of r.events) {
         if (scheduled >= MAX_NOTES) break;
+        if ((gi++ % keepEvery) !== 0) continue;   // 고른 솎아내기 — 밀도는 낮아져도 끝까지 이어진다
         const ch = ev.ch;
         const hasChar = (typeof ch === 'string' && ch.length === 1);
         const p = hasChar ? pitchForChar(ch) : Math.random();
@@ -828,7 +838,8 @@ export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true, g
     }
   });
   console.info('[ensemble] ctx.state:', ctx.state, '· 트랙:', rhythms.length,
-               '· 예약 음표:', scheduled, '/ 상한', MAX_NOTES, '· duration:', duration.toFixed(1));
+               '· 예약 음표:', scheduled, '/ 계획', plannedTotal, '(간격', keepEvery + ')',
+               '· duration:', duration.toFixed(1), '· loop:', loop);
   emit({ type: 'ensemble', voices: rhythms.length, speed, duration });
 
   // 중단 함수 — 엔딩을 떠나거나 다시 시작할 때 깔끔히 멈춘다.

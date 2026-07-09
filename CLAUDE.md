@@ -78,7 +78,11 @@ serve.py                로컬 서버
 - **엔딩(2단계)**:
   1. **순차 듀엣** — `buildScore()` → `playScore()`. 두 사람이 친 순서/리듬 그대로 한 줄 악보로.
   2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
-     `playEnsemble(..., {loop:false})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
+     `playEnsemble(..., {loop:true, gain:1.15})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
+     **합주 소리 규칙**: 오디오 입장 오프셋은 2.5초로 감아(반전 직후 무음 방지) 파트들이 스웰처럼
+     차오르고, loop:true로 합주 내내 촘촘히 유지(1회전만 하면 짧은 대화에선 몇 초 만에 성겨져
+     "소리가 안 난다"고 들림 — RMS 계측으로 확인). playEnsemble은 예약 수를 미리 세서 MAX_NOTES(700)
+     초과분을 **고르게 솎아냄**(keepEvery) — 예전처럼 상한에 닿는 순간 후반이 통째로 무음이 되지 않는다.
   - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
   - **3D 그래픽 스코어(score 테마 엔딩)**: `drawScore3D()`가 1·2단계 모두 렌더(loop의 ending 분기에서
     SCORE면 호출). `flatScoreNotes()`로 `{beat,midi,lane,player,glyph,accent}` 평탄화 → 고정 3D 공간에
