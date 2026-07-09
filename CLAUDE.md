@@ -211,7 +211,11 @@ serve.py                로컬 서버
 - **관객 잼(합주 종료 후)**: 합주 progress≥1 → `startJam()`(드로우 프레임 + `jamTimer` 폴백 —
   rAF가 백그라운드로 멈춰도 정시 개시) → POST `/jam` → SSE `{type:'jam'}` → 폰 캡션 "이제 당신의
   차례! 터치로 함께 연주하세요"/서브 "관객 합주". 잼 동안 `addAudienceNote`는 **랜덤 박**에 심어
-  구름 전체에 흩뿌려짐. **잼 카메라** = SF 우주유영(camR 6~28, 시간 배율 t*0.3 — 아주 느긋).
+  구름 전체에 흩뿌려짐. **잼 음악 베드**: 합주 1회전은 짧은 대화면 몇 초 만에 끝나 그 뒤가 무음이었음
+  ("합주 때 소리가 안 나") → startJam이 `orchestraTracks`(오프셋 %4로 감음)를
+  `playEnsemble({speed:1, duration:22, loop:true, gain:0.55})`로 잔잔히 돌리고 **20초마다 새 판**
+  (audio.js MAX_NOTES=700 상한에 걸려 조용해지기 전에 — 리버브 꼬리가 이음매를 가림). playEnsemble에
+  `gain` 옵션 추가됨. stopEndingScore가 jamBed/jamBedTimer/orchestraTracks 정리. **잼 카메라** = SF 우주유영(camR 6~28, 시간 배율 t*0.3 — 아주 느긋).
   메인 하단엔 합주 내내 작은 안내("핸드폰 화면을 터치하면…" → 잼엔 "지금이에요 —…") — 캔버스에
   그려져 색 반전과 함께 뒤집힘. 잼 상태는 stopEndingScore가 riset.
   **주의**: showEnding의 HUD 타이머는 반드시 `startEndingScore()` **뒤에** 걸 것(안의

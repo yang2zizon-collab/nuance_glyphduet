@@ -767,8 +767,8 @@ export function speakVoiceEvents(events, voiceId = null, mood = 'neutral') {
 // 마음이 닿은 순간: 각 목소리가 자기 리듬을 계속 루프하며 한 공간에서 같이 울리고,
 // 강한 리버브가 가득 차며, 리듬은 2배 빨라져 진짜 합주처럼 몰아친다.
 //  rhythms: [{ voiceId, events:[{rel,ch}] }]  (플레이어별 메시지마다 한 덩어리)
-//  opts: { speed=2(배속), duration(초, 합주 길이) }
-export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true } = {}) {
+//  opts: { speed=2(배속), duration(초, 합주 길이), gain(전체 게인 — 잼 베드는 낮춰서) }
+export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true, gain = 1.0 } = {}) {
   if (!ctx || !rhythms || !rhythms.length) { console.warn('[ensemble] 중단: ctx/rhythms 없음', !!ctx, rhythms && rhythms.length); return () => {}; }
   if (ctx.state === 'suspended') ctx.resume();
   ensureGrainBuf();
@@ -781,7 +781,7 @@ export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true } 
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.0);
   }
   const conv = ctx.createConvolver(); conv.buffer = ir;
-  const out = ctx.createGain(); out.gain.value = 1.0;    // 합주 전체 게인(엔딩의 주인공)
+  const out = ctx.createGain(); out.gain.value = gain;   // 합주 전체 게인(엔딩의 주인공, 잼 베드는 낮게)
   const dry = ctx.createGain(); dry.gain.value = 0.65;
   const wet = ctx.createGain(); wet.gain.value = 1.8;    // 강한 리버브
   const wetLp = ctx.createBiquadFilter(); wetLp.type = 'lowpass'; wetLp.frequency.value = 6500;

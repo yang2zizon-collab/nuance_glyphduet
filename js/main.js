@@ -3340,10 +3340,26 @@ let orchestraT0 = 0;                            // 합주 시작 시각 — 색 
 let endingHudTimer = null;                      // 소통 게이지·문구 8초 후 페이드아웃 타이머
 let jamOn = false;                              // 합주가 끝난 뒤 = 관객 합주(터치 잼) — 카메라도 우주유영
 let jamTimer = null;                            // rAF가 멈춰도(탭 백그라운드) 잼은 정시에 열리게 하는 타이머
+let orchestraTracks = null;                     // 합주 트랙 원본 — 잼 음악 베드가 재활용
+let jamBed = null, jamBedTimer = null;          // 잼 베드(잔잔한 합주 루프) 중단 함수 + 갱신 타이머
 
 function startJam() {
   if (jamOn || endingPhase !== 2) return;
   jamOn = true;
+  // 잼 음악 베드 — 합주 1회전이 끝나도 무음이 되지 않게, 같은 파트들이 잔잔히 계속 돈다.
+  // (합주는 짧은 대화면 몇 초 만에 끝나 "합주 때 소리가 안 난다"고 느껴졌던 원인.)
+  // 랜덤 입장 오프셋은 0~4초로 감아 베드가 빨리 차오르게, 게인은 낮춰 관객 음표가 주인공.
+  // MAX_NOTES(700) 상한에 걸려 조용해지기 전에 20초마다 새 판을 깐다(리버브 꼬리가 이음매를 가림).
+  resumeAudio();
+  const startBed = () => {
+    if (jamBed) jamBed();
+    jamBed = (orchestraTracks && orchestraTracks.length)
+      ? playEnsemble(orchestraTracks.map((t) => ({ ...t, offset: (t.offset || 0) % 4 })),
+        { speed: 1, duration: 22, loop: true, gain: 0.55 })
+      : null;
+  };
+  startBed();
+  clearInterval(jamBedTimer); jamBedTimer = setInterval(startBed, 20000);
   try { fetch('/jam', { method: 'POST' }).catch(() => {}); } catch (e) { /* 정적 서버 — 무시 */ }
 }
 let orchestraScore = null;                      // 2단계 다성부 악보 데이터
@@ -4217,6 +4233,7 @@ function startOrchestraPhase() {
     offset: p.startBeat * spb,
     events: (p.events || []).filter((e) => e.ch && e.ch !== ' ' && e.ch !== '\n'),
   })).filter((t) => t.events.length);
+  orchestraTracks = tracks;   // 잼 음악 베드가 같은 파트들을 재활용한다
   if (tracks.length) {
     const duration = scoreTotalMs / 1000;
     stopEnsemble = playEnsemble(tracks, { speed: 1, duration, loop: false });
@@ -4235,6 +4252,9 @@ function stopEndingScore() {
   orchestraT0 = 0;
   jamOn = false;
   clearTimeout(jamTimer); jamTimer = null;
+  if (jamBed) { jamBed(); jamBed = null; }
+  clearInterval(jamBedTimer); jamBedTimer = null;
+  orchestraTracks = null;
   clearTimeout(endingHudTimer); endingHudTimer = null;
   document.body.classList.remove('score-invert', 'ending-hud-off');
 }
