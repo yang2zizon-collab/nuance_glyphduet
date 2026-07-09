@@ -18,8 +18,9 @@
   - **반드시 `headless: 'shell'`** — `'new'` 모드는 이 맥에서 컴포지터가 프레임을 안 만드는 상태에 빠질 수 있음
     (rAF 0 → `p.click()`류 CDP 입력이 무한 대기 → ProtocolError 타임아웃. 페이지 evaluate는 멀쩡해서 헷갈림).
   - 크롬 인자: `--autoplay-policy=no-user-gesture-required --mute-audio --force-color-profile=srgb`, viewport 1600×900 @2x
-  - 진입 흐름: 타이틀 `[data-action="start"]`(한 번) → select(룰렛 4회) → `#slot-start` →
-    QR 화면 → `[data-action="qr-done"]` → play. 컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
+  - 진입 흐름: 타이틀 `[data-action="start"]` **두 번**(1클릭=오디오 깨움·그래뉼러, ~0.9s 뒤
+    2클릭=소개로) → select(룰렛 4회) → `#slot-start` → QR 화면 → `[data-action="qr-done"]` → play.
+    컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
   - **테스트는 반드시 별도 포트로 서버를 새로 띄워서**(예: `python3 serve.py 8899`) — 8777은
     공연용이라 관객 폰이 붙어 있고, 테스트가 /phase 등을 방송하면 폰 화면이 멋대로 넘어간다.
 
