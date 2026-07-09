@@ -307,6 +307,7 @@ const INTRO_NARR = {
   ],
 };
 const INTRO_PX = 2.0;     // 도트 한 알의 크기(CSS px) — 촘촘할수록 실사에 가깝다
+const MOUSE_LOFI_PX = 4.0; // 생쥐 부엌 컷 전용 도트 — 더 굵게(로우파이 게임 화면 톤)
 let introCanvas = null, introCtx = null;
 let introLayerCache = {};   // 정적 배경 플레이트 캐시 — 컷신 시작마다 비운다(프레임드랍 방지)
 let introColorCanvas = null, introColorCtx = null;   // 캐릭터(컬러) 레이어
@@ -624,7 +625,14 @@ function drawPhotoCover(g, img, W, H) {
 
 function drawIntroScene(t) {
   const W = window.innerWidth, H = window.innerHeight;
-  const pw = Math.ceil(W / INTRO_PX), ph = Math.ceil(H / INTRO_PX);
+  // 장면 내부 시계 — INTRO_PACE 로 나눠 전체 호흡을 늦춘다(장면 안 초 값들은 그대로 유효)
+  const s = (performance.now() - introScene.start) / 1000 / INTRO_PACE;
+  const kind = introScene.kind;
+  const durS = introScene.dur / 1000 / INTRO_PACE;
+  // 도트 크기 — 생쥐 부엌 컷만 더 로우파이(굵은 도트). 버퍼 리사이즈로 플레이트도 자동 재생성되고,
+  // 컷 전환의 화이트 플래시가 도트가 굵어지는 순간을 가려준다.
+  const px = (kind === 'mouse' && s > MOUSE_CUT) ? MOUSE_LOFI_PX : INTRO_PX;
+  const pw = Math.ceil(W / px), ph = Math.ceil(H / px);
   if (!introCanvas) { introCanvas = document.createElement('canvas'); introCtx = introCanvas.getContext('2d', { willReadFrequently: true }); }
   if (introCanvas.width !== pw || introCanvas.height !== ph) { introCanvas.width = pw; introCanvas.height = ph; }
   // 캐릭터(컬러) 레이어는 풀해상도 — 저해상 디더를 거치지 않아 픽셀아트가 또렷하다
@@ -654,10 +662,6 @@ function drawIntroScene(t) {
     ctx.drawImage(ent.cv, 0, 0, W, H);
   }
 
-  // 장면 내부 시계 — INTRO_PACE 로 나눠 전체 호흡을 늦춘다(장면 안 초 값들은 그대로 유효)
-  const s = (performance.now() - introScene.start) / 1000 / INTRO_PACE;
-  const kind = introScene.kind;
-  const durS = introScene.dur / 1000 / INTRO_PACE;
   const S = Math.min(W, H) * 0.17;
   const ink = '#000';
 
