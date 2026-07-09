@@ -1344,88 +1344,242 @@ function industrialGroove(out, { kitsch = false } = {}) {
   }, 22);
 }
 
-// 타이틀 인트로 — 리버스 딜레이/리버스 리버브풍 메아리.
-// 작은 음량으로 시작해 ~10초간 점점 커지며, 두 목소리(완전5도)가
-// 점점 가까이·자주·크게 메아리치다 마지막에 "커넥션"으로 만난다.
-export const TITLE_INTRO_SEC = 28;   // 공연 타임라인 — 시작 화면 ~30초(28초 스웰 + 여운)
+// 타이틀 — 그래뉼러 반짝임만. ("우웅" 리버스 스웰 인트로는 사용자 요청으로 제거된 상태 유지)
+// 화려하게 흩뿌려지는 알갱이들이 ~20초에 걸쳐 점점 촘촘해지고,
+// 알갱이 하나마다 onTitleGrain 콜백을 불러 화면에서도 잉크 알갱이로 보인다.
 export function startTitleMusic() {
   if (!ctx || titleSeq) return;
   if (ctx.state === 'suspended') ctx.resume();
   ensureReverb();
-  const now = ctx.currentTime;
-  const DUR = TITLE_INTRO_SEC;
+  const started = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.value = 0.0001;
+  out.connect(master);
+  out.gain.setTargetAtTime(0.75, started, 0.5);
+  // 리버브 — 초반엔 바짝 마른 소리(드라이), 6초쯤부터 서서히 차올라 울려 퍼진다.
+  const verb = ctx.createGain(); verb.gain.value = 0.0001;
+  verb.gain.setTargetAtTime(0.9, started + 6, 5);
+  out.connect(verb); verb.connect(reverb);
 
-  // 전체 스웰 — 작게 시작해 10초간 점점 커진다.
-  const swell = ctx.createGain();
-  swell.gain.setValueAtTime(0.03, now);
-  swell.gain.exponentialRampToValueAtTime(0.9, now + DUR);
-  swell.connect(master);
-
-  // 리버스 딜레이(메아리) — 피드백 에코 + 리버브 듬뿍.
-  const delay = ctx.createDelay(1.0); delay.delayTime.value = 0.42;
-  const fb = ctx.createGain(); fb.gain.value = 0.55;
-  delay.connect(fb); fb.connect(delay);
-  const wet = ctx.createGain(); wet.gain.value = 0.85;
-  delay.connect(wet); wet.connect(swell);
-  const verb = ctx.createGain(); verb.gain.value = 0.7;
-  wet.connect(verb); verb.connect(reverb);
-
-  // 리버스 스웰 한 방울 — 진폭이 0→피크로 천천히 차오르는(역재생) 엔벨로프.
-  function swellDrop(when, freq, dur, peak) {
+  // 뒤에 깔리는 바닥 — 묵직한 서브+드론과 천천히 일렁이는 중역 패드.
+  // 알갱이가 앞에 서고, 이 바닥이 공간을 채운다. 몇 초 간격으로 음량·밝기가 흘러간다.
+  const bedNodes = [];
+  const bedLp = ctx.createBiquadFilter(); bedLp.type = 'lowpass';   // 바닥 전체 밝기 — 천천히 열렸다 닫힌다
+  bedLp.frequency.value = 900; bedLp.Q.value = 0.6;
+  bedLp.connect(out);
+  // 루트가 떠돌아다니는 저음 — rel은 루트로부터의 간격(서브/루트/5도 구조 유지).
+  let bedRoot = 36;                                        // C2에서 출발
+  const BED_ROOTS = [36, 33, 31, 34, 29, 38, 32, 30];      // C2·A1·G1·B♭1·F1·D2 + A♭1·F♯1(어두운 긴장색) — 느리게 방랑
+  // 저음은 처음엔 없다 — 초반은 알갱이만 마르게 반짝이고,
+  // ~9초부터 저음이 천천히 피어나 무게가 실린다.
+  const drones = [
+    { rel: -12, base: 0.05, type: 'sine' },      // 서브 — 몸으로 느끼는 무게
+    { rel: 0,   base: 0.085, type: 'sine' },     // 루트
+    { rel: 0,   base: 0.028, type: 'sawtooth' }, // 톱니 — 질감(로우패스로 어둡게)
+    { rel: 7,   base: 0.055, type: 'sine' },     // 5도
+  ].map((d) => {
+    const o = ctx.createOscillator(); o.type = d.type; o.frequency.value = mtof(bedRoot + d.rel);
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    g.gain.setTargetAtTime(d.base, started + 9, 4);        // 9초부터 아주 천천히 블룸
+    o.connect(g); g.connect(bedLp); o.start();
+    bedNodes.push(o);
+    return { o, g, base: d.base, rel: d.rel };
+  });
+  [60, 67, 72].forEach((m, i) => {                         // C4·G4·C5 패드 — 미세 디튠 + 느린 숨
     const o = ctx.createOscillator(); o.type = 'triangle';
-    o.frequency.value = freq;
+    o.frequency.value = mtof(m) * (1 + (Math.random() - 0.5) * 0.003);
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    g.gain.setTargetAtTime(0.018, started + 3, 2);         // 패드는 3초부터 스며든다
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.05 + i * 0.03;
+    const lg = ctx.createGain(); lg.gain.value = 0.013;    // 숨의 깊이
+    lfo.connect(lg); lg.connect(g.gain);
+    o.connect(g); g.connect(bedLp); o.start(); lfo.start();
+    bedNodes.push(o, lfo);
+  });
+  // 느린 변화 — 5초마다 드론 음량·바닥 밝기가 흘러가고,
+  // 절반 확률로 저음 루트가 다른 음으로 미끄러진다(위 패드는 고정 → 화성색이 계속 변함).
+  const bedTimer = setInterval(() => {
+    const t = ctx.currentTime;
+    if (t - started > 12)   // 저음 블룸(9초~) 전에는 음량 방랑으로 미리 끌어올리지 않는다
+      drones.forEach((d) => d.g.gain.setTargetAtTime(d.base * (0.5 + Math.random() * 1.1), t, 2.5));
+    bedLp.frequency.setTargetAtTime((st.shift ? 1400 : 450) + Math.random() * 1700, t, 3);   // 룰렛에선 밝은 범위에서 유영
+    if (Math.random() < 0.5) {
+      const next = BED_ROOTS.filter((r) => r !== bedRoot);
+      bedRoot = next[(Math.random() * next.length) | 0];
+      drones.forEach((d) => d.o.frequency.setTargetAtTime(mtof(bedRoot + d.rel), t, 1.6));   // 천천히 글리산도
+    }
+  }, 5000);
+
+  // 상태 — 알갱이 음역 시프트(룰렛 진입 시 +12 등)와 느린 피치 드리프트.
+  const st = { shift: 0 };
+  const driftAt = (el) => 5 * Math.sin(el * 2 * Math.PI / 23) + 3 * Math.sin(el * 2 * Math.PI / 9.5);
+
+  // 룰렛 틱 결의 알갱이 — 사각파가 위로 톡 꺾이는 "또로록" 한 톨.
+  const rouletteGrain = (pitch01, when, gain) => {
+    const f = mtof(60 + st.shift + driftAt(ctx.currentTime - started) + pitch01 * 36);
+    const o = ctx.createOscillator();
+    o.type = Math.random() < 0.75 ? 'square' : 'triangle';
+    o.frequency.setValueAtTime(f, when);
+    o.frequency.exponentialRampToValueAtTime(f * 1.5, when + 0.04);   // 룰렛 틱처럼 위로 톡
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.exponentialRampToValueAtTime(peak, when + dur * 0.92);   // 천천히 차오름(리버스)
-    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);        // 끝에서 톡 사라짐
-    o.connect(g); g.connect(delay);                                 // 딜레이(메아리)로 보냄
-    o.start(when); o.stop(when + dur + 0.05);
+    g.gain.exponentialRampToValueAtTime(gain, when + 0.004);          // 딱! 어택
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.11);
+    o.connect(g); g.connect(out); o.start(when); o.stop(when + 0.13);
+  };
+
+  // 오프닝 임팩트 — 시작하자마자 알갱이 폭포가 쏟아진다(첫인상).
+  for (let k = 0; k < 34; k++) {
+    const pitch01 = Math.random();
+    const amp = 0.02 + Math.random() * 0.045;
+    rouletteGrain(pitch01, started + 0.03 + k * 0.045 * Math.random(), amp);
+    setTimeout(() => { if (titleGrainCb) titleGrainCb({ p: pitch01, a: amp }); }, 30 + k * 42);
   }
 
-  // 커넥션 모티프 — 두 목소리가 점점 가까이·크게 메아리친다(미리 스케줄).
-  const A = mtof(45), B = mtof(52);   // 두 목소리(완전5도)
-  let t = now + 0.1, gap = 3.0, peak = 0.04;
-  while (t < now + DUR) {
-    swellDrop(t, A, gap * 0.9, peak);
-    swellDrop(t + gap * 0.45, B, gap * 0.7, peak * 0.9);
-    t += gap;
-    gap = Math.max(0.32, gap * 0.9);          // 28초에 걸쳐 천천히 조여온다(하한 → 루프 종료 보장)
-    peak = Math.min(0.35, peak * 1.14);       // 점점 커짐
-  }
-  // 마지막 "커넥션" — 두 음이 함께 피크로 만나는 한 방.
-  swellDrop(now + DUR, A, 1.4, 0.42);
-  swellDrop(now + DUR + 0.02, B, 1.4, 0.42);
-
-  // 그래뉼러 반짝임 — 화려하게 흩뿌려지는 알갱이들. 인트로가 진행될수록 촘촘해진다.
-  // 알갱이 하나마다 onTitleGrain 콜백을 불러 화면에서도 보이게 한다.
-  const grainBus = ctx.createGain(); grainBus.gain.value = 0.8; grainBus.connect(swell);
-  const gVerb = ctx.createGain(); gVerb.gain.value = 0.9; grainBus.connect(gVerb); gVerb.connect(reverb);
   const grainTimer = setInterval(() => {
-    const p = Math.min(1, (ctx.currentTime - now) / DUR);         // 인트로 진행도
-    if (Math.random() > 0.25 + p * 0.65) return;                  // 갈수록 촘촘하게
-    const cluster = 1 + ((Math.random() * (1 + p * 3)) | 0);      // 뒤로 갈수록 클러스터로
+    const el = ctx.currentTime - started;
+    const p = Math.min(1, el / 20);                               // ~20초에 걸쳐 전체적으로 상승
+    const breathe = 0.5 + 0.5 * Math.sin(el * 2 * Math.PI / 7);   // ~7초 주기 숨 — 확 몰렸다 확 빠진다
+    const density = (0.45 + p * 0.5) * (0.4 + 0.6 * breathe);     // 바닥 밀도부터 높게, 절정엔 거의 상시
+    if (Math.random() > density) return;
+    const cluster = 1 + ((Math.random() * (2 + p * 5 * breathe)) | 0);   // 두터운 클러스터
     for (let k = 0; k < cluster; k++) {
       const pitch01 = Math.random();
-      const amp = 0.015 + Math.random() * 0.05 * (0.5 + p);
-      const when = ctx.currentTime + k * 0.03;
-      pluck8(mtof(72 + pitch01 * 36), when, 0.05 + Math.random() * 0.12, amp,
-             Math.random() < 0.3 ? 'triangle' : 'sine', grainBus);
+      const amp = (0.012 + Math.random() * 0.04 * (0.5 + p)) * (0.6 + 0.6 * breathe);
+      rouletteGrain(pitch01, ctx.currentTime + k * 0.03, amp);
       if (titleGrainCb) titleGrainCb({ p: pitch01, a: amp });      // 시각화 알림
     }
-  }, 70);
+  }, 60);
 
-  titleSeq = { out: swell, timer: grainTimer };
+  titleSeq = { out, timer: grainTimer, bedTimer, nodes: bedNodes, st, bedLp, rouletteGrain };
+}
+
+// 룰렛(캐릭터 선택) 진입 — 소리가 확 변한다: 알갱이 음역이 한 옥타브 위로 점프,
+// 바닥이 확 밝아지고, 진입 순간 상승 캐스케이드가 쏟아진다.
+export function titleMusicShift() {
+  if (!ctx || !titleSeq || !titleSeq.st) return;
+  if (titleSeq.st.shift === 12) return;   // 이미 시프트됨
+  titleSeq.st.shift = 12;
+  const t = ctx.currentTime;
+  titleSeq.bedLp.frequency.cancelScheduledValues(t);
+  titleSeq.bedLp.frequency.setTargetAtTime(2600, t, 0.4);          // 바닥이 확 트인다
+  for (let k = 0; k < 18; k++)                                     // 진입 플러리시 — 위로 쏟아지는 알갱이
+    titleSeq.rouletteGrain(k / 18, t + k * 0.035, 0.035 + Math.random() * 0.03);
 }
 
 // 타이틀 그래뉼러 알갱이 시각화 콜백 — main.js가 등록해 화면에 그린다.
 let titleGrainCb = null;
 export function onTitleGrain(cb) { titleGrainCb = cb; }
 
+// 소개 컷신(스토리) BGM — 긴장감 있는 게임음악. 컷신마다 성격이 다르다:
+//  tomato: 밝지만 초조한 온실 — 높은 루트·통통 튀는 라인
+//  phone : 연결의 긴장 — 신호음처럼 울리는 투톤 링 모티프
+//  mouse : 밤거리 잠입 — 먹먹하고 낮게 기는 반음 라인 + 후다닥 스커리
+// 공통: 오스티나토·심장박동 킥·째깍임, 장면이 갈수록 조여옴(필터·반음 상승).
+let cutsceneBgm = null;
+const CUTSCENE_V = {
+  //  cluster: 단2도 트레몰로 드론(phone 전용) / pings: 스피카토 경보 핑 / creep: 반음 기어오르는 런
+  tomato: { root: 40, step: 0.2,  line: [0, 3, 5, 3, 0, -2, 7, 5],  lp0: 480, lpR: 1300, kick: 0.4,  centers: [84, 81, 86, 88, 79], ring: false, scurry: false, cluster: false, pings: true,  creep: false },
+  phone:  { root: 31, step: 0.26, line: [0, 0, 5, 0, 3, 0, -2, 0],  lp0: 320, lpR: 1100, kick: 0.52, centers: [81, 79, 84, 77],     ring: true,  scurry: false, cluster: true,  pings: false, creep: false },
+  mouse:  { root: 33, step: 0.23, line: [0, -2, 0, 3, 0, -4, -2, 0], lp0: 240, lpR: 800, kick: 0.36, centers: [72, 74, 70, 77],     ring: false, scurry: true,  cluster: false, pings: false, creep: true },
+};
+export function startCutsceneBgm(kind = 'phone') {
+  if (!ctx || cutsceneBgm) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  ensureReverb();
+  const V = CUTSCENE_V[kind] || CUTSCENE_V.phone;
+  const started = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.value = 0.0001; out.connect(master);
+  out.gain.setTargetAtTime(0.5, started, 0.6);
+  const verb = ctx.createGain(); verb.gain.value = 0.3; out.connect(verb); verb.connect(reverb);
+
+  // 저음 스타카토 한 방(로우패스 톱니) — 오스티나토용.
+  const stab = (midi, when, gain, lpf) => {
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(midi);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = lpf; lp.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(gain, when + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.17);
+    o.connect(lp); lp.connect(g); g.connect(out);
+    o.start(when); o.stop(when + 0.2);
+  };
+
+  // 오스티나토 — 컷신별 루트·라인·템포. 갈수록 필터가 열리고 반음을 기어오른다.
+  const { root, step, line } = V;
+  let i = 0, next = started + 0.05;
+  const timer = setInterval(() => {
+    const t = ctx.currentTime;
+    while (next < t + 0.12) {
+      const rise = Math.min(1, (next - started) / 40);               // 40초에 걸쳐 고조
+      stab(root + line[i % line.length] + rise, next, i % 8 === 0 ? 0.2 : 0.13, V.lp0 + rise * V.lpR);
+      if (i % 2 === 0) hat8(next, out, 0.018 + rise * 0.02);         // 째깍임
+      if (i % 8 === 0) { kick808(next, out, V.kick); kick808(next + step * 1.5, out, V.kick * 0.6); }  // 심장박동
+      if (i % 16 === 12 && Math.random() < 0.6) clap8(next, out, 0.12 + rise * 0.1);       // 간헐적 클랩
+      // phone: 전화 신호음 — 두 마디마다 높은 투톤이 "삐-삐" 울린다.
+      if (V.ring && i % 32 === 16) {
+        pluck8(mtof(root + 43), next, 0.16, 0.06, 'square', out);
+        pluck8(mtof(root + 43), next + step, 0.16, 0.05, 'square', out);
+      }
+      // mouse: 후다닥 스커리 — 가끔 높은 스타카토 셋잇단이 쪼르르.
+      if (V.scurry && i % 8 === 4 && Math.random() < 0.4)
+        for (let k = 0; k < 3; k++) stab(root + 24 + k * 2, next + k * step / 3, 0.06, 1800);
+      // tomato: 스피카토 경보 핑 — 높은 스타카토가 오프비트에서 초조하게 반복,
+      // 두 마디마다 위로 치솟는 5음 런.
+      if (V.pings) {
+        if (i % 4 === 2) pluck8(mtof(root + 36 + (i % 16 === 10 ? 2 : 0)), next, 0.09, 0.035 + rise * 0.02, 'square', out);
+        if (i % 32 === 24)
+          for (let k = 0; k < 5; k++) pluck8(mtof(root + 24 + k * 3), next + k * step / 2, 0.12, 0.05, 'square', out);
+      }
+      // mouse: 반음 크리프 — 낮은 런이 반음씩 살금살금 기어오른다.
+      if (V.creep && i % 16 === 8)
+        for (let k = 0; k < 4; k++) stab(root + 12 + k, next + k * step * 0.6, 0.08, 900);
+      i++; next += step;
+    }
+  }, 40);
+
+  // 긴장 드론(단2도 트레몰로) — phone(새↔심해어 전화 장면) 전용.
+  // 몇 초마다 중심 피치가 다른 곳으로 천천히 미끄러진다(제자리 반복 방지).
+  let nodes = [], timer2 = null;
+  if (V.cluster) {
+    const dronePair = [0, 1].map((k) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = mtof(81 + k);
+      const g = ctx.createGain(); g.gain.value = 0.0001;
+      g.gain.setTargetAtTime(0.022, started + 1.5, 2.5);             // 뒤늦게 스며든다
+      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 6.5 + k;
+      const lg = ctx.createGain(); lg.gain.value = 0.012;
+      lfo.connect(lg); lg.connect(g.gain);
+      o.connect(g); g.connect(out); o.start(); lfo.start();
+      return { o, lfo };
+    });
+    const CENTERS = V.centers;                                       // 떠도는 중심음들
+    timer2 = setInterval(() => {
+      const c = CENTERS[(Math.random() * CENTERS.length) | 0];
+      const gap = 1 + Math.random() * 0.7;                           // 단2도~장2도 사이로 문지름도 변함
+      dronePair.forEach((d, k) =>
+        d.o.frequency.setTargetAtTime(mtof(c + k * gap), ctx.currentTime, 2.2));   // 천천히 글라이드
+    }, 7000);
+    nodes = dronePair.map((d) => [d.o, d.lfo]).flat();
+  }
+  cutsceneBgm = { out, timer, timer2, nodes };
+}
+export function stopCutsceneBgm() {
+  if (!cutsceneBgm) return;
+  const c = cutsceneBgm; cutsceneBgm = null;
+  clearInterval(c.timer);
+  clearInterval(c.timer2);
+  c.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
+  const end = ctx.currentTime + 1.5;
+  c.nodes.forEach((n) => { try { n.stop(end); } catch (e) {} });
+}
+
 export function stopTitleMusic() {
   if (!titleSeq) return;
   const t = titleSeq; titleSeq = null;
   clearInterval(t.timer);
+  clearInterval(t.bedTimer);
   t.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
+  const end = ctx.currentTime + 1.2;                              // 페이드 후 드론/패드 정리
+  (t.nodes || []).forEach((n) => { try { n.stop(end); } catch (e) {} });
 }
 
 // ============================================================

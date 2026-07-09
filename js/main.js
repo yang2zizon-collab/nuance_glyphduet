@@ -6,6 +6,7 @@ import { initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, pla
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
          startPlayBeat, stopPlayBeat, beatKick, countTick, slotSpin, slotLand,
          giftChime, startGiftAmbience, stopGiftAmbience, playEndingMusic, onTitleGrain,
+         titleMusicShift, startCutsceneBgm, stopCutsceneBgm,
          playScreenWav, stopScreenWav, resumeAudio, setGift, clearGifts } from './audio.js';
 import { renderDisplay, isAlienLook } from './language.js';
 import { glyphForCode, glyphForChar, toAlien } from './glyphs.js';
@@ -341,12 +342,16 @@ function ditherIntroCanvas() {
 
 function startIntroScene(kind) {
   if (state.screen !== 'select') return;
+  stopTitleMusic();         // 소개 컷신 동안 그래뉼러 BGM은 잠시 멈추고
+  startCutsceneBgm(kind);   // 컷신별로 다른 긴장 BGM(tomato/phone/mouse)
   introScene = { kind, start: performance.now(), dur: (INTRO_DUR[kind] || 8000) * INTRO_PACE, fx: {} };
   introLayerCache = {};   // 새 컷신 — 배경 플레이트 다시 굽기
   const sm = $('#slot-machine'); if (sm) sm.style.visibility = 'hidden';
 }
 function endIntroScene() {
   introScene = null;
+  stopCutsceneBgm();
+  if (state.screen === 'select') { startTitleMusic(); titleMusicShift(); }   // 룰렛 복귀 — 밝은 음역 유지
   const sm = $('#slot-machine'); if (sm) sm.style.visibility = '';
   if (slotIndex >= N) { const st = $('#slot-start'); if (st) st.classList.add('ready'); }
 }
@@ -2089,8 +2094,8 @@ function show(name) {
   // 이전 화면의 음악/사운드 정리
   if (prev !== name) {
     if (prev === 'play') { stopAmbience(); stopPlayBeat(); stopGiftAmbience(); clearShowTimers(); marksOn = false; }
-    if (prev === 'title') stopTitleMusic();
-    if (prev === 'select') stopSelectTone();
+    if (prev === 'title' && name !== 'select') stopTitleMusic();   // 그래뉼러는 룰렛(소개)까지 이어진다
+    if (prev === 'select') { stopSelectTone(); stopTitleMusic(); stopCutsceneBgm(); }
     stopScreenWav();   // 이전 화면의 배경 WAV(있다면) 페이드 아웃
   }
   if (name === 'play') startPlay();
@@ -2110,8 +2115,8 @@ function startScreenAudio(name) {
   playScreenWav(name).then((played) => {
     if (played) return;                 // WAV가 깔렸으면 합성 배경 생략
     if (state.screen !== name) return;  // 그새 화면이 바뀌었으면 무시
-    if (name === 'title') { /* 시작 사운드 제거 — 타이틀은 조용히 */ }
-    else if (name === 'select') startSelectTone();
+    if (name === 'title') startTitleMusic();   // 그래뉼러 반짝임(스웰 인트로 없이) — 화면 알갱이와 동기
+    else if (name === 'select') { startTitleMusic(); titleMusicShift(); }   // 룰렛 진입 — 음역 점프 + 밝아지며 확 변화
     else if (name === 'play') startPlayBeat();   // 타자에 박자를 입히는 킥 그리드
     // 대화(play) 화면은 합성 엠비언스 없음 — 타자 킥만 그리드에 스냅된다.
   });
@@ -2704,7 +2709,7 @@ function resetGifts() {
 const BEATS_PER_ROUND = 8;       // 라운드당 8박
 const COUNTIN_BEATS = 4;         // 예비박 4박(4·3·2·1)
 const BPM_START = 80;            // 시작 템포(느리게 시작 → 라운드마다 가속)
-const BPM_ACCEL = 1.18;          // 라운드마다 ×1.18로 가속 → 갈수록 빨라짐
+const BPM_ACCEL = 1.02;          // 라운드마다 ×1.02 — 눈치 못 채게 서서히, 상한까지 ~5분
 const BPM_MAX = 220;             // 템포 상한
 const NUANCES = ['period', 'question', 'bang', 'ellipsis', 'tilde', 'semicolon'];
 const MARK_GLYPH = { period: '.', question: '?', bang: '!', ellipsis: '…', tilde: '~', semicolon: ';' };
@@ -4508,8 +4513,9 @@ document.body.addEventListener('click', (e) => {
     show('play');
   }
   else if (act === 'start') {
-    // 타이틀 ▶ — 시작 사운드(우웅 인트로) 없이 한 번에 캐릭터 소개로.
-    ensureAudio();
+    // 타이틀 ▶ — 첫 클릭은 오디오를 깨워 그래뉼러 반짝임을 들려주며 머문다
+    // (브라우저 정책상 클릭 전엔 소리를 못 낸다). 다시 누르면 캐릭터 소개로.
+    if (!audioReady || performance.now() - audioWokenAt < 600) { ensureAudio(); return; }
     updateSelectUI(); show('select');
   }
   else if (act === 'random') { uiClick(Math.random()); randomMatch(); }

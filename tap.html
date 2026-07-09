@@ -56,12 +56,12 @@
     <p style="font-size:14px; color:#777; margin:0; line-height:1.6;">The performance will begin soon.<br />Keep this screen open — your phone is part of the piece.</p>
   </div>
   <div id="pad" style="display:none;">
-    <button class="key" data-mark="period"><span class="sym">.</span><span class="cap">담담하게</span></button>
-    <button class="key" data-mark="question"><span class="sym">?</span><span class="cap">되묻듯</span></button>
-    <button class="key" data-mark="bang"><span class="sym">!</span><span class="cap">힘주어</span></button>
-    <button class="key" data-mark="ellipsis"><span class="sym">…</span><span class="cap">머뭇거리며</span></button>
-    <button class="key" data-mark="tilde"><span class="sym">~</span><span class="cap">물결치듯</span></button>
-    <button class="key" data-mark="semicolon"><span class="sym">;</span><span class="cap">망설이듯</span></button>
+    <button class="key" data-mark="period"><span class="sym">.</span></button>
+    <button class="key" data-mark="question"><span class="sym">?</span></button>
+    <button class="key" data-mark="bang"><span class="sym">!</span></button>
+    <button class="key" data-mark="ellipsis"><span class="sym">…</span></button>
+    <button class="key" data-mark="tilde"><span class="sym">~</span></button>
+    <button class="key" data-mark="semicolon"><span class="sym">;</span></button>
   </div>
   <!-- 선물 단계 화면 — 메인이 선물 단계로 넘어가면 자동으로 이 화면으로 바뀐다 -->
   <div id="gift-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:10px; padding:8px 0 16px;">
@@ -561,9 +561,9 @@
       waitEl.style.display = (!gift && !round) ? 'flex' : 'none';   // 라운드 전(대기)·엔딩(그림 없을 때)
       artEl.style.display = 'none';
       stillEl.style.display = 'none';
-      titleEl.textContent = gift ? '"뉘앙스" 선물' : round ? '"뉘앙스" 부호 탭' : '"뉘앙스" 글리프 듀엣';
+      titleEl.textContent = gift ? '"뉘앙스" 선물' : round ? '마음에 드는 부호를 눌러주세요.' : '"뉘앙스" 글리프 듀엣';
       subEl.textContent = gift ? '캐릭터들이 서로에게 선물을 건넵니다'
-        : round ? '기호에 투표하세요 — 가장 많이 눌린 기호가 음악의 말투가 됩니다'
+        : round ? '가장 많이 눌린 부호가 음악의 말투가 됩니다'
         : '잠시만 기다려 주세요 · hold on';
       if (gift) { giftGiver = null; giftLock = false; renderGift(); }
     }
