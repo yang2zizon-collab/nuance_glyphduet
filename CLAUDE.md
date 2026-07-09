@@ -20,6 +20,8 @@
   - 크롬 인자: `--autoplay-policy=no-user-gesture-required --mute-audio --force-color-profile=srgb`, viewport 1600×900 @2x
   - 진입 흐름: 타이틀 `[data-action="start"]`(한 번) → select(룰렛 4회) → `#slot-start` →
     QR 화면 → `[data-action="qr-done"]` → play. 컷신은 INTRO_PACE 1.25× 실시간이라 대기 여유 필요.
+  - **테스트는 반드시 별도 포트로 서버를 새로 띄워서**(예: `python3 serve.py 8899`) — 8777은
+    공연용이라 관객 폰이 붙어 있고, 테스트가 /phase 등을 방송하면 폰 화면이 멋대로 넘어간다.
 
 ## 파일 구조
 ```
@@ -206,7 +208,16 @@ serve.py                로컬 서버
   메인은 음표에 cidx를 심고(**flatScoreNotes가 cidx도 복사해야 함 — 필드 추가 시 여기 잊지 말 것**),
   drawScore3D에서 색 음표는 본 패스에서 건너뛰고 **difference 반전 이후에** hsla로 그린다(색이 안
   뒤집힘). 밝기 l은 반전 진행도로 보간(흰 바탕 45 ↔ 검정 바탕 78). 폰은 첫 응답의 cidx로 리플·글리프·
-  카운터("● 내 색으로 연주됩니다")를 자기 색(l 48)으로 틴트.
+  카운터를 자기 색(l 48)으로 틴트.
+- **관객 닉네임 + 미니 랭킹**: 닉네임 = 형용사+명사 무작위 조합(`audNick(cidx)` — AUD_ADJS/NOUNS
+  24×24, h32 해시). **tap.html에 같은 목록·해시 사본이 있으니 수정 시 반드시 양쪽 동기화.**
+  `audScores`(cidx→음표 수, addAudienceNote에서 집계, startOrchestraPhase/stopEndingScore에서 리셋)
+  → drawScore3D 맨 끝(반전 뒤)에서 **우상단에 아주 작게 1~5위**를 각자 파스텔 색으로 그린다.
+  폰 카운터엔 "● {닉네임} — 내가 보탠 음표 n개 · 랭킹에 올라갑니다".
+- **폰 화면 튕김 방지(replay 가드)**: 서버가 SSE 접속 직후 밀어주는 phase에는 `replay:true`가 붙는다.
+  tap.html `setMode(phase, replay)`는 **그림·스틸 표시 중 replay/폴링으로 온 'idle'을 무시** — 서버
+  재시작(phase가 idle로 초기화)해도 연주하던 폰이 대기화면으로 튕기지 않는다. 진짜 리셋(Esc)은
+  라이브 방송(replay 없음)이라 정상 동작. /config 폴링도 replay 취급.
 - **독주(1단계) 2배속**: startEndingScore가 rhythm rel을 SOLO_SPEED=2로 압축, GAP 0.3.
 - **관객 잼(합주 종료 후)**: 합주 progress≥1 → `startJam()`(드로우 프레임 + `jamTimer` 폴백 —
   rAF가 백그라운드로 멈춰도 정시 개시) → POST `/jam` → SSE `{type:'jam'}` → 폰 캡션 "이제 당신의

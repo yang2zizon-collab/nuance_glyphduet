@@ -3342,6 +3342,7 @@ let jamOn = false;                              // 합주가 끝난 뒤 = 관객
 let jamTimer = null;                            // rAF가 멈춰도(탭 백그라운드) 잼은 정시에 열리게 하는 타이머
 let orchestraTracks = null;                     // 합주 트랙 원본 — 잼 음악 베드가 재활용
 let jamBed = null, jamBedTimer = null;          // 잼 베드(잔잔한 합주 루프) 중단 함수 + 갱신 타이머
+let audScores = {};                             // 관객 득점(cidx→음표 수) — 우상단 미니 랭킹용
 
 function startJam() {
   if (jamOn || endingPhase !== 2) return;
@@ -3825,6 +3826,24 @@ function drawScore3D(ctx, W, H, t, progress) {
     });
     ctx.restore();
   }
+  // 관객 미니 랭킹(1~5위) — 오른쪽 위에 아주 작게, 각자 자기 색·닉네임으로.
+  // 반전 뒤에 그려 파스텔이 그대로 보인다(밝기는 배경에 맞춰 보간).
+  if (sphere) {
+    const ranks = Object.entries(audScores).map(([k, v]) => [+k, v])
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 5);
+    if (ranks.length) {
+      ctx.save();
+      const L = Math.round(45 + 33 * inv);
+      const fs = Math.max(10, Math.round(Math.min(W, H) * 0.013));
+      ctx.font = `${fs}px Galmuri11, Datatype, monospace`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ranks.forEach(([ci, cnt], i) => {
+        ctx.fillStyle = audPastel(ci, 0.92, L);
+        ctx.fillText(`${i + 1} ${audNick(ci)} · ${cnt}`, W - 14, 12 + i * (fs + 5));
+      });
+      ctx.restore();
+    }
+  }
 }
 
 // 엔딩 화면 전체: 악보로 꽉 채우고, 맨 밑에 작은 캐릭터들이 음악에 맞춰 춤춘다.
@@ -4219,6 +4238,7 @@ function startOrchestraPhase() {
   resumeAudio();
   captureScoreStill();   // 1단계 완성 스코어를 폰 규격 정지화면으로 서버에 올린다(합주 동안 폰이 띄움)
   endingPhase = 2;
+  audScores = {};   // 이번 합주의 랭킹은 새로 센다
   orchestraScore = buildOrchestra();
   if (!orchestraScore) { endingPhase = 0; return; }
   // 다같이 트는 순간 — 스스슥 색 반전(검정 바탕에 흰 그래픽). DOM 글자도 CSS로 함께 반전.
@@ -4255,6 +4275,7 @@ function stopEndingScore() {
   if (jamBed) { jamBed(); jamBed = null; }
   clearInterval(jamBedTimer); jamBedTimer = null;
   orchestraTracks = null;
+  audScores = {};
   clearTimeout(endingHudTimer); endingHudTimer = null;
   document.body.classList.remove('score-invert', 'ending-hud-off');
 }
@@ -4280,6 +4301,13 @@ function audPastel(i, a = 1, l = 78) {
   const h = (i * 137.508) % 360;
   return `hsla(${h.toFixed(1)}, 72%, ${l}%, ${a})`;
 }
+// 관객 닉네임 — 형용사+명사 무작위 조합(말이 안 돼도 좋다). cidx로 결정돼 폰과 같다.
+// ※ 목록·해시는 tap.html 쪽 사본과 반드시 동일하게 유지할 것.
+const AUD_ADJS = ['촉촉한', '펄럭이는', '시큰한', '둥근', '재빠른', '노란', '수줍은', '우렁찬', '포근한', '삐딱한', '반짝이는', '졸린', '매콤한', '헐렁한', '단단한', '투명한', '바삭한', '미끄러운', '씩씩한', '나른한', '새콤한', '꼬불꼬불', '두근두근', '어리둥절'];
+const AUD_NOUNS = ['감자', '주전자', '고래', '단추', '우산', '계단', '만두', '로켓', '이불', '문어', '자전거', '고드름', '라디오', '소나기', '도넛', '망원경', '바게트', '스탬프', '풍선', '달팽이', '턱수염', '장화', '메아리', '부엉이'];
+function audNick(i) {
+  return AUD_ADJS[h32(i * 7 + 1) % AUD_ADJS.length] + ' ' + AUD_NOUNS[h32(i * 13 + 5) % AUD_NOUNS.length];
+}
 
 function addAudienceNote(cidx) {
   if (endingPhase !== 2 || !orchestraScore || !orchestraScore.parts.length) return;
@@ -4298,6 +4326,7 @@ function addAudienceNote(cidx) {
     aud: true, born: performance.now(),   // 관객 음표 — 태어날 때 강조 연출용
     cidx: Number.isInteger(cidx) ? cidx : null,   // 폰별 배정 색 순번(없으면 기본 잉크색)
   });
+  if (Number.isInteger(cidx)) audScores[cidx] = (audScores[cidx] || 0) + 1;   // 랭킹 집계
   // 태어나는 소리 — 합주가 크게 울리는 동안에도 처음부터 또렷하게 들리도록
   // ① uiClick: 마스터 직결 종소리(뉘앙스 이펙트·합주 리버브에 안 묻힘)
   // ② typeVoice: 캐릭터 목소리 색 한 톨(억양 포함)

@@ -191,7 +191,8 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         try:
             self.wfile.write(b': connected\n\n')
             # 접속(재접속 포함) 즉시 현재 상태를 밀어준다 — 놓친 전환을 스스로 따라잡게
-            self.wfile.write(('data: ' + json.dumps({'type': 'phase', 'phase': current_phase['v']}) + '\n\n').encode('utf-8'))
+            # replay 표시 — 재접속 따라잡기용. 폰이 "진짜 전환"과 구분해 연주 화면을 지킬 수 있게.
+            self.wfile.write(('data: ' + json.dumps({'type': 'phase', 'phase': current_phase['v'], 'replay': True}) + '\n\n').encode('utf-8'))
             if current_ascii['v']:
                 self.wfile.write(('data: ' + json.dumps({'type': 'ascii', **current_ascii['v']}) + '\n\n').encode('utf-8'))
             self.wfile.flush()
