@@ -199,9 +199,12 @@ serve.py                로컬 서버
   ▶이 select로. startScreenAudio('title')는 플래그 있어야 인트로 시작. show('title')서 플래그 리셋.
 - **엔딩 HUD 페이드**: showEnding 8초 후 `body.ending-hud-off` → #screen-ending opacity 0(1.8s
   transition) — 소통 게이지·문구가 사라지고 스코어만 꽉 차게. stopEndingScore/타이틀 복귀서 해제.
-- **합주 폰 스틸+터치 음표**: `captureScoreStill()`이 합주 직전(1단계 상태) 스코어를 720×900 JPEG로
-  POST `/still` → 서버 보관+SSE `{type:'still'}` → 폰(#still-ui)이 자동 표시("터치하면 음표가 하나
-  태어납니다"). 폰 터치 → POST `/addnote` → SSE → 메인 `addAudienceNote()`가 총보 랜덤 파트의 현재
+- **합주 폰 스틸+터치 음표**: `captureScoreStill(live)`가 스코어를 720×900 JPEG로 POST `/still`
+  (`live` 플래그 포함) → 서버 보관+SSE `{type:'still',live}` → 폰(#still-ui)이 자동 표시.
+  **독주(1단계, 흰 배경)는 live=0 보기 전용** — 완성 악보만 띄우고 터치 잠금("합주가 시작되면
+  터치로 함께 연주해요"), **합주 진입(startOrchestraPhase)이 live=1로 다시 올리면 그때부터 터치
+  참여 활성화**("터치하면 음표가 하나 태어납니다"; tap.html `stillLive`, jamMode도 true).
+  폰 터치 → POST `/addnote` → SSE → 메인 `addAudienceNote()`가 총보 랜덤 파트의 현재
   박에 글리프 음표를 삽입(+소리 typeKey). 폰엔 터치 리플+글리프 팝+"내가 보탠 음표 n개" 카운터.
   라운드/idle에서 스틸 해제(서버도 clear). 폰 라운드 안내문: "가장 많이 눌린 기호가 음악의 말투가 됩니다".
 - **관객 음표 소리·강조**: addAudienceNote는 `uiClick`(마스터 직결 — 뉘앙스 이펙트/합주 리버브에

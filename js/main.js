@@ -4271,7 +4271,7 @@ function startEndingScore() {
   endingMusic = playEndingMusic(msgs, SHOW.endTargetSec);   // 1부 ~2분30초로 스트레치(+ 합주 최대 1분 = 총 ~3분30초)
   scoreTotalMs = Math.max(1000, endingMusic.totalSec * 1000);   // 그리기 진행도 음악 길이에 맞춤
   scoreStartWall = performance.now() + 200;
-  captureScoreStill();   // 악보화가 시작되면 관객 폰에도 완성 악보를 띄운다(합주까지 유지)
+  captureScoreStill(false);   // 독주(흰 배경) 동안 폰엔 완성 악보를 '보기 전용'으로만 — 터치 참여는 합주부터
   // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
   endingBeatTimer = setTimeout(() => {
     if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase();
@@ -4284,7 +4284,7 @@ function startEndingScore() {
 //          오케스트라 총보처럼 파트별 보표를 위아래로 쌓아 보여준다.
 function startOrchestraPhase() {
   resumeAudio();
-  captureScoreStill();   // 1단계 완성 스코어를 폰 규격 정지화면으로 서버에 올린다(합주 동안 폰이 띄움)
+  captureScoreStill(true);   // 합주 진입 — 이제부터 폰 터치 참여 활성화(음표 태어남)
   endingPhase = 2;
   audScores = {};   // 이번 합주의 랭킹은 새로 센다
   orchestraScore = buildOrchestra();
@@ -4331,14 +4331,15 @@ function stopEndingScore() {
 
 // 1단계(순차 듀엣) 완성 스코어를 폰 규격으로 렌더해 서버에 정지화면으로 올린다.
 // endingPhase가 아직 1일 때(=합주 직전) 불러야 1단계 그림이 잡힌다.
-function captureScoreStill() {
+// live=false: 보기 전용(독주·흰 배경 — 폰 터치 참여 잠금), live=true: 합주 — 터치 참여 활성화.
+function captureScoreStill(live) {
   try {
     const cv = document.createElement('canvas'); cv.width = 720; cv.height = 900;
     const c2 = cv.getContext('2d');
     drawScore3D(c2, 720, 900, 1.234, 1);
     fetch('/still', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.82) }),
+      body: JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.82), live: live ? 1 : 0 }),
     }).catch(() => {});
   } catch (e) { /* 정적 서버 — 무시 */ }
 }

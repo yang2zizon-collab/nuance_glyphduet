@@ -82,7 +82,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'port': PORT,
             })
         if self.path.split('?')[0] == '/still':
-            return self._json(200, {'img': current_still['v']})
+            return self._json(200, current_still['v'] or {'img': None, 'live': 0})
         return super().do_GET()
 
     def do_POST(self):
@@ -148,14 +148,16 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         broadcast(json.dumps({'type': 'ascii', 'mark': mark, 'chars': chars}))
         return self._json(200, {'ok': True})
 
-    # 메인이 그래픽 스코어 정지화면(dataURL)을 올림 → 폰이 합주 동안 띄운다.
+    # 메인이 그래픽 스코어 정지화면(dataURL)을 올림 → 폰이 엔딩 동안 띄운다.
+    # live=0: 보기 전용(독주 — 터치 참여 잠금), live=1: 합주 — 터치 참여 활성화.
     def handle_still(self):
         data = self._body_json()
         img = data.get('img')
         if not isinstance(img, str) or not img.startswith('data:image/') or len(img) > 2_000_000:
             return self._json(400, {'ok': False, 'error': 'bad still'})
-        current_still['v'] = img
-        broadcast(json.dumps({'type': 'still'}))   # 폰: 알림만 받고 GET /still 로 가져간다
+        live = 1 if data.get('live') else 0
+        current_still['v'] = {'img': img, 'live': live}
+        broadcast(json.dumps({'type': 'still', 'live': live}))   # 폰: 알림만 받고 GET /still 로 가져간다
         return self._json(200, {'ok': True})
 
     # 폰이 선물을 보냄(주는이→받는이) → 메인 화면이 받아 적용.

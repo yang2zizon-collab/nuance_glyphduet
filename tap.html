@@ -537,28 +537,41 @@
         ? '내가 보탠 음표 ' + noteCount + '개'
         : '<b style="color:' + myColor() + '">● ' + myNick() + '</b> — 내가 보탠 음표 ' + noteCount + '개 · 랭킹에 올라갑니다';
     }
-    function showStill(img) {
+    // stillLive — false면 보기 전용(독주·흰 배경 동안): 터치해도 음표가 안 태어난다.
+    // 합주가 시작되면 메인이 live=1 스틸을 다시 올려 그때부터 참여 활성화.
+    let stillLive = false;
+    function showStill(img, live) {
       stillOn = true; artOn = false; cancelAnimationFrame(artAnim);
+      stillLive = !!live;
       padEl.style.display = 'none'; giftEl.style.display = 'none';
       artEl.style.display = 'none'; waitEl.style.display = 'none';
       stillEl.style.display = 'flex';
       stillImg.src = img;
       titleEl.textContent = '"뉘앙스" 스코어';
-      subEl.textContent = '모두의 대화가 합주로 연주되고 있습니다';
+      const cap = document.getElementById('still-cap');
+      if (stillLive) {
+        subEl.textContent = '모두의 대화가 합주로 연주되고 있습니다';
+        if (cap) cap.innerHTML = '오늘의 그래픽 스코어 — <b>화면을 터치하면 음표가 하나 태어납니다</b>';
+      } else {
+        subEl.textContent = '독주를 감상하는 중 — 곧 당신 차례가 옵니다';
+        if (cap) cap.innerHTML = '오늘의 그래픽 스코어 완성 — <b>합주가 시작되면 터치로 함께 연주해요</b>';
+      }
       setStatus(true, '연결됨');   // 선물 단계의 "전달했어요…" 문구를 지운다
     }
     // 합주가 끝나면 — 관객 합주(잼) 안내로 전환
     function jamMode() {
+      stillLive = true;   // 잼은 당연히 참여 가능
       if (!stillOn) fetchStill();
       const cap = document.getElementById('still-cap');
       if (cap) cap.innerHTML = '합주가 끝났습니다 — <b>이제 당신의 차례! 터치로 함께 연주하세요</b>';
       subEl.textContent = '관객 합주 — 터치가 곧 음표입니다';
     }
     function fetchStill() {
-      fetch('/still').then((r) => r.json()).then((c) => { if (c && c.img) showStill(c.img); }).catch(() => {});
+      fetch('/still').then((r) => r.json()).then((c) => { if (c && c.img) showStill(c.img, c.live); }).catch(() => {});
     }
     stillEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (!stillLive) return;   // 독주(보기 전용) 동안엔 터치 참여 잠금
       const now = performance.now();
       if (now - stillLock < 180) return;   // 과속 방지
       stillLock = now;
