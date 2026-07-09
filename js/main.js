@@ -3146,7 +3146,7 @@ function setupAudience() {
         }
       }
       // 합주 중 폰 터치 — 총보에 음표 하나 추가
-      else if (d.type === 'addnote') addAudienceNote();
+      else if (d.type === 'addnote') addAudienceNote(d.cidx);
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
@@ -3577,7 +3577,7 @@ function flatScoreNotes() {
   if (endingPhase === 2 && orchestraScore) {
     const out = [];
     orchestraScore.parts.forEach((p, pi) => {
-      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, part: pi, player: p.player, glyph: n.glyph, accent: n.accent, aud: n.aud, born: n.born }));
+      p.notes.forEach((n) => out.push({ beat: p.startBeat + n.beat, midi: n.midi, lane: p.voiceId, part: pi, player: p.player, glyph: n.glyph, accent: n.accent, aud: n.aud, born: n.born, cidx: n.cidx }));
     });
     return { notes: out, lo: orchestraScore.lo, span: orchestraScore.span, totalBeats: orchestraScore.totalBeats, phase: 2 };
   }
@@ -3729,6 +3729,7 @@ function drawScore3D(ctx, W, H, t, progress) {
   // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝. 2단계는 점구름이라 더 작게.
   const sizeBase = sphere ? 0.3 : 0.5, sizeMax = sphere ? 40 : 64;
   const nowMs = performance.now();
+  const audColored = [];   // 색 배정된 관객 음표 — 색 반전 뒤에 파스텔로 그린다(difference에 안 뒤집히게)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   placed.forEach(({ d, pr }) => {
     const fresh = (playBeat - d.beat) < 0.45;
@@ -3738,6 +3739,7 @@ function drawScore3D(ctx, W, H, t, progress) {
     const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0) + audK * 0.6);
     let fpx = Math.max(8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
     if (audK > 0) fpx *= 1 + audK * 1.2;
+    if (d.aud && d.cidx != null) { audColored.push({ d, pr, fpx, a, audK }); return; }
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
     ctx.font = `${fpx.toFixed(1)}px Datatype, Galmuri11, monospace`;
     ctx.fillText(d.glyph || '◇', pr.sx, pr.sy);
@@ -3778,6 +3780,29 @@ function drawScore3D(ctx, W, H, t, progress) {
     ctx.globalCompositeOperation = 'difference';
     ctx.fillStyle = `rgba(255,255,255,${inv.toFixed(3)})`;
     ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  // 색 배정된 관객 음표 — 반전이 끝난 위에 자기 파스텔 색으로. 밝기는 배경에 맞춰
+  // 보간(반전 전 흰 바탕=진하게 L45, 반전 후 검정 바탕=파스텔 L78) — 늘 또렷하다.
+  if (audColored.length) {
+    ctx.save();
+    const L = Math.round(45 + 33 * inv);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    audColored.forEach(({ d, pr, fpx, a, audK }) => {
+      ctx.fillStyle = audPastel(d.cidx, a, L);
+      ctx.font = `${fpx.toFixed(1)}px Datatype, Galmuri11, monospace`;
+      ctx.fillText(d.glyph || '◇', pr.sx, pr.sy);
+      if (audK > 0) {   // 탄생 팝 — 자기 색으로 퍼지는 링 두 겹
+        const spread = 1 - audK;
+        ctx.strokeStyle = audPastel(d.cidx, audK * 0.9, L); ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * (0.7 + spread * 1.8), 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = audPastel(d.cidx, audK * 0.5, L); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * (0.7 + spread * 3.0), 0, Math.PI * 2); ctx.stroke();
+      } else {          // 이후에도 가는 링 — 자기 색 표가 계속 난다
+        ctx.strokeStyle = audPastel(d.cidx, a * 0.55, L); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(pr.sx, pr.sy, fpx * 0.72, 0, Math.PI * 2); ctx.stroke();
+      }
+    });
     ctx.restore();
   }
 }
@@ -4225,7 +4250,14 @@ function captureScoreStill() {
 }
 
 // 합주 중 관객 폰 터치 — 총보에 음표(글리프) 하나를 그 자리에서 태어나게 한다.
-function addAudienceNote() {
+// 관객 음표 색 — 골든앵글(137.5°)로 색상환을 돌아 50명까지 최대한 안 겹치는 파스텔.
+// l(밝기)은 배경에 맞춰 보간해 쓴다(반전 전 흰 바탕=진하게, 반전 후 검정 바탕=파스텔).
+function audPastel(i, a = 1, l = 78) {
+  const h = (i * 137.508) % 360;
+  return `hsla(${h.toFixed(1)}, 72%, ${l}%, ${a})`;
+}
+
+function addAudienceNote(cidx) {
   if (endingPhase !== 2 || !orchestraScore || !orchestraScore.parts.length) return;
   const spb = 60 / SCORE_TEMPO;
   const playBeat = Math.max(0, Math.min(orchestraScore.totalBeats - 0.1,
@@ -4240,6 +4272,7 @@ function addAudienceNote() {
     glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
     accent: Math.random() > 0.7,
     aud: true, born: performance.now(),   // 관객 음표 — 태어날 때 강조 연출용
+    cidx: Number.isInteger(cidx) ? cidx : null,   // 폰별 배정 색 순번(없으면 기본 잉크색)
   });
   // 태어나는 소리 — 합주가 크게 울리는 동안에도 처음부터 또렷하게 들리도록
   // ① uiClick: 마스터 직결 종소리(뉘앙스 이펙트·합주 리버브에 안 묻힘)

@@ -198,6 +198,13 @@ serve.py                로컬 서버
 - **관객 음표 소리·강조**: addAudienceNote는 `uiClick`(마스터 직결 — 뉘앙스 이펙트/합주 리버브에
   안 묻혀 **합주 중에도 처음부터 들림**) + `typeVoice`(캐릭터 목소리 색) 두 겹. 음표엔 `aud/born`
   마크 → drawScore3D가 1.4초 팝(×2.2)+이중 확산 링으로 탄생 강조, 이후에도 가는 링 유지.
+- **관객 음표 개인 파스텔 색(최대 ~50명)**: 폰이 uid(localStorage `nuanceUid`)를 `/addnote`에 실어
+  보내면 서버 `aud_colors`가 **선착순 순번(cidx)** 을 배정(phase round/idle에 리셋), SSE와 응답 양쪽에
+  실어준다. 색 공식은 메인·폰 동일 — **골든앵글** `hue=(cidx*137.508)%360`(`audPastel(i,a,l)`), 겹침 최소.
+  메인은 음표에 cidx를 심고(**flatScoreNotes가 cidx도 복사해야 함 — 필드 추가 시 여기 잊지 말 것**),
+  drawScore3D에서 색 음표는 본 패스에서 건너뛰고 **difference 반전 이후에** hsla로 그린다(색이 안
+  뒤집힘). 밝기 l은 반전 진행도로 보간(흰 바탕 45 ↔ 검정 바탕 78). 폰은 첫 응답의 cidx로 리플·글리프·
+  카운터("● 내 색으로 연주됩니다")를 자기 색(l 48)으로 틴트.
 - **독주(1단계) 2배속**: startEndingScore가 rhythm rel을 SOLO_SPEED=2로 압축, GAP 0.3.
 - **관객 잼(합주 종료 후)**: 합주 progress≥1 → `startJam()`(드로우 프레임 + `jamTimer` 폴백 —
   rAF가 백그라운드로 멈춰도 정시 개시) → POST `/jam` → SSE `{type:'jam'}` → 폰 캡션 "이제 당신의

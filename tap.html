@@ -151,6 +151,7 @@
         keepalive: true,
       });
       if (!res.ok) throw new Error('http ' + res.status);
+      return res.json().catch(() => ({}));
     }
 
     async function tap(mark, btn) {
@@ -464,6 +465,20 @@
     const stillImg = document.getElementById('still-img');
     const stillCount = document.getElementById('still-count');
     let stillOn = false, noteCount = 0, stillLock = 0;
+    // 내 음표 색 — 서버가 폰(uid)마다 선착순 배정(골든앵글 파스텔, 메인과 같은 공식).
+    // uid는 저장해 두어 재접속해도 같은 색을 유지한다.
+    let myUid = null; try { myUid = localStorage.getItem('nuanceUid'); } catch (er) {}
+    if (!myUid) {
+      myUid = Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem('nuanceUid', myUid); } catch (er) {}
+    }
+    let myCidx = null;
+    const myColor = (l = 48) => myCidx == null ? '#000'
+      : 'hsl(' + ((myCidx * 137.508) % 360).toFixed(1) + ', 72%, ' + l + '%)';
+    function updateCount() {
+      stillCount.innerHTML = '내가 보탠 음표 ' + noteCount + '개'
+        + (myCidx == null ? '' : ' · <b style="color:' + myColor() + '">●</b> 내 색으로 연주됩니다');
+    }
     function showStill(img) {
       stillOn = true; artOn = false; cancelAnimationFrame(artAnim);
       padEl.style.display = 'none'; giftEl.style.display = 'none';
@@ -489,18 +504,23 @@
       const now = performance.now();
       if (now - stillLock < 180) return;   // 과속 방지
       stillLock = now;
-      post('/addnote', {}).then(() => setStatus(true, '연결됨')).catch(() => setStatus(false, '연결 끊김'));
+      post('/addnote', { uid: myUid }).then((r) => {
+        if (r && r.cidx != null && myCidx == null) { myCidx = r.cidx; updateCount(); }   // 첫 응답에 색 배정
+        setStatus(true, '연결됨');
+      }).catch(() => setStatus(false, '연결 끊김'));
       noteCount++;
-      stillCount.textContent = '내가 보탠 음표 ' + noteCount + '개';
+      updateCount();
       if (navigator.vibrate) { try { navigator.vibrate(12); } catch (er) {} }
       const rl = document.getElementById('ripple-layer');
       const rect = stillEl.getBoundingClientRect();
       const rip = document.createElement('div'); rip.className = 'rip';
       rip.style.left = (e.clientX - rect.left) + 'px'; rip.style.top = (e.clientY - rect.top) + 'px';
+      if (myCidx != null) rip.style.borderColor = myColor();          // 내 색 리플
       rl.appendChild(rip); setTimeout(() => rip.remove(), 750);
       const gl = document.createElement('div'); gl.className = 'ripg';
       gl.textContent = ['◇', '○', '●', '△', '♪'][noteCount % 5];
       gl.style.left = (e.clientX - rect.left) + 'px'; gl.style.top = (e.clientY - rect.top) + 'px';
+      if (myCidx != null) gl.style.color = myColor();                 // 내 색 글리프
       rl.appendChild(gl); setTimeout(() => gl.remove(), 1000);
     });
 

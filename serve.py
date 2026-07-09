@@ -13,6 +13,7 @@ clients_lock = threading.Lock()
 current_phase = {'v': 'idle'}   # 메인이 POST /phase 로 알려주는 현재 단계(폰 화면 전환용)
 current_ascii = {'v': None}     # 마지막 아스키아트(mark+chars) — 늦게 접속한 폰도 그린다
 current_still = {'v': None}     # 그래픽 스코어 정지화면(dataURL) — 합주 때 폰이 띄운다
+aud_colors = {'m': {}, 'n': 0}  # 관객 음표 색 — 폰 uid → 배정 순번(골든앵글 파스텔, 선착순)
 
 
 def broadcast(payload):
@@ -97,8 +98,18 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if path == '/still':
             return self.handle_still()
         if path == '/addnote':
-            broadcast(json.dumps({'type': 'addnote'}))   # 합주 중 폰 터치 → 메인에 음표 하나 추가
-            return self._json(200, {'ok': True})
+            # 합주 중 폰 터치 → 메인에 음표 하나 추가. 폰(uid)마다 색 순번을 선착순 배정해
+            # 자기 음표가 자기 색으로 보이게 한다(폰에도 응답으로 알려줌).
+            data = self._body_json()
+            uid = str(data.get('uid') or '')[:40]
+            cidx = None
+            if uid:
+                if uid not in aud_colors['m']:
+                    aud_colors['m'][uid] = aud_colors['n']
+                    aud_colors['n'] += 1
+                cidx = aud_colors['m'][uid]
+            broadcast(json.dumps({'type': 'addnote', 'cidx': cidx}))
+            return self._json(200, {'ok': True, 'cidx': cidx})
         if path == '/jam':
             broadcast(json.dumps({'type': 'jam'}))       # 합주 종료 → 관객 합주(잼) 개시 알림
             return self._json(200, {'ok': True})
@@ -122,6 +133,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if phase in ('round', 'idle'):
             current_ascii['v'] = None
             current_still['v'] = None
+            aud_colors['m'].clear(); aud_colors['n'] = 0   # 새 공연 — 색 배정도 새로
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
         return self._json(200, {'ok': True})
 
