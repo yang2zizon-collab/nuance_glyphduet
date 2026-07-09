@@ -3249,6 +3249,52 @@ function renderMarkQR() {
   box.classList.remove('hidden');
 }
 
+// ===== 개발자 점프(리허설용) — 좌상단 초소형 버튼: 타이핑·선물·독주·합주 =====
+// 공연 단계로 곧장 뛴다. 대화가 없으면 가짜 대화를 심어 독주/합주가 재료를 갖게 한다.
+function devSeedMessages() {
+  if (state.messages.some((m) => m.rhythm && m.rhythm.length)) return;
+  [[0, 'hello there'], [1, 'good good'], [0, 'nice to meet']].forEach(([p, text]) => {
+    const pick = state.picks[p] != null ? state.picks[p] : p;
+    const rhythm = [...text].map((ch, i) => ({ rel: i * 0.22, ch }));
+    state.messages.push({
+      player: p, pick, voiceId: characterVoice(pick), text,
+      mood: MOODS[0], garble: 0.5, rhythm, nuance: 'period',
+    });
+  });
+}
+
+function devJump(stage) {
+  ensureAudio();
+  stopEndingScore();
+  state.ended = false;
+  document.body.classList.remove('gift-time', 'ascii-time');   // 이전 단계 잔여물 정리
+  $('#gift-bar')?.classList.add('hidden');
+  if (state.picks[0] == null || state.picks[1] == null) randomMatch();
+  if (stage === 'type') {
+    if (state.screen !== 'play') show('play');
+    return;
+  }
+  if (stage === 'gift') {
+    if (state.screen !== 'play') show('play');
+    setTimeout(() => { devSeedMessages(); if (cycleOn) endCycle(); }, 350);   // 사이클이 켜진 뒤 곧장 선물로
+    return;
+  }
+  devSeedMessages();
+  if (stage === 'solo') { showEnding(); return; }
+  if (stage === 'ens') {
+    showEnding();
+    setTimeout(() => {   // 독주를 바로 끊고 합주로
+      if (stopScore) { stopScore(); stopScore = null; }
+      if (endingBeatTimer) { clearTimeout(endingBeatTimer); endingBeatTimer = null; }
+      if (endingPhase === 1) startOrchestraPhase();
+    }, 500);
+  }
+}
+
+document.querySelectorAll('#dev-bar .devb').forEach((b) => {
+  b.addEventListener('click', (e) => { e.stopPropagation(); devJump(b.dataset.dev); });
+});
+
 // ===== 도감 그리드 (스코어 테마) =====
 // N개의 캐릭터를 그리드로 깔고, 탭하면 가운데 큰 캔버스(#dex-stage)에 보여준다.
 function buildDex() {

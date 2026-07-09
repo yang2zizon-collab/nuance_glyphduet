@@ -424,3 +424,13 @@ html, body { background: #ffffff; color: var(--ink); }
 #mark-qr-code { width: 128px; height: 128px; display: grid; place-items: center; }
 #mark-qr-code img, #mark-qr-code canvas { display: block; width: 128px; height: 128px; image-rendering: pixelated; }
 #mark-qr-cap { font-size: 12px; color: #000; letter-spacing: 0.02em; }
+
+/* 개발자 점프 버튼(리허설) — 좌상단 초소형 네모 4개: 타이핑·선물·독주·합주.
+   거의 안 보이게(8px, 투명도 0.1), 호버할 때만 살짝 드러난다. */
+.theme-score #dev-bar { position: fixed; top: 4px; left: 4px; z-index: 400; display: flex; gap: 3px; }
+.theme-score #dev-bar .devb {
+  width: 8px; height: 8px; padding: 0; border: 1px solid rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.3); border-radius: 0; cursor: pointer; opacity: 0.1;
+}
+.theme-score #dev-bar .devb:hover { opacity: 0.85; }
+.theme-score.score-invert #dev-bar .devb { border-color: rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.35); }
