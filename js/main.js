@@ -2933,7 +2933,8 @@ function giftDoneToEnding() {
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
   document.body.classList.remove('gift-time');
-  stopGiftAmbience();
+  // 선물 워시는 아스키아트 동안 계속 흐른다 — 엔딩 화면 진입(show('ending')의 정리)이
+  // 끊어주므로, 무음 구간 없이 엔딩 음악으로 이어진다.
   startAsciiArt();
 }
 
@@ -4270,6 +4271,7 @@ function startEndingScore() {
   endingMusic = playEndingMusic(msgs, SHOW.endTargetSec);   // 1부 ~2분30초로 스트레치(+ 합주 최대 1분 = 총 ~3분30초)
   scoreTotalMs = Math.max(1000, endingMusic.totalSec * 1000);   // 그리기 진행도 음악 길이에 맞춤
   scoreStartWall = performance.now() + 200;
+  captureScoreStill();   // 악보화가 시작되면 관객 폰에도 완성 악보를 띄운다(합주까지 유지)
   // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
   endingBeatTimer = setTimeout(() => {
     if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase();
@@ -4485,6 +4487,14 @@ window.addEventListener('keydown', (e) => {
   if (!mod && !IGNORE_KEYS.includes(e.key)) {
     const ch = (e.key && e.key.length === 1) ? e.key : null;
     typeVoice(e.key, base(state.turn), characterVoice(state.picks[state.turn]));   // 타자 = 캐릭터 목소리(뉘앙스가 억양을 바꾼다)
+    // 기억의 잔향 — 앞서 보낸 발화의 글자 하나가 작은 음량으로 뒤따라 메아리친다.
+    if (state.messages.length && Math.random() < 0.4) {
+      const pm = state.messages[(Math.random() * state.messages.length) | 0];
+      const pc = pm.text[(Math.random() * pm.text.length) | 0];
+      setTimeout(() => {
+        if (state.screen === 'play') typeVoice(pc, base(state.turn), pm.voiceId, 0.22);
+      }, 110 + Math.random() * 240);
+    }
     typeEvents.push({ t: performance.now(), ch }); // 친 시각+글자 그대로 기록
     lastKeyAt = performance.now();                 // 듀엣 연출 — 입 움직임 타이밍
   }

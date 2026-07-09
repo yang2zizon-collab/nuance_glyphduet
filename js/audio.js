@@ -327,7 +327,7 @@ export function typeKey(ch = null, base = 0.5, voiceId = null) {
 // 타자 한 타 = 그 캐릭터의 "목소리" 한 음절(포먼트 보이스).
 // 투표로 뽑힌 뉘앙스(nfxState)가 억양을 극적으로 바꾼다 — 누가 들어도 확 다르게.
 const TYPE_VOWELS = ['a', 'e', 'i', 'o', 'u'];
-export function typeVoice(ch = null, base = 0.5, voiceId = null) {
+export function typeVoice(ch = null, base = 0.5, voiceId = null, gainMul = 1) {
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume();
   const prof = speakProfile(voiceId);
@@ -351,7 +351,7 @@ export function typeVoice(ch = null, base = 0.5, voiceId = null) {
     case 'semicolon':   // 띠꺼움 — 삐딱하게 눌러 끄는 콧소리
       freq *= 0.82; dur = 0.15; gain *= 1.1; over = { wave: 'sawtooth', formant: prof.formant * 0.78, glide: -0.06, vib: 0.06, vibHz: 3 }; break;
   }
-  speakNote({ ...prof, ...over }, freq, vowel, now, dur, gain, destFor(voiceId), [], true);
+  speakNote({ ...prof, ...over }, freq, vowel, now, dur, gain * gainMul, destFor(voiceId), [], true);
   emit({ type: 'type', char: c || '?', pitch: p, base });
 }
 
@@ -1384,13 +1384,15 @@ export function startTitleMusic() {
     bedNodes.push(o);
     return { o, g, base: d.base, rel: d.rel };
   });
-  [60, 67, 72].forEach((m, i) => {                         // C4·G4·C5 패드 — 미세 디튠 + 느린 숨
+  // 미분음 패드 — 중립 3도(63.5)·중립 7도(70.5)를 품은 부유 화음.
+  // 장조도 단조도 아닌, 떠 있는 색(Planet Nine 초반의 미분음 무드).
+  [60, 63.5, 67, 70.5].forEach((m, i) => {
     const o = ctx.createOscillator(); o.type = 'triangle';
     o.frequency.value = mtof(m) * (1 + (Math.random() - 0.5) * 0.003);
     const g = ctx.createGain(); g.gain.value = 0.0001;
-    g.gain.setTargetAtTime(0.018, started + 3, 2);         // 패드는 3초부터 스며든다
+    g.gain.setTargetAtTime(0.015, started + 3, 2);         // 패드는 3초부터 스며든다
     const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.05 + i * 0.03;
-    const lg = ctx.createGain(); lg.gain.value = 0.013;    // 숨의 깊이
+    const lg = ctx.createGain(); lg.gain.value = 0.011;    // 숨의 깊이
     lfo.connect(lg); lg.connect(g.gain);
     o.connect(g); g.connect(bedLp); o.start(); lfo.start();
     bedNodes.push(o, lfo);
@@ -1403,8 +1405,13 @@ export function startTitleMusic() {
       drones.forEach((d) => d.g.gain.setTargetAtTime(d.base * (0.5 + Math.random() * 1.1), t, 2.5));
     bedLp.frequency.setTargetAtTime((st.shift ? 1400 : 450) + Math.random() * 1700, t, 3);   // 룰렛에선 밝은 범위에서 유영
     if (Math.random() < 0.5) {
-      const next = BED_ROOTS.filter((r) => r !== bedRoot);
-      bedRoot = next[(Math.random() * next.length) | 0];
+      if (Math.random() < 0.45) {
+        bedRoot += Math.random() < 0.5 ? 0.5 : -0.5;       // 미분음 — 4분음만큼만 스르륵 미끄러진다
+        bedRoot = Math.max(28, Math.min(39, bedRoot));
+      } else {
+        const next = BED_ROOTS.filter((r) => Math.abs(r - bedRoot) > 0.4);
+        bedRoot = next[(Math.random() * next.length) | 0];
+      }
       drones.forEach((d) => d.o.frequency.setTargetAtTime(mtof(bedRoot + d.rel), t, 1.6));   // 천천히 글리산도
     }
   }, 5000);
@@ -1414,8 +1421,10 @@ export function startTitleMusic() {
   const driftAt = (el) => 5 * Math.sin(el * 2 * Math.PI / 23) + 3 * Math.sin(el * 2 * Math.PI / 9.5);
 
   // 룰렛 틱 결의 알갱이 — 사각파가 위로 톡 꺾이는 "또로록" 한 톨.
+  // 피치는 4분음(반음의 절반) 격자에 스냅 — 반음계 사이의 미분음 계단을 오르내린다.
   const rouletteGrain = (pitch01, when, gain) => {
-    const f = mtof(60 + st.shift + driftAt(ctx.currentTime - started) + pitch01 * 36);
+    const midi = 60 + st.shift + driftAt(ctx.currentTime - started) + pitch01 * 36;
+    const f = mtof(Math.round(midi * 2) / 2);
     const o = ctx.createOscillator();
     o.type = Math.random() < 0.75 ? 'square' : 'triangle';
     o.frequency.setValueAtTime(f, when);

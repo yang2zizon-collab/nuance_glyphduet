@@ -244,12 +244,30 @@
       return b;
     }
 
+    // 선물 전송 — 탭·드래그가 공유하는 마무리 흐름.
+    async function sendGift(giver, recip) {
+      if (giftLock || giver == null || recip == null || giver === recip) return;
+      giftLock = true;
+      slotChip(flowGiver, giver, ''); slotChip(flowRecip, recip, '');
+      const item = (GIFT_NAMES[giver] || {})[recip] || '선물';
+      const icon = (GIFT_ICONS[giver] || {})[recip] || '🎁';
+      try {
+        await post('/gift', { giver, recip });
+        giftStep.textContent = icon + ' ' + CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' : ' + item + ' 전달!';
+        setStatus(true, '전달했어요 — 또 줄 수 있어요');
+      } catch (err) {
+        giftStep.textContent = '전달 실패 — 다시 시도해 주세요';
+        setStatus(false, '연결 끊김');
+      }
+      setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1500);
+    }
+
     function renderGift() {
       const picking = giftGiver == null;
       slotChip(flowGiver, giftGiver, '누가');
       slotChip(flowRecip, null, '누구에게');
       giftStep.textContent = picking
-        ? '① 선물을 주는 캐릭터를 고르세요'
+        ? '캐릭터를 끌어서 다른 캐릭터에게 놓으세요'
         : '② ' + CHARS[giftGiver][0] + '의 선물을 받을 캐릭터를 고르세요';
       giftBack.style.display = picking ? 'none' : 'block';
       giftChars.innerHTML = '';
@@ -258,25 +276,45 @@
           ? { icon: (GIFT_ICONS[giftGiver] || {})[i] || '🎁', item: (GIFT_NAMES[giftGiver] || {})[i] || '선물' }
           : null;
         const b = charBtn(i, !picking && i === giftGiver, info);
-        b.addEventListener('pointerdown', async (e) => {
+        b.dataset.idx = i;
+        b.style.touchAction = 'none';   // 드래그 중 스크롤로 끊기지 않게
+        b.addEventListener('pointerdown', (e) => {
           e.preventDefault();
-          if (b.disabled || giftLock) return;
-          flash(b);
-          if (picking) { giftGiver = i; renderGift(); return; }
-          const giver = giftGiver, recip = i;
-          giftLock = true;
-          slotChip(flowRecip, recip, '');
-          const item = (GIFT_NAMES[giver] || {})[recip] || '선물';
-          const icon = (GIFT_ICONS[giver] || {})[recip] || '🎁';
-          try {
-            await post('/gift', { giver, recip });
-            giftStep.textContent = icon + ' ' + CHARS[giver][0] + ' → ' + CHARS[recip][0] + ' : ' + item + ' 전달!';
-            setStatus(true, '전달했어요 — 또 줄 수 있어요');
-          } catch (err) {
-            giftStep.textContent = '전달 실패 — 다시 시도해 주세요';
-            setStatus(false, '연결 끊김');
-          }
-          setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1500);
+          if (giftLock) return;
+          const startX = e.clientX, startY = e.clientY;
+          let ghost = null;   // 손가락을 따라다니는 캐릭터 얼굴
+          const onMove = (ev) => {
+            if (!ghost) {
+              if (b.disabled || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 14) return;
+              ghost = document.createElement('div');
+              ghost.style.cssText = 'position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-50%);filter:drop-shadow(3px 3px 0 rgba(0,0,0,.3));';
+              ghost.appendChild(charFace(i, 64));
+              document.body.appendChild(ghost);
+              b.style.opacity = '0.35';
+              giftStep.textContent = CHARS[i][0] + '를 받을 캐릭터 위에 놓으세요';
+            }
+            ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
+          };
+          const onUp = (ev) => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            if (ghost) {   // 드래그 — 놓은 자리의 캐릭터에게 선물
+              ghost.remove(); b.style.opacity = b.disabled ? '0.25' : '';
+              const el = document.elementFromPoint(ev.clientX, ev.clientY);
+              const tb = el && el.closest ? el.closest('#gift-chars .key') : null;
+              const recip = tb ? +tb.dataset.idx : NaN;
+              if (!Number.isNaN(recip) && recip !== i) { flash(tb); sendGift(i, recip); }
+              else renderGift();   // 빈 곳에 놓음 — 안내 문구 복원
+              return;
+            }
+            // 탭 — 기존 2단계 흐름도 그대로 동작
+            if (b.disabled || giftLock) return;
+            flash(b);
+            if (picking) { giftGiver = i; renderGift(); return; }
+            sendGift(giftGiver, i);
+          };
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
         });
         giftChars.appendChild(b);
       }
