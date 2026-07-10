@@ -3924,6 +3924,8 @@ function drawScore3D(ctx, W, H, t, progress) {
     const audK = d.aud && audAge < 1.4 ? 1 - audAge / 1.4 : 0;
     const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0) + audK * 0.6);
     let fpx = Math.max(sphere ? 4 : 8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? (sphere ? 0.08 : 0.16) : 0) + (fresh ? (sphere ? 0.11 : 0.22) : 0)) / pr.vz));
+    // 합주 기호 크기 곡선 — 초반(성긴 구름)엔 2배 크게, 30초에 걸쳐 1배로 줄어든다(밀도가 차니까)
+    if (sphere && orchestraT0) fpx *= 2 - Math.min(1, (performance.now() - orchestraT0) / 30000);
     if (audK > 0) fpx *= 1 + audK * 1.2;
     if (d.aud && d.cidx != null) { audColored.push({ d, pr, fpx, a, audK }); return; }
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;

@@ -226,7 +226,7 @@ serve.py                로컬 서버
   보내면 서버 `aud_colors`가 **선착순 순번(cidx)** 을 배정(phase round/idle에 리셋), SSE와 응답 양쪽에
   실어준다. 색 공식은 메인·폰 동일 — **골든앵글** `hue=(cidx*137.508)%360` + **채도 4사이클
   (AUD_SATS)·밝기 5사이클(AUD_LOFF)**(`audPastel(i,a,l)`) — 색상환이 돌아 비슷한 h가 나와도 톤이
-  달라 같은 색으로 안 보인다. 합주(2단계) 글리프는 뭉텅이 방지로 원래의 1/3(sizeBase 0.1·max 14·min 4 — 붐빌수록 점묘처럼). 잼 카메라 시간배율 0.17(대화면 멀미 방지). __probe에 audUsers/audNotes/audTop — 관객 부하 점검용(50명×5탭 부하 테스트로 FPS 60 유지 확인).
+  달라 같은 색으로 안 보인다. 합주(2단계) 글리프는 뭉텅이 방지로 원래의 1/3(sizeBase 0.1·max 14·min 4 — 붐빌수록 점묘처럼), **크기 곡선**: 합주 시작 2배 → 30초에 걸쳐 1배로(orchestraT0 기준, 성긴 초반은 크게·밀도가 차면 작게). 잼 카메라 시간배율 0.17(대화면 멀미 방지). __probe에 audUsers/audNotes/audTop — 관객 부하 점검용(50명×5탭 부하 테스트로 FPS 60 유지 확인).
   메인은 음표에 cidx를 심고(**flatScoreNotes가 cidx도 복사해야 함 — 필드 추가 시 여기 잊지 말 것**),
   drawScore3D에서 색 음표는 본 패스에서 건너뛰고 **difference 반전 이후에** hsla로 그린다(색이 안
   뒤집힘). 밝기 l은 반전 진행도로 보간(흰 바탕 45 ↔ 검정 바탕 78). 폰은 첫 응답의 cidx로 리플·글리프·
@@ -240,6 +240,9 @@ serve.py                로컬 서버
   tap.html `setMode(phase, replay)`는 **그림·스틸 표시 중 replay/폴링으로 온 'idle'을 무시** — 서버
   재시작(phase가 idle로 초기화)해도 연주하던 폰이 대기화면으로 튕기지 않는다. 진짜 리셋(Esc)은
   라이브 방송(replay 없음)이라 정상 동작. /config 폴링도 replay 취급.
+  **폴링 자가치유**: /config에 `stillLive`·`jam`이 실려 있어, 폰이 SSE(활성 스틸·잼 개시)를 놓쳐도
+  4초 폴링이 "보기 전용인데 서버는 활성"이면 스틸을 다시 받아 무장하고, 잼 캡션도 따라잡는다
+  (SSE 전면 차단 조건에서 검증 — "관객 터치 소리가 안 난다"의 실제 원인이던 잠김 해소).
 - **독주(1단계) 2배속**: startEndingScore가 rhythm rel을 SOLO_SPEED=2로 압축, GAP 0.3.
 - **관객 잼(합주 종료 후)**: 합주 progress≥1 → `startJam()`(드로우 프레임 + `jamTimer` 폴백 —
   rAF가 백그라운드로 멈춰도 정시 개시) → POST `/jam` → SSE `{type:'jam'}` → 폰 캡션 "이제 당신의

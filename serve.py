@@ -14,6 +14,7 @@ current_phase = {'v': 'idle'}   # 메인이 POST /phase 로 알려주는 현재 
 current_ascii = {'v': None}     # 마지막 아스키아트(mark+chars) — 늦게 접속한 폰도 그린다
 current_still = {'v': None}     # 그래픽 스코어 정지화면(dataURL) — 합주 때 폰이 띄운다
 aud_colors = {'m': {}, 'n': 0}  # 관객 음표 색 — 폰 uid → 배정 순번(골든앵글 파스텔, 선착순)
+current_jam = {'v': False}      # 잼(관객 합주) 진행 중 — 늦게 접속/이벤트 놓친 폰이 폴링으로 따라잡게
 
 
 def broadcast(payload):
@@ -79,6 +80,8 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'phase': current_phase['v'],
                 'ascii': current_ascii['v'],
                 'hasStill': bool(current_still['v']),
+                'stillLive': (current_still['v'] or {}).get('live', 0) if isinstance(current_still['v'], dict) else 0,
+                'jam': 1 if current_jam['v'] else 0,
                 'port': PORT,
             })
         if self.path.split('?')[0] == '/still':
@@ -111,6 +114,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             broadcast(json.dumps({'type': 'addnote', 'cidx': cidx}))
             return self._json(200, {'ok': True, 'cidx': cidx})
         if path == '/jam':
+            current_jam['v'] = True
             broadcast(json.dumps({'type': 'jam'}))       # 합주 종료 → 관객 합주(잼) 개시 알림
             return self._json(200, {'ok': True})
         self.send_error(404)
@@ -134,6 +138,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             current_ascii['v'] = None
             current_still['v'] = None
             aud_colors['m'].clear(); aud_colors['n'] = 0   # 새 공연 — 색 배정도 새로
+            current_jam['v'] = False
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
         return self._json(200, {'ok': True})
 

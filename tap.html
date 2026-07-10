@@ -530,6 +530,7 @@
     // stillLive — false면 보기 전용(독주·흰 배경 동안): 터치해도 음표가 안 태어난다.
     // 합주가 시작되면 메인이 live=1 스틸을 다시 올려 그때부터 참여 활성화.
     let stillLive = false;
+    let jamShown = false;   // 잼 안내 적용 여부 — 이벤트를 놓쳐도 폴링(/config의 jam)으로 따라잡는다
     function showStill(img, live) {
       stillOn = true; artOn = false; cancelAnimationFrame(artAnim);
       stillLive = !!live;
@@ -551,6 +552,7 @@
     // 합주가 끝나면 — 관객 합주(잼) 안내로 전환
     function jamMode() {
       stillLive = true;   // 잼은 당연히 참여 가능
+      jamShown = true;
       if (!stillOn) fetchStill();
       const cap = document.getElementById('still-cap');
       if (cap) cap.innerHTML = '합주가 끝났습니다 — <b>이제 당신의 차례! 터치로 함께 연주하세요</b>';
@@ -591,7 +593,7 @@
       // 서버가 재시작되면 phase가 idle로 초기화되는데, 그때마다 연주하던 폰이
       // 대기화면으로 튕기던 문제 — 진짜 리셋은 라이브 방송(replay 없음)으로 온다.
       if (replay && phase === 'idle' && (stillOn || artOn)) return;
-      if (phase === 'round' || phase === 'idle') { artOn = false; stillOn = false; }   // 새 라운드 — 그림·스틸 내리기
+      if (phase === 'round' || phase === 'idle') { artOn = false; stillOn = false; jamShown = false; stillLive = false; }   // 새 라운드 — 그림·스틸 내리기
       if (phase === curPhase) return;                             // 같은 단계 반복 알림은 무시(선택 유지)
       curPhase = phase;
       if (artOn || stillOn) return;                               // 그림·스틸은 엔딩 동안 유지
@@ -617,8 +619,11 @@
       fetch('/config').then((r) => r.json()).then((c) => {
         if (!c) return;
         if (c.phase) setMode(c.phase, true);   // 폴링 = 따라잡기(리플레이 취급)
-        if (c.phase === 'ending' && c.hasStill && !stillOn) fetchStill();          // 합주 스틸 따라잡기
+        // 합주 스틸 따라잡기 — 스틸이 없거나, "보기 전용인데 서버는 활성(live)"이면 다시 받아 무장한다
+        // (활성 SSE 한 발을 놓치면 영영 잠긴 채 터치가 안 나가던 문제의 자가 치유)
+        if (c.phase === 'ending' && c.hasStill && (!stillOn || (c.stillLive && !stillLive))) fetchStill();
         else if (c.ascii && c.ascii.mark && !artOn && !stillOn) showArt(c.ascii.mark, c.ascii.chars);
+        if (c.jam && !jamShown && c.phase === 'ending') jamMode();                 // 잼 개시도 폴링으로 따라잡기
       }).catch(() => {});
     }
     syncNow();
