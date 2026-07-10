@@ -3480,11 +3480,27 @@ function devJump(stage) {
   }
 }
 
+// 그룹 안내 — 화면 정중앙에 아주 크게 떴다가 스르르 사라진다(잼 그룹 전환마다).
+function announceGroup(g) {
+  let box = $('#group-banner');
+  if (!box) { box = document.createElement('div'); box.id = 'group-banner'; document.body.appendChild(box); }
+  box.innerHTML = '';
+  const el = document.createElement('div');
+  el.className = 'gb';
+  el.innerHTML = g === 'ALL'
+    ? '<div class="gb-big">다 함께</div><div class="gb-sub">이제 모두 함께 연주하세요</div>'
+    : `<div class="gb-big">${g} 그룹</div><div class="gb-sub">지금은 이 그룹만 연주합니다</div>`;
+  box.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => el.remove(), 2900);
+}
+
 function startOutro() {
   if (outroOn) return;
   outroOn = true; outroT0 = performance.now();
   document.body.classList.add('outro-on');
   fadeMasterOut(40);   // 소리 40초 페이드 — 비주얼은 drawScore3D의 검은 덮개가 함께 스러진다
+  try { fetch('/outro', { method: 'POST' }).catch(() => {}); } catch (e) { /* 무시 */ }   // 폰도 함께 저문다
 }
 document.querySelectorAll('#dev-bar .devb').forEach((b) => {
   b.addEventListener('click', (e) => {
@@ -3683,6 +3699,7 @@ function startJam() {
   // 그룹 순차 잼 — A(30s) → B(30s) → C(30s) → 다같이. 자기 색의 최대 채널이 그룹.
   const setGroup = (g) => {
     jamGroup = g;
+    announceGroup(g);   // 화면 가득 그룹 안내가 떴다가 스르르 꺼진다
     try { fetch('/jamgroup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ g }) }).catch(() => {}); } catch (e) { /* 무시 */ }
   };
   jamGroupTimers.forEach(clearTimeout); jamGroupTimers = [];

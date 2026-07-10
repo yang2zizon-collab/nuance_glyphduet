@@ -135,6 +135,15 @@
     @keyframes rip { from { transform: scale(0.25); opacity: 0.95; } to { transform: scale(2.6); opacity: 0; } }
     .rip { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border: 3px solid #000; border-radius: 50%; animation: rip 0.7s ease-out forwards; }
     .ripg { position: absolute; margin: -14px 0 0 -8px; font-size: 24px; font-weight: 700; animation: rip 0.95s ease-out forwards; }
+    /* 그룹 안내 배너 — 화면 가득, 내 차례면 검은 바탕 흰 글씨 */
+    #gb-ph { position: fixed; inset: 0; z-index: 150; pointer-events: none; }
+    .gbp { width: 100%; height: 100%; display: grid; place-items: center; text-align: center; opacity: 0; }
+    .gbp.mine { background: #000; color: #fff; }
+    .gbp.other { background: rgba(255, 255, 255, 0.96); color: #000; }
+    .gbp.show { animation: gbpPop 2.5s ease forwards; }
+    @keyframes gbpPop { 0% { opacity: 0; } 10% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+    .gbp-big { font-size: 15vw; font-weight: 800; line-height: 1.1; }
+    .gbp-sub { font-size: 4.5vw; margin-top: 8px; }
   </style>
   <footer>
     <span id="status">연결됨</span>
@@ -488,7 +497,9 @@
       loop2();
     }
 
+    let lastArt = null;   // 마지막 아스키(mark+chars) — 아웃트로에서 흰 그림으로 재등장
     function showArt(mark, chars) {
+      lastArt = { mark, chars };
       artOn = true;
       padEl.style.display = 'none';
       giftEl.style.display = 'none';
@@ -552,6 +563,24 @@
       return (r >= g && r >= b) ? 'A' : (g >= b) ? 'B' : 'C';
     }
     let jamGroupNow = 'ALL';
+    // 그룹 안내 — 폰 화면 가득 크게 떴다가 사라진다(내 차례면 검은 바탕 흰 글씨로 강조)
+    function showGroupBannerPh(g) {
+      if (!stillOn) return;
+      let box = document.getElementById('gb-ph');
+      if (!box) { box = document.createElement('div'); box.id = 'gb-ph'; document.body.appendChild(box); }
+      box.innerHTML = '';
+      const mine = myCidx != null && myGroup() === g;
+      const el = document.createElement('div');
+      el.className = 'gbp ' + (g !== 'ALL' && mine ? 'mine' : 'other');
+      el.innerHTML = g === 'ALL'
+        ? '<div><div class="gbp-big">다 함께!</div><div class="gbp-sub">모두 터치로 연주하세요</div></div>'
+        : (mine
+          ? '<div><div class="gbp-big">' + g + ' 그룹</div><div class="gbp-sub">당신 차례! 터치로 연주하세요</div></div>'
+          : '<div><div class="gbp-big">' + g + ' 그룹 차례</div><div class="gbp-sub">듣는 시간 — 당신은 ' + (myGroup() || '?') + ' 그룹</div></div>');
+      box.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => el.remove(), 2700);
+    }
     function updateJamCaption() {
       if (!stillOn || !stillLive) return;
       const cap = document.getElementById('still-cap');
@@ -651,13 +680,83 @@
       rl.appendChild(gl); setTimeout(() => gl.remove(), 1000);
     });
 
+    // ── 아웃트로 — 메인의 페이드에 맞춰 폰도 저문다 ──
+    let outroPh = false, outroTimers = [], outroAnim = 0;
+    function startPhoneOutro(elapsed = 0) {
+      if (outroPh) return; outroPh = true;
+      const ov = document.createElement('div');
+      ov.id = 'outro-ov';
+      ov.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;transition:opacity 3s ease;z-index:200;display:grid;place-items:center;overflow:hidden;';
+      document.body.appendChild(ov);
+      requestAnimationFrame(() => { ov.style.opacity = '1'; });
+      const cv = document.createElement('canvas');
+      cv.style.cssText = 'width:100vw;height:100vh;opacity:0;transition:opacity 2.5s ease;';
+      ov.appendChild(cv);
+      const startArt = (mark, chars) => {
+        const w = cv.width = Math.min(1000, window.innerWidth * 2);
+        const h = cv.height = Math.round(w * (window.innerHeight / window.innerWidth));
+        const mc = document.createElement('canvas'); mc.width = w; mc.height = h;
+        const mg = mc.getContext('2d', { willReadFrequently: true });
+        artMaskDraw(mg, mark, w, h);
+        const img = mg.getImageData(0, 0, w, h).data;
+        const cell = Math.max(10, Math.floor(Math.min(w, h) / 46));
+        const cs = [...(chars || '·')];
+        const rnd2 = (a, b) => { const s2 = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s2 - Math.floor(s2); };
+        const targets = []; let k = 0;
+        for (let y = Math.floor(cell / 2); y < h; y += cell) {
+          for (let x = Math.floor(cell / 2); x < w; x += cell) {
+            const v = img[(y * w + x) * 4 + 3], hsel = rnd2(x, y);
+            if (v > 150) targets.push({ ch: cs[k++ % cs.length], px: Math.round(cell * 1.05), a: 0.95, x, y });
+            else if (v > 60) targets.push(hsel > 0.35 ? { ch: cs[k++ % cs.length], px: Math.round(cell * 0.82), a: 0.8, x, y } : { ch: '·', px: Math.round(cell * 0.7), a: 0.6, x, y });
+            else if (hsel > 0.76) targets.push({ ch: '·', px: Math.round(cell * 0.6), a: 0.4, x, y });
+          }
+        }
+        targets.sort((a, b) => a.px - b.px);
+        const g = cv.getContext('2d');
+        let fr = 0;
+        const loop2 = () => {
+          if (!outroPh) return;
+          outroAnim = requestAnimationFrame(loop2);
+          if ((fr++ % 2) === 1) return;   // 30fps
+          const tm = performance.now() / 1000;
+          g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+          g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+          let curF = '';
+          for (const tg of targets) {
+            const f = tg.px + 'px monospace';
+            if (f !== curF) { g.font = f; curF = f; }
+            const mv = artMotion(mark, tg.x, tg.y, w, h, tm);
+            g.globalAlpha = tg.a;
+            g.fillText(tg.ch, tg.x + mv.dx, tg.y + mv.dy);
+          }
+          g.globalAlpha = 1;
+        };
+        loop2();
+        cv.style.opacity = '1';
+      };
+      const t = (ms, f) => { outroTimers.push(setTimeout(f, Math.max(0, ms - elapsed * 1000))); };
+      t(3200, () => {   // 화면이 다 저문 뒤 — 아까의 아스키가 흰 그림으로 살아난다
+        const go = (a) => { if (a && a.mark) startArt(a.mark, a.chars || '·'); };
+        if (lastArt) go(lastArt);
+        else fetch('/config').then((r) => r.json()).then((c) => go(c && c.ascii)).catch(() => {});
+      });
+      t(35000, () => { cv.style.opacity = '0'; });   // 페이드아웃 끝 5초 전 — 다시 검은색으로
+    }
+    function stopPhoneOutro() {
+      if (!outroPh) return;
+      outroPh = false;
+      outroTimers.forEach(clearTimeout); outroTimers = [];
+      cancelAnimationFrame(outroAnim);
+      const ov = document.getElementById('outro-ov'); if (ov) ov.remove();
+    }
+
     let curPhase = null;
     function setMode(phase, replay) {
       // 리플레이(SSE 재접속 따라잡기)·폴링으로 온 'idle'은 그림·스틸 표시 중엔 무시한다.
       // 서버가 재시작되면 phase가 idle로 초기화되는데, 그때마다 연주하던 폰이
       // 대기화면으로 튕기던 문제 — 진짜 리셋은 라이브 방송(replay 없음)으로 온다.
       if (replay && phase === 'idle' && (stillOn || artOn)) return;
-      if (phase === 'round' || phase === 'idle') { artOn = false; stillOn = false; jamShown = false; stillLive = false; }   // 새 라운드 — 그림·스틸 내리기
+      if (phase === 'round' || phase === 'idle') { artOn = false; stillOn = false; jamShown = false; stillLive = false; if (!replay) stopPhoneOutro(); }   // 새 라운드 — 그림·스틸 내리기
       if (phase === curPhase) return;                             // 같은 단계 반복 알림은 무시(선택 유지)
       curPhase = phase;
       if (artOn || stillOn) return;                               // 그림·스틸은 엔딩 동안 유지
@@ -695,7 +794,8 @@
         if (c.phase === 'ending' && c.hasStill && (!stillOn || (c.stillLive && !stillLive))) fetchStill();
         else if (c.ascii && c.ascii.mark && !artOn && !stillOn) showArt(c.ascii.mark, c.ascii.chars);
         if (c.jam && !jamShown && c.phase === 'ending') jamMode();                 // 잼 개시도 폴링으로 따라잡기
-        if (c.jamGroup && c.jamGroup !== jamGroupNow) { jamGroupNow = c.jamGroup; updateJamCaption(); }
+        if (c.jamGroup && c.jamGroup !== jamGroupNow) { jamGroupNow = c.jamGroup; updateJamCaption(); showGroupBannerPh(jamGroupNow); }
+        if (c.outro && !outroPh) startPhoneOutro(+c.outro || 0);
       }).catch(() => {});
     }
     syncNow();
@@ -709,7 +809,8 @@
         if (d.type === 'phase') setMode(d.phase, !!d.replay);
         else if (d.type === 'still') setTimeout(fetchStill, Math.random() * 3000);   // 스코어 정지화면 — 수십 대 동시 다운로드를 0~3초로 분산
         else if (d.type === 'jam') jamMode();                             // 합주 끝 — 관객 합주 개시
-        else if (d.type === 'jamgroup') { jamGroupNow = d.g || 'ALL'; updateJamCaption(); }
+        else if (d.type === 'outro') startPhoneOutro(0);
+        else if (d.type === 'jamgroup') { if (d.g !== jamGroupNow) { jamGroupNow = d.g || 'ALL'; updateJamCaption(); showGroupBannerPh(jamGroupNow); } }
         else if (d.type === 'ascii' && !artOn && !stillOn) showArt(d.mark, d.chars);
       };
       es.onerror = () => {};

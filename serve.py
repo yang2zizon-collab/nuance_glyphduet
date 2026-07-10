@@ -1,4 +1,4 @@
-import os, sys, socket, json, queue, threading
+import os, sys, socket, json, queue, threading, time
 # 파일 디스크립터 상한 올리기 — 접속자(SSE) 100+명이 소켓을 오래 물고 있어도 여유 있게.
 try:
     import resource
@@ -23,6 +23,7 @@ current_still = {'v': None}     # 그래픽 스코어 정지화면(dataURL) — 
 aud_colors = {'m': {}, 'n': 0}  # 관객 음표 색 — 폰 uid → 배정 순번(골든앵글 파스텔, 선착순)
 current_jam = {'v': False}      # 잼(관객 합주) 진행 중 — 늦게 접속/이벤트 놓친 폰이 폴링으로 따라잡게
 current_group = {'v': 'ALL'}    # 잼 그룹 차례(A/B/C/ALL) — 색의 최대 채널로 배정된 그룹만 연주
+current_outro = {'v': 0.0}      # 아웃트로 시작 시각(epoch) — 폰이 검게 물들고 아스키 흰 그림이 떴다 진다
 
 
 def broadcast(payload):
@@ -104,6 +105,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'stillLive': (current_still['v'] or {}).get('live', 0) if isinstance(current_still['v'], dict) else 0,
                 'jam': 1 if current_jam['v'] else 0,
                 'jamGroup': current_group['v'],
+                'outro': round(time.time() - current_outro['v'], 1) if current_outro['v'] else 0,
                 'build': build_stamp(),
                 'port': PORT,
             })
@@ -148,6 +150,10 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                     aud_colors['n'] += 1
                 cidx = aud_colors['m'][uid]
             return self._json(200, {'ok': True, 'cidx': cidx})
+        if path == '/outro':
+            current_outro['v'] = time.time()
+            broadcast(json.dumps({'type': 'outro'}))
+            return self._json(200, {'ok': True})
         if path == '/jamgroup':
             data = self._body_json()
             g = str(data.get('g') or '')
@@ -183,6 +189,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             aud_colors['m'].clear(); aud_colors['n'] = 0   # 새 공연 — 색 배정도 새로
             current_jam['v'] = False
             current_group['v'] = 'ALL'
+            current_outro['v'] = 0.0
         broadcast(json.dumps({'type': 'phase', 'phase': phase}))
         return self._json(200, {'ok': True})
 

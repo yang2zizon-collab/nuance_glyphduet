@@ -521,3 +521,19 @@ html, body { background: #ffffff; color: var(--ink); }
 .theme-score #dev-bar .devb-outro:hover { opacity: 0.95; }
 /* 아웃트로 동안 카메라 UI도 서서히 사라진다 */
 .theme-score.outro-on #cam-ui { transition: opacity 8s linear; opacity: 0; pointer-events: none; }
+
+
+/* 잼 그룹 안내 — 화면 가득 크게 떴다가 사라진다(반전 배경에선 흰 글씨) */
+#group-banner { position: fixed; inset: 0; display: grid; place-items: center; z-index: 70; pointer-events: none; }
+#group-banner .gb { text-align: center; opacity: 0; }
+#group-banner .gb.show { animation: gbPop 2.7s ease forwards; }
+@keyframes gbPop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  10%  { opacity: 1; transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+#group-banner .gb-big { font-size: clamp(90px, 15vw, 240px); font-weight: 800; color: #fff; letter-spacing: 0.04em; line-height: 1; }
+#group-banner .gb-sub { font-size: clamp(16px, 2vw, 30px); color: rgba(255, 255, 255, 0.75); margin-top: 14px; }
+.theme-score:not(.score-invert) #group-banner .gb-big { color: #000; }
+.theme-score:not(.score-invert) #group-banner .gb-sub { color: rgba(0, 0, 0, 0.7); }
