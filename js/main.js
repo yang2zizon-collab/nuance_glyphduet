@@ -3317,7 +3317,7 @@ function setupAudience() {
         }
       }
       // 합주 중 폰 터치 — 총보에 음표 하나 추가
-      else if (d.type === 'addnote') addAudienceNote(d.cidx, d.glyph);
+      else if (d.type === 'addnote') addAudienceNote(d.cidx);
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
@@ -4564,7 +4564,7 @@ function audNick(i) {
 }
 
 let lastAudSoundAt = 0;   // 관객 음표 사운드 스로틀 — 수십 명 동시 탭에도 오디오가 안 터지게
-function addAudienceNote(cidx, glyph) {
+function addAudienceNote(cidx) {
   if (endingPhase !== 2 || !orchestraScore || !orchestraScore.parts.length) return;
   const spb = 60 / SCORE_TEMPO;
   const playBeat = Math.max(0, Math.min(orchestraScore.totalBeats - 0.1,
@@ -4576,7 +4576,7 @@ function addAudienceNote(cidx, glyph) {
   p.notes.push({
     beat: jamOn ? Math.random() * maxB : Math.max(0, playBeat - p.startBeat),
     midi: 55 + Math.floor(Math.random() * 18),
-    glyph: (glyph && glyphs.includes(glyph)) ? glyph : glyphs[Math.floor(Math.random() * glyphs.length)],   // 고른 모양 우선
+    glyph: glyphs[Math.floor(Math.random() * glyphs.length)],   // 모양은 늘 랜덤(원래대로)
     accent: Math.random() > 0.7,
     aud: true, born: performance.now(),   // 관객 음표 — 태어날 때 강조 연출용
     cidx: Number.isInteger(cidx) ? cidx : null,   // 폰별 배정 색 순번(없으면 기본 잉크색)
