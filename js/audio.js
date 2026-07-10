@@ -790,60 +790,59 @@ export function playEnsemble(rhythms, { speed = 2, duration = 13, loop = true, g
 
   const bin = [];
   const start = ctx.currentTime + 0.12;
-  const MAX_NOTES = 700;     // 과부하 방지 하드 상한(이걸 넘으면 합주가 무음이 될 수 있음)
-  let scheduled = 0;
+  const MAX_NOTES = 700;     // 과부하 방지 하드 상한(총량)
 
-  // 예약될 음 수를 미리 세고, 상한을 넘으면 "고르게" 솎아낸다 — 예전엔 상한에 닿는
-  // 순간 나머지를 전부 버려서 합주 후반이 통째로 무음이 됐다(끝까지 성기게라도 울리게).
-  const cycleParams = rhythms.map((r, ri) => {
-    if (!r.events || !r.events.length) return null;
+  // ① 모든 음을 (시각, 글자, 목소리)로 평탄화 — 시간순 정렬.
+  const plan = [];
+  rhythms.forEach((r, ri) => {
+    if (!r.events || !r.events.length) return;
     let span = 0;
     r.events.forEach((e) => { if (e.rel > span) span = e.rel; });
     const loopLen = Math.max(0.6, span / speed + 0.28);
     const offset = (r.offset != null) ? r.offset : (ri % rhythms.length) * 0.12;
     const step = loop ? loopLen : (duration + loopLen);
-    let cycles = 0;
-    for (let cs = offset; cs < duration; cs += step) cycles++;
-    return { loopLen, offset, step, planned: cycles * r.events.length };
-  });
-  const plannedTotal = cycleParams.reduce((s, c) => s + (c ? c.planned : 0), 0);
-  const keepEvery = Math.max(1, Math.ceil(plannedTotal / MAX_NOTES));
-  let gi = 0;   // 전역 이벤트 순번 — keepEvery 간격으로만 실제 예약
-
-  // 각 목소리(리듬 덩어리)를 독립적으로 계속 루프시킨다 → 끊김 없는 층층 합주.
-  rhythms.forEach((r, ri) => {
-    if (!cycleParams[ri]) return;
-    const prof = speakProfile(r.voiceId);
-    const { offset, step } = cycleParams[ri];
-
     for (let cycleStart = offset; cycleStart < duration; cycleStart += step) {
-      const base = start + cycleStart;
-      for (const ev of r.events) {
-        if (scheduled >= MAX_NOTES) break;
-        if ((gi++ % keepEvery) !== 0) continue;   // 고른 솎아내기 — 밀도는 낮아져도 끝까지 이어진다
-        const ch = ev.ch;
-        const hasChar = (typeof ch === 'string' && ch.length === 1);
-        const p = hasChar ? pitchForChar(ch) : Math.random();
-        const vowel = SP_VOWELS[Math.min(4, Math.floor(p * 5))];
-        let freq;
-        if (prof.mono) freq = prof.f0;
-        else {
-          const code = hasChar ? ch.codePointAt(0) : Math.floor(p * 256);
-          freq = prof.f0 * Math.pow(2, SP_DEG[code % SP_DEG.length] / 12);
-        }
-        speakNote(prof, freq, vowel, base + ev.rel / speed, prof.dur, prof.gain * VOICE_LEVEL * 0.85, out, bin, true);
-        scheduled++;
-      }
-      if (scheduled >= MAX_NOTES) break;
+      for (const ev of r.events) plan.push({ at: cycleStart + ev.rel / speed, ch: ev.ch, voiceId: r.voiceId });
     }
   });
+  plan.sort((a, b) => a.at - b.at);
+  // ② 상한 초과분은 시간축에서 고르게 솎아냄(끝이 통째로 무음이 되지 않게).
+  const keepEvery = Math.max(1, Math.ceil(plan.length / MAX_NOTES));
+  const kept = keepEvery > 1 ? plan.filter((_, i) => i % keepEvery === 0) : plan;
+  // ③ 8초 창 굴림 예약 — 예전엔 시작 순간 수백 음(음당 노드 10여 개 = 수천 노드)을
+  //    한꺼번에 만들어 실기기 오디오 스레드가 질식해 "합주 무음"이 됐다.
+  //    이제 앞으로 8초치만 그때그때 만든다(2.5초마다 창 전진).
+  const profCache = {};
+  const profOf = (vid) => (profCache[vid] = profCache[vid] || speakProfile(vid));
+  let idx = 0;
+  const scheduleWindow = () => {
+    const horizon = (ctx.currentTime - start) + 8;
+    while (idx < kept.length && kept[idx].at <= horizon) {
+      const e = kept[idx++];
+      const prof = profOf(e.voiceId);
+      const ch = e.ch;
+      const hasChar = (typeof ch === 'string' && ch.length === 1);
+      const p = hasChar ? pitchForChar(ch) : Math.random();
+      const vowel = SP_VOWELS[Math.min(4, Math.floor(p * 5))];
+      let freq;
+      if (prof.mono) freq = prof.f0;
+      else {
+        const code = hasChar ? ch.codePointAt(0) : Math.floor(p * 256);
+        freq = prof.f0 * Math.pow(2, SP_DEG[code % SP_DEG.length] / 12);
+      }
+      speakNote(prof, freq, vowel, start + e.at, prof.dur, prof.gain * VOICE_LEVEL * 0.85, out, bin, true);
+    }
+  };
+  scheduleWindow();
+  const schedTimer = setInterval(scheduleWindow, 2500);
   console.info('[ensemble] ctx.state:', ctx.state, '· 트랙:', rhythms.length,
-               '· 예약 음표:', scheduled, '/ 계획', plannedTotal, '(간격', keepEvery + ')',
-               '· duration:', duration.toFixed(1), '· loop:', loop);
+               '· 음:', kept.length, '/ 계획', plan.length, '(간격', keepEvery + ')',
+               '· duration:', duration.toFixed(1), '· loop:', loop, '· 8s 창 예약');
   emit({ type: 'ensemble', voices: rhythms.length, speed, duration });
 
   // 중단 함수 — 엔딩을 떠나거나 다시 시작할 때 깔끔히 멈춘다.
   return () => {
+    clearInterval(schedTimer);
     const t = ctx.currentTime;
     out.gain.cancelScheduledValues(t);
     out.gain.setValueAtTime(out.gain.value, t);
