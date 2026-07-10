@@ -52,8 +52,8 @@
   <!-- 대기 화면 — 라운드(대화 타이핑)가 시작되면 자동으로 부호 패드로 바뀐다 -->
   <div id="wait-ui" style="display:flex; flex:1 1 auto; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center;">
     <div id="wait-mark" style="font-size:46px; line-height:1;">✳</div>
-    <p style="font-size:22px; font-weight:700; margin:0;">곧 참여가 시작됩니다</p>
-    <p style="font-size:14px; color:#777; margin:0; line-height:1.6;">The performance will begin soon.<br />Keep this screen open — your phone is part of the piece.</p>
+    <p id="wait-main" style="font-size:22px; font-weight:700; margin:0;">곧 참여가 시작됩니다</p>
+    <p id="wait-sub" style="font-size:14px; color:#777; margin:0; line-height:1.6;">The performance will begin soon.<br />Keep this screen open — your phone is part of the piece.</p>
   </div>
   <div id="pad" style="display:none;">
     <button class="key" data-mark="period"><span class="sym">.</span></button>
@@ -812,6 +812,17 @@
       padEl.style.display = round ? 'grid' : 'none';
       giftEl.style.display = gift ? 'flex' : 'none';
       waitEl.style.display = (!gift && !round) ? 'flex' : 'none';   // 라운드 전(대기)·엔딩(그림 없을 때)
+      // 엔딩(독주) 동안의 대기 화면 — "곧 시작" 대신 감상 안내 + 합주 참여 예고
+      const wm = document.getElementById('wait-main'), ws = document.getElementById('wait-sub');
+      if (wm && ws) {
+        if (phase === 'ending') {
+          wm.textContent = '독주를 감상하세요';
+          ws.innerHTML = '잠시 뒤 이 화면으로 <b>합주에 참여</b>할 수 있어요.<br />You will join the ensemble shortly.';
+        } else {
+          wm.textContent = '곧 참여가 시작됩니다';
+          ws.innerHTML = 'The performance will begin soon.<br />Keep this screen open — your phone is part of the piece.';
+        }
+      }
       artEl.style.display = 'none';
       stillEl.style.display = 'none';
       titleEl.textContent = gift ? '"뉘앙스" 선물' : round ? '마음에 드는 부호를 눌러주세요.' : '"뉘앙스" 글리프 듀엣';
