@@ -59,7 +59,7 @@ serve.py                로컬 서버
   B컷 폴백은 `buildTomBColor(W,H,S)`(컬러 상자 합성, 크기별 캐시)를 ctx에 blit → dither가 명도만 남겨 흑백 도트로.
 - **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
   **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용). gift-time엔 스코어판·입력칸이 0.8s 페이드로 숨고 **캐릭터 열이 화면 정중앙 가로 배치로 커진다**(썸네일 ~150px, 선물 상자 아래).
-  선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
+  선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 즉시 **착용**(`wearGift` — WEAR_POS: 모자·둥지=머리, 잠수안경=눈가, 나머지=손에 든 자리, 셋까지 겹침, 선물 끝나도 유지)하고 **배경에도 3개씩 떠다닌다**(`floatGift` → #gift-float-layer, opacity 0.2 부유 애니 — giftDoneToEnding·resetGifts가 비움). 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
   나열(title에 품목 텍스트 나열).
 - **QR 화면(#screen-qr)**: **캐릭터 소개(select)가 끝난 뒤** 나온다 — 흐름: 타이틀 ▶(한 번, 시작
   사운드 없음) → select(룰렛·컷신) → `to-setup` ▶ → **QR 화면** → `qr-done` ▶(randomMatch) → play.
