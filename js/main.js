@@ -3317,7 +3317,7 @@ function setupAudience() {
         }
       }
       // 합주 중 폰 터치 — 총보에 음표 하나 추가
-      else if (d.type === 'addnote') addAudienceNote(d.cidx);
+      else if (d.type === 'addnote') addAudienceNote(d.cidx, d.glyph);
     };
     audienceES.onerror = () => {};   // 브라우저가 자동 재연결 — 조용히
   } catch (e) { /* SSE 미지원 서버 — 퍼포머 전용 */ }
@@ -4564,19 +4564,22 @@ function audNick(i) {
 }
 
 let lastAudSoundAt = 0;   // 관객 음표 사운드 스로틀 — 수십 명 동시 탭에도 오디오가 안 터지게
-function addAudienceNote(cidx) {
+function addAudienceNote(cidx, glyph) {
   if (endingPhase !== 2 || !orchestraScore || !orchestraScore.parts.length) return;
   const spb = 60 / SCORE_TEMPO;
   const playBeat = Math.max(0, Math.min(orchestraScore.totalBeats - 0.1,
     (performance.now() - scoreStartWall) / 1000 / spb));
   const p = orchestraScore.parts[Math.floor(Math.random() * orchestraScore.parts.length)];
-  const glyphs = '◇○●△▽□♪✳*';
+  const glyphs = '◇○●△▽□♪✳*◆■▲☆◐◑※∿⌘';   // 랜덤 풀 — 작품의 외계 글리프 무드로 다양하게
+  const FIXED = '◇△□*';                     // 폰에서 고를 수 있는 네 가지
   // 잼(합주가 끝난 뒤)에는 구름 전체에 흩뿌려지도록 랜덤 박에 심는다
   const maxB = Math.max(0.1, orchestraScore.totalBeats - p.startBeat - 0.1);
+  const g2 = (glyph && FIXED.includes(glyph)) ? glyph : glyphs[Math.floor(Math.random() * glyphs.length)];   // 고른 모양(◇△□*) 또는 랜덤
+  window.__audLastGlyph = g2;   // 부하/동작 점검용
   p.notes.push({
     beat: jamOn ? Math.random() * maxB : Math.max(0, playBeat - p.startBeat),
     midi: 55 + Math.floor(Math.random() * 18),
-    glyph: glyphs[Math.floor(Math.random() * glyphs.length)],   // 모양은 늘 랜덤(원래대로)
+    glyph: g2,
     accent: Math.random() > 0.7,
     aud: true, born: performance.now(),   // 관객 음표 — 태어날 때 강조 연출용
     cidx: Number.isInteger(cidx) ? cidx : null,   // 폰별 배정 색 순번(없으면 기본 잉크색)
@@ -4779,6 +4782,7 @@ window.__probe = () => ({
   audUsers: Object.keys(audScores).length,
   audNotes: Object.values(audScores).reduce((s, v) => s + v, 0),
   audTop: Object.entries(audScores).sort((a, b) => b[1] - a[1])[0] || null,
+  audLastGlyph: window.__audLastGlyph || null,
 });
 
 // ===== 시작 =====
