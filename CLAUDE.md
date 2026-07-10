@@ -254,7 +254,7 @@ serve.py                로컬 서버
   ("합주 때 소리가 안 나") → startJam이 `orchestraTracks`(오프셋 %4로 감음)를
   `playEnsemble({speed:1, duration:22, loop:true, gain:0.55})`로 잔잔히 돌리고 **20초마다 새 판**
   (audio.js MAX_NOTES=700 상한에 걸려 조용해지기 전에 — 리버브 꼬리가 이음매를 가림). playEnsemble에
-  `gain` 옵션 추가됨. stopEndingScore가 jamBed/jamBedTimer/orchestraTracks 정리. **잼 카메라** = SF 우주유영(camR 6~28, 시간 배율 t*0.3 — 아주 느긋).
+  `gain` 옵션 추가됨. stopEndingScore가 jamBed/jamBedTimer/orchestraTracks 정리. **잼 카메라** = SF 우주유영(시간 배율 0.17 — 아주 느긋). **카메라 UI**(#cam-ui, 좌상단 — score-invert 동안만): 동그라미 조이스틱(잡은 방향으로 계속 회전 → camDragYaw/Pitch, 놓으면 점 복귀·정지) + 줌 ±(camDist 0.45~2.2, 누르고 있으면 반복). 캔버스 드래그 회전·탭 음표는 그대로(#cam-ui 위 조작은 음표 제외). stopEndingScore가 셋 다 리셋.
   메인 하단엔 합주 내내 작은 안내("핸드폰 화면을 터치하면…" → 잼엔 "지금이에요 —…") — 캔버스에
   그려져 색 반전과 함께 뒤집힘. 잼 상태는 stopEndingScore가 riset.
   **주의**: showEnding의 HUD 타이머는 반드시 `startEndingScore()` **뒤에** 걸 것(안의

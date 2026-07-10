@@ -24,6 +24,15 @@
     <!-- 선물 배경 레이어 — 받은 아이템들이 화면 뒤에 떠다닌다(선물 단계 동안) -->
     <div id="gift-float-layer"></div>
 
+    <!-- 합주 카메라 UI — 좌상단: 동그라미 조이스틱(회전) + 줌 ± (합주·잼 동안만 보임) -->
+    <div id="cam-ui">
+      <div id="cam-dial" title="드래그로 회전"><span id="cam-dot"></span></div>
+      <div id="cam-zoom">
+        <button id="cam-zi" title="줌인">+</button>
+        <button id="cam-zo" title="줌아웃">−</button>
+      </div>
+    </div>
+
     <!-- 개발자 점프(리허설용) — 좌상단 거의 안 보이는 초소형 네모: 타이핑·선물·독주·합주 -->
     <div id="dev-bar">
       <button class="devb" data-dev="type" title="타이핑"></button>

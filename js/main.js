@@ -2145,9 +2145,10 @@ window.addEventListener('keydown', ensureAudio);
 
 // 합주·잼 동안 메인 화면 — 탭이면 음표, 드래그면 카메라 회전(우주를 손으로 돌린다).
 let camDragYaw = 0, camDragPitch = 0;
+let camDist = 1;   // 카메라 거리 배율 — 1=기본, 작을수록 줌인(0.45~2.2)
 window.addEventListener('pointerdown', (e) => {
   if (state.screen !== 'ending' || endingPhase !== 2) return;
-  if (e.target && e.target.closest && e.target.closest('button')) return;   // 버튼 클릭은 제외
+  if (e.target && e.target.closest && e.target.closest('button, #cam-ui')) return;   // 버튼·카메라 UI는 제외
   const sx = e.clientX, sy = e.clientY;
   let dragged = false;
   const onMove = (ev) => {
@@ -2165,6 +2166,56 @@ window.addEventListener('pointerdown', (e) => {
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
 });
+
+// ── 합주 카메라 UI — 좌상단 동그라미(조이스틱: 잡고 있는 방향으로 계속 회전) + 줌 ± ──
+(() => {
+  const dial = $('#cam-dial'), dot = $('#cam-dot');
+  if (!dial) return;
+  let hold = null, tick = null;
+  dial.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const r = dial.getBoundingClientRect();
+    const cx2 = r.left + r.width / 2, cy2 = r.top + r.height / 2;
+    const upd = (ev) => {
+      let dx = ev.clientX - cx2, dy = ev.clientY - cy2;
+      const m = Math.hypot(dx, dy), R = r.width / 2 - 7;
+      if (m > R) { dx = (dx / m) * R; dy = (dy / m) * R; }
+      hold = { dx, dy };
+      dot.style.transition = 'none';
+      dot.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+    };
+    upd(e);
+    const onMove = (ev) => upd(ev);
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      hold = null; clearInterval(tick); tick = null;
+      dot.style.transition = ''; dot.style.transform = '';   // 손 떼면 중앙 복귀·회전 정지
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    clearInterval(tick);
+    tick = setInterval(() => {
+      if (!hold) return;
+      camDragYaw += hold.dx * 0.0011;
+      camDragPitch = Math.max(-1.2, Math.min(1.2, camDragPitch + hold.dy * 0.0007));
+    }, 33);
+  });
+  // 줌 ± — 누르면 한 칸, 누르고 있으면 반복
+  const bindZoom = (sel, f) => {
+    const b = $(sel); if (!b) return;
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const step = () => { camDist = Math.max(0.45, Math.min(2.2, camDist * f)); };
+      step();
+      const rep = setInterval(step, 130);
+      const off = () => { clearInterval(rep); window.removeEventListener('pointerup', off); };
+      window.addEventListener('pointerup', off);
+    });
+  };
+  bindZoom('#cam-zi', 0.93);
+  bindZoom('#cam-zo', 1 / 0.93);
+})();
 
 // (타이틀 리버스 스웰 인트로는 사용자 요청으로 제거 — ▶ 한 번에 바로 소개로 넘어간다)
 
@@ -3908,6 +3959,8 @@ function drawScore3D(ctx, W, H, t, progress) {
     cam.x = nx; cam.z = nz;
     cam.y += camDragPitch * 9;
   }
+  // 줌 UI — 카메라를 중심 쪽으로 당기거나 민다(구 단계만)
+  if (sphere && camDist !== 1) { cam.x *= camDist; cam.y *= camDist; cam.z *= camDist; }
   const fwd = v3norm(v3sub(target, cam));
   const right = v3norm(v3cross(fwd, { x: 0, y: 1, z: 0 }));
   const upv = v3cross(right, fwd);
@@ -4484,6 +4537,7 @@ function stopEndingScore() {
   orchestraScore = null;
   orchestraT0 = 0;
   jamOn = false;
+  camDragYaw = 0; camDragPitch = 0; camDist = 1;   // 카메라 수동 조작 리셋
   clearTimeout(jamTimer); jamTimer = null;
   if (jamBed) { jamBed(); jamBed = null; }
   clearInterval(jamBedTimer); jamBedTimer = null;
@@ -4783,6 +4837,7 @@ window.__probe = () => ({
   audNotes: Object.values(audScores).reduce((s, v) => s + v, 0),
   audTop: Object.entries(audScores).sort((a, b) => b[1] - a[1])[0] || null,
   audLastGlyph: window.__audLastGlyph || null,
+  camYaw: +camDragYaw.toFixed(3), camDist: +camDist.toFixed(3),
 });
 
 // ===== 시작 =====

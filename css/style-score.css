@@ -490,3 +490,27 @@ html, body { background: #ffffff; color: var(--ink); }
 .theme-score.gift-time .pick-row { gap: 56px; }
 .theme-score.gift-time .pick-thumb .gift-badges { bottom: auto; top: calc(100% + 8px); width: 100%; }
 .theme-score.gift-time .pick-thumb .gift-badges canvas { width: 22px; height: 22px; }
+
+
+/* 합주 카메라 UI — 좌상단 동그라미(조이스틱 회전) + 줌 ±. 합주·잼(score-invert) 동안만.
+   반전 전(흰 바탕)·후(검정 바탕) 어디서도 보이게 중간 회색 잉크. */
+#cam-ui { position: fixed; left: 14px; top: 26px; z-index: 60; display: none; flex-direction: column; gap: 8px; align-items: center; }
+.theme-score.score-invert #cam-ui { display: flex; }
+#cam-dial {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 1.5px solid rgba(136, 136, 136, 0.9);
+  position: relative; touch-action: none; cursor: grab;
+}
+#cam-dial:active { cursor: grabbing; }
+#cam-dot {
+  position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  border-radius: 50%; background: rgba(136, 136, 136, 0.95); pointer-events: none;
+  transition: transform .15s ease;
+}
+#cam-zoom { display: flex; gap: 6px; }
+#cam-zoom button {
+  width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  border: 1.5px solid rgba(136, 136, 136, 0.9); background: transparent;
+  color: rgba(136, 136, 136, 0.95); font-size: 15px; line-height: 1; cursor: pointer;
+}
+#cam-zoom button:active { background: rgba(136, 136, 136, 0.25); }
