@@ -4461,9 +4461,9 @@ function stopEndingScore() {
 function captureScoreStill(live) {
   try {
     // ① 넉넉한 캔버스에 고해상 렌더 → ② 잉크(비흰색) 바운딩박스를 찾아 → ③ 여백 ~9%로
-    // 크롭해 16:9 프레임에 꽉 차게 담는다. 카메라가 어디를 보든 그림이 프레임 속에
-    // 조그맣게 박히지 않고, 축소·확대는 비율 그대로(찌부 없음, contain 핏).
-    const SW = 2400, SH = 1350;
+    // 크롭해 프레임에 꽉 차게 담는다. 폰 화면에 맞춰 **세로(3:4)** 구도 — 가로로 길게
+    // 눕지 않는다. 축소·확대는 비율 그대로(찌부 없음, contain 핏).
+    const SW = 1350, SH = 1800;
     const src = document.createElement('canvas'); src.width = SW; src.height = SH;
     const sg = src.getContext('2d');
     drawScore3D(sg, SW, SH, 1.234, 1);
@@ -4480,7 +4480,7 @@ function captureScoreStill(live) {
         }
       }
     }
-    const W = 1600, H = 900;
+    const W = 1080, H = 1440;   // 세로 3:4 — 폰 화면에 세워서 꽉 차게
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const c2 = cv.getContext('2d');
     c2.fillStyle = '#fff'; c2.fillRect(0, 0, W, H);
