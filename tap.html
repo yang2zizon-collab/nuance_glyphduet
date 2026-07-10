@@ -667,7 +667,7 @@
         let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
         if (!d) return;
         if (d.type === 'phase') setMode(d.phase, !!d.replay);
-        else if (d.type === 'still') fetchStill();                        // 합주 시작 — 스코어 정지화면
+        else if (d.type === 'still') setTimeout(fetchStill, Math.random() * 3000);   // 스코어 정지화면 — 수십 대 동시 다운로드를 0~3초로 분산
         else if (d.type === 'jam') jamMode();                             // 합주 끝 — 관객 합주 개시
         else if (d.type === 'ascii' && !artOn && !stillOn) showArt(d.mark, d.chars);
       };

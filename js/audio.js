@@ -2149,7 +2149,7 @@ export function playEndingMusic(msgs) {
   out.connect(verb); verb.connect(reverb);
   // 비트 버스 — 살짝 찌그러뜨려 격정적으로.
   const shaper = ctx.createWaveShaper(); shaper.curve = distCurve(35); shaper.oversample = '4x';
-  const drum = ctx.createGain(); drum.gain.value = 0.85; drum.connect(shaper); shaper.connect(out);
+  const drum = ctx.createGain(); drum.gain.value = 0.32; drum.connect(shaper); shaper.connect(out);   // 비트는 뒤로 — 타자가 주인공
 
   const t0 = ctx.currentTime + 0.25;
   const bpm = 140, beatSec = 60 / bpm;
@@ -2206,7 +2206,10 @@ export function playEndingMusic(msgs) {
     gr.list.forEach((m, k) => {
       const start = T + k * barSec;                          // 한 마디씩 늦게 들어와 겹겹이 쌓인다
       const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
-      replayMsg(m, start, 0.5);
+      replayMsg(m, start, 0.9);                              // 지금 발화 — 주인공답게 크게
+      // 앞사람이 친 것들이 함께 반복된다 — 직전 두 발화가 작은 소리로 같이 돈다.
+      const gi = msgs.indexOf(m);
+      for (let j = Math.max(0, gi - 2); j < gi; j++) replayMsg(msgs[j], start, 0.3);
       const end = start + lastRel * SPEED + 0.3;
       evq.push({ at: end, run: (w) => playMark(m.nuance || 'period', Math.max(0, w - ctx.currentTime), 0.5) });
       sectionEnd = Math.max(sectionEnd, end);
@@ -2226,7 +2229,7 @@ export function playEndingMusic(msgs) {
   let fEnd = T;
   finale.forEach((m, k) => {
     const start = T + k * beatSec * 0.5;
-    replayMsg(m, start, 0.45);
+    replayMsg(m, start, 0.75);
     const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
     fEnd = Math.max(fEnd, start + lastRel * SPEED + 0.3);
   });

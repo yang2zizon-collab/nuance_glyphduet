@@ -1,4 +1,11 @@
 import os, sys, socket, json, queue, threading
+# 파일 디스크립터 상한 올리기 — 접속자(SSE) 100+명이 소켓을 오래 물고 있어도 여유 있게.
+try:
+    import resource
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (min(4096, hard), hard))
+except Exception:
+    pass
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -254,6 +261,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 class DualStack(ThreadingHTTPServer):
     address_family = socket.AF_INET6  # ::1 + 127.0.0.1 둘 다 받기
     daemon_threads = True
+    request_queue_size = 128          # 관객 폰 동시 접속 러시 대비(기본 5칸 → 100명 순간 접속에도 안 튕김)
 
 
 httpd = DualStack(('::', PORT), NoCacheHandler, bind_and_activate=False)
