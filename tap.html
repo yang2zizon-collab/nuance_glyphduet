@@ -126,6 +126,7 @@
   <footer>
     <span id="status">연결됨</span>
     <span style="display:block; font-size:9px; color:#c4c4c4; margin-top:2px;">화면이 넘어가지 않으면 새로고침 해주세요 · refresh if stuck</span>
+    <span id="build-tag" style="display:block; font-size:8px; color:#e0e0e0; margin-top:1px; font-family:monospace;"></span>
   </footer>
 
   <!-- 캐릭터 스프라이트 — 메인과 같은 그림을 폰 버튼에도 그린다(라인아트 → 캐릭터 색으로 틴트) -->
@@ -618,6 +619,13 @@
     function syncNow() {
       fetch('/config').then((r) => r.json()).then((c) => {
         if (!c) return;
+        // 새 빌드 감지 — 대기 화면일 때만 스스로 새로고침(참여 중엔 방해 안 함)
+        if (c.build) {
+          if (!window.__buildSeen) window.__buildSeen = c.build;
+          else if (c.build !== window.__buildSeen && document.getElementById('wait-ui').style.display !== 'none') { location.reload(); return; }
+          const bt = document.getElementById('build-tag');
+          if (bt) bt.textContent = 'v' + new Date(window.__buildSeen * 1000).toTimeString().slice(0, 8);
+        }
         if (c.phase) setMode(c.phase, true);   // 폴링 = 따라잡기(리플레이 취급)
         // 합주 스틸 따라잡기 — 스틸이 없거나, "보기 전용인데 서버는 활성(live)"이면 다시 받아 무장한다
         // (활성 SSE 한 발을 놓치면 영영 잠긴 채 터치가 안 나가던 문제의 자가 치유)

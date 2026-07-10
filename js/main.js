@@ -3231,8 +3231,20 @@ let audienceES = null;
 
 // 폰 접속 주소 갱신 — 터널이 죽어 워치독이 새 주소를 발급하면 public_url.txt→/config가
 // 바뀐다. 화면을 새로고침하지 않아도 QR이 늘 최신(살아 있는) 주소를 가리키게 주기 갱신.
+let buildSeen = 0;   // 처음 받은 빌드 스탬프 — 달라지면(새 코드 배포) 타이틀에서 자동 새로고침
 function refreshAudienceUrl() {
   fetch('/config').then((r) => r.json()).then((c) => {
+    if (c && c.build) {
+      if (!buildSeen) buildSeen = c.build;
+      else if (c.build !== buildSeen && state.screen === 'title') { location.reload(); return; }
+      let tag = $('#build-tag');   // 좌하단 초소형 버전 표시 — "지금 화면이 어떤 빌드인지" 눈으로 확인
+      if (!tag) {
+        tag = document.createElement('div'); tag.id = 'build-tag';
+        tag.style.cssText = 'position:fixed;left:6px;bottom:4px;z-index:400;font:9px monospace;color:#c9c9c9;pointer-events:none;';
+        document.body.appendChild(tag);
+      }
+      tag.textContent = 'v' + new Date(buildSeen * 1000).toTimeString().slice(0, 8);
+    }
     if (audienceUrlLocked || !c || !c.lanUrl) return;
     const bigEl = $('#big-qr');
     const needFirst = bigEl && !bigEl.firstChild;      // 아직 QR을 못 그린 경우(라이브러리 늦은 로드 포함)

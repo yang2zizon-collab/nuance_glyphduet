@@ -39,6 +39,19 @@ def lan_ip():
 PUB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public_url.txt')
 
 
+def build_stamp():
+    """정적 파일들의 최신 수정시각 — 메인/폰이 자기 버전과 비교해 새 빌드면 새로고침한다."""
+    latest = 0
+    for f in ('index.html', 'tap.html', 'js/main.js', 'js/audio.js', 'js/sprites.js', 'css/style-score.css'):
+        try:
+            m = os.path.getmtime(f)
+            if m > latest:
+                latest = m
+        except OSError:
+            pass
+    return int(latest)
+
+
 def audience_base():
     """폰이 접속할 기준 주소. 터널 공개주소(public_url.txt)가 있으면 그걸,
     없으면 같은-와이파이 LAN 주소를 쓴다. 매 요청마다 파일을 읽어 즉시 반영된다."""
@@ -82,6 +95,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
                 'hasStill': bool(current_still['v']),
                 'stillLive': (current_still['v'] or {}).get('live', 0) if isinstance(current_still['v'], dict) else 0,
                 'jam': 1 if current_jam['v'] else 0,
+                'build': build_stamp(),
                 'port': PORT,
             })
         if self.path.split('?')[0] == '/still':
