@@ -3335,6 +3335,7 @@ function devJump(stage) {
     return;
   }
   devSeedMessages();
+  postPhase('ending');   // 리허설에서도 폰이 따라오게(실제 흐름에선 endAsciiToEnding이 보냄)
   if (stage === 'solo') { showEnding(); return; }
   if (stage === 'ens') {
     showEnding();
@@ -4452,12 +4453,45 @@ function stopEndingScore() {
 // live=false: 보기 전용(독주·흰 배경 — 폰 터치 참여 잠금), live=true: 합주 — 터치 참여 활성화.
 function captureScoreStill(live) {
   try {
-    const cv = document.createElement('canvas'); cv.width = 720; cv.height = 900;
+    // ① 넉넉한 캔버스에 고해상 렌더 → ② 잉크(비흰색) 바운딩박스를 찾아 → ③ 여백 ~9%로
+    // 크롭해 16:9 프레임에 꽉 차게 담는다. 카메라가 어디를 보든 그림이 프레임 속에
+    // 조그맣게 박히지 않고, 축소·확대는 비율 그대로(찌부 없음, contain 핏).
+    const SW = 2400, SH = 1350;
+    const src = document.createElement('canvas'); src.width = SW; src.height = SH;
+    const sg = src.getContext('2d');
+    drawScore3D(sg, SW, SH, 1.234, 1);
+    const d = sg.getImageData(0, 0, SW, SH).data;
+    let x0 = SW, y0 = SH, x1 = 0, y1 = 0;
+    // 진짜 잉크(진한 픽셀)만 센다 — 3선 받침(α0.08≈235)·연결선 꼬리 같은 옅은 회색까지
+    // 세면 크롭 상자가 화면 전체가 되어 그림이 다시 조그맣게 박힌다.
+    for (let y = 0; y < SH; y += 2) {
+      for (let x = 0; x < SW; x += 2) {
+        const i = (y * SW + x) * 4;
+        if (d[i] < 170 || d[i + 1] < 170 || d[i + 2] < 170) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    const W = 1600, H = 900;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const c2 = cv.getContext('2d');
-    drawScore3D(c2, 720, 900, 1.234, 1);
+    c2.fillStyle = '#fff'; c2.fillRect(0, 0, W, H);
+    c2.imageSmoothingEnabled = true; c2.imageSmoothingQuality = 'high';
+    if (x1 > x0 && y1 > y0) {
+      let bx = Math.max(0, x0 - ((x1 - x0) * 0.09 + 20));
+      let by = Math.max(0, y0 - ((y1 - y0) * 0.09 + 20));
+      const bw = Math.min(SW, x1 + ((x1 - x0) * 0.09 + 20)) - bx;
+      const bh = Math.min(SH, y1 + ((y1 - y0) * 0.09 + 20)) - by;
+      const sc = Math.min(W / bw, H / bh, 2.0);              // contain — 비율 유지, 업스케일은 2배까지(뭉개짐 방지)
+      const dw = bw * sc, dh = bh * sc;
+      c2.drawImage(src, bx, by, bw, bh, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } else {
+      c2.drawImage(src, 0, 0, W, H);
+    }
     fetch('/still', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.82), live: live ? 1 : 0 }),
+      body: JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.92), live: live ? 1 : 0 }),
     }).catch(() => {});
   } catch (e) { /* 정적 서버 — 무시 */ }
 }
