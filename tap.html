@@ -534,6 +534,34 @@
     }
     const AUD_ADJS = ['촉촉한', '펄럭이는', '시큰한', '둥근', '재빠른', '노란', '수줍은', '우렁찬', '포근한', '삐딱한', '반짝이는', '졸린', '매콤한', '헐렁한', '단단한', '투명한', '바삭한', '미끄러운', '씩씩한', '나른한', '새콤한', '꼬불꼬불', '두근두근', '어리둥절'];
     const AUD_NOUNS = ['감자', '주전자', '고래', '단추', '우산', '계단', '만두', '로켓', '이불', '문어', '자전거', '고드름', '라디오', '소나기', '도넛', '망원경', '바게트', '스탬프', '풍선', '달팽이', '턱수염', '장화', '메아리', '부엉이'];
+    // 그룹(A/B/C) — 자기 파스텔 색의 최대 채널. ※ main.js audGroupOf와 동일하게 유지.
+    function myGroup() {
+      if (myCidx == null) return null;
+      const h = ((myCidx * 137.508) % 360) / 360;
+      const s = AUD_SATS[myCidx % 4] / 100;
+      const l = Math.max(30, Math.min(92, 78 + AUD_LOFF[myCidx % 5])) / 100;
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p2 = 2 * l - q;
+      const f = (t) => {
+        t = ((t % 1) + 1) % 1;
+        if (t < 1 / 6) return p2 + (q - p2) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p2 + (q - p2) * (2 / 3 - t) * 6;
+        return p2;
+      };
+      const r = f(h + 1 / 3), g = f(h), b = f(h - 1 / 3);
+      return (r >= g && r >= b) ? 'A' : (g >= b) ? 'B' : 'C';
+    }
+    let jamGroupNow = 'ALL';
+    function updateJamCaption() {
+      if (!stillOn || !stillLive) return;
+      const cap = document.getElementById('still-cap');
+      if (!cap) return;
+      if (jamGroupNow !== 'ALL' && myCidx != null) {
+        cap.innerHTML = myGroup() === jamGroupNow
+          ? `<b>${jamGroupNow} 그룹(당신) 차례!</b> 화면을 터치해 연주하세요`
+          : `지금은 ${jamGroupNow} 그룹 차례 — 서로의 음악을 듣는 시간이에요 (당신은 ${myGroup()} 그룹)`;
+      }
+    }
     const myNick = () => myCidx == null ? ''
       : AUD_ADJS[h32(myCidx * 7 + 1) % AUD_ADJS.length] + ' ' + AUD_NOUNS[h32(myCidx * 13 + 5) % AUD_NOUNS.length];
     function updateCount() {
@@ -548,6 +576,11 @@
     function showStill(img, live) {
       stillOn = true; artOn = false; cancelAnimationFrame(artAnim);
       stillLive = !!live;
+      if (stillLive && myCidx == null) {   // 참여가 열리면 미리 내 색·그룹을 받아둔다(음표 없이)
+        post('/hello', { uid: myUid }).then((r) => {
+          if (r && r.cidx != null) { myCidx = r.cidx; updateCount(); updateJamCaption(); }
+        }).catch(() => {});
+      }
       padEl.style.display = 'none'; giftEl.style.display = 'none';
       artEl.style.display = 'none'; waitEl.style.display = 'none';
       stillEl.style.display = 'flex';
@@ -567,6 +600,7 @@
     function jamMode() {
       stillLive = true;   // 잼은 당연히 참여 가능
       jamShown = true;
+      setTimeout(updateJamCaption, 50);
       if (!stillOn) fetchStill();
       const cap = document.getElementById('still-cap');
       if (cap) cap.innerHTML = '합주가 끝났습니다 — <b>이제 당신의 차례! 터치로 함께 연주하세요</b>';
@@ -589,6 +623,11 @@
       if (e.target && e.target.closest && e.target.closest('#glyph-pick')) return;   // 팔레트 탭은 음표 아님
       e.preventDefault();
       if (!stillLive) return;   // 독주(보기 전용) 동안엔 터치 참여 잠금
+      if (jamGroupNow !== 'ALL' && myCidx != null && myGroup() !== jamGroupNow) {
+        setStatus(true, '지금은 ' + jamGroupNow + ' 그룹 차례 — 곧 당신 차례가 와요');
+        if (navigator.vibrate) { try { navigator.vibrate([8, 40, 8]); } catch (er) {} }
+        return;   // 내 차례가 아니면 보내지 않는다(듣는 시간)
+      }
       const now = performance.now();
       if (now - stillLock < 180) return;   // 과속 방지
       stillLock = now;
@@ -656,6 +695,7 @@
         if (c.phase === 'ending' && c.hasStill && (!stillOn || (c.stillLive && !stillLive))) fetchStill();
         else if (c.ascii && c.ascii.mark && !artOn && !stillOn) showArt(c.ascii.mark, c.ascii.chars);
         if (c.jam && !jamShown && c.phase === 'ending') jamMode();                 // 잼 개시도 폴링으로 따라잡기
+        if (c.jamGroup && c.jamGroup !== jamGroupNow) { jamGroupNow = c.jamGroup; updateJamCaption(); }
       }).catch(() => {});
     }
     syncNow();
@@ -669,6 +709,7 @@
         if (d.type === 'phase') setMode(d.phase, !!d.replay);
         else if (d.type === 'still') setTimeout(fetchStill, Math.random() * 3000);   // 스코어 정지화면 — 수십 대 동시 다운로드를 0~3초로 분산
         else if (d.type === 'jam') jamMode();                             // 합주 끝 — 관객 합주 개시
+        else if (d.type === 'jamgroup') { jamGroupNow = d.g || 'ALL'; updateJamCaption(); }
         else if (d.type === 'ascii' && !artOn && !stillOn) showArt(d.mark, d.chars);
       };
       es.onerror = () => {};

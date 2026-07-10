@@ -95,6 +95,23 @@ export function resetNuanceEffect() { applyNuanceEffect('neutral', 0.05); }
 export function currentNuance() { return nfxState; }
 
 // 긴 세션/포커스 전환으로 컨텍스트가 멈춰 있으면 다시 깨운다.
+// ── 마스터 페이드(아웃트로) — 40초에 걸쳐 전체 소리를 스르르 줄인다. 리셋 시 복원. ──
+const MASTER_GAIN = 0.85;
+export function fadeMasterOut(sec = 40) {
+  if (!ctx || !master) return;
+  const t = ctx.currentTime;
+  master.gain.cancelScheduledValues(t);
+  master.gain.setValueAtTime(master.gain.value, t);
+  master.gain.linearRampToValueAtTime(0.0001, t + sec);
+}
+export function restoreMaster() {
+  if (!ctx || !master) return;
+  const t = ctx.currentTime;
+  master.gain.cancelScheduledValues(t);
+  master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), t);
+  master.gain.linearRampToValueAtTime(MASTER_GAIN, t + 0.6);
+}
+
 export function resumeAudio() {
   if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* noop */ } }
 }

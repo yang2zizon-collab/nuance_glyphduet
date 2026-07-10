@@ -514,3 +514,10 @@ html, body { background: #ffffff; color: var(--ink); }
   color: rgba(136, 136, 136, 0.95); font-size: 15px; line-height: 1; cursor: pointer;
 }
 #cam-zoom button:active { background: rgba(136, 136, 136, 0.25); }
+
+
+/* 아웃트로 버튼 — 개발자 바 맨 오른쪽, 헷갈리지 않게 이것만 회색 채움 */
+.theme-score #dev-bar .devb-outro { background: rgba(128, 128, 128, 0.85); border-color: #666; opacity: 0.4; }
+.theme-score #dev-bar .devb-outro:hover { opacity: 0.95; }
+/* 아웃트로 동안 카메라 UI도 서서히 사라진다 */
+.theme-score.outro-on #cam-ui { transition: opacity 8s linear; opacity: 0; pointer-events: none; }
