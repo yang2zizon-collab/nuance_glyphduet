@@ -2738,7 +2738,7 @@ function postPhase(phase) {
 // ===== 공연 타임라인 =====
 // 시작 30초(타이틀) → 캐릭터 선택(수동) → 대화 3분(타이핑만) →
 // 기호 인터랙션 5분(패드·QR 등장) → 선물 2분 → 악보화 ~3분30초.
-const SHOW = { talkMs: 180000, marksMs: 300000, giftMs: 120000, endTargetSec: 150, orchCapSec: 60 };
+const SHOW = { talkMs: 180000, marksMs: 300000, giftMs: 120000, endTargetSec: 75, orchCapSec: 60 };   // 독주 목표 절반(~75s)
 let marksOn = false;         // 기호 인터랙션 단계 진입 여부(3분 전엔 투표 무시)
 let showTimers = [];
 function clearShowTimers() { showTimers.forEach(clearTimeout); showTimers = []; }
@@ -3473,8 +3473,8 @@ function startJam() {
   const startBed = () => {
     if (jamBed) jamBed();
     jamBed = (orchestraTracks && orchestraTracks.length)
-      ? playEnsemble(orchestraTracks.map((t) => ({ ...t, offset: (t.offset || 0) % 4 })),
-        { speed: 1, duration: 22, loop: true, gain: 0.55 })
+      ? playEnsemble(orchestraTracks.map((t) => ({ ...t, offset: (t.offset || 0) % 1.5 })),   // 1.5초 안에 전원 입장 — 합주 꼬리와 이음매 없이
+        { speed: 1, duration: 22, loop: true, gain: 0.7 })
       : null;
   };
   startBed();
@@ -4368,8 +4368,9 @@ function startOrchestraPhase() {
   })).filter((t) => t.events.length);
   orchestraTracks = tracks;   // 잼 음악 베드가 같은 파트들을 재활용한다
   if (tracks.length) {
+    // 소리는 시각 종료보다 8초 더 길게 — 잼 베드가 올라오는 동안 겹쳐져 뚝 끊기지 않는다
     const duration = scoreTotalMs / 1000;
-    stopEnsemble = playEnsemble(tracks, { speed: 1, duration, loop: true, gain: 1.15 });
+    stopEnsemble = playEnsemble(tracks, { speed: 1, duration: duration + 8, loop: true, gain: 1.15 });
   }
   // 잼 개시 타이머 — 캔버스 프레임이 멈춰 있어도 합주 종료 시각에 정확히 열린다
   clearTimeout(jamTimer);
@@ -4448,12 +4449,14 @@ function addAudienceNote(cidx) {
     cidx: Number.isInteger(cidx) ? cidx : null,   // 폰별 배정 색 순번(없으면 기본 잉크색)
   });
   if (Number.isInteger(cidx)) audScores[cidx] = (audScores[cidx] || 0) + 1;   // 랭킹 집계
-  // 태어나는 소리 — 합주가 크게 울리는 동안에도 처음부터 또렷하게 들리도록
-  // ① uiClick: 마스터 직결 종소리(뉘앙스 이펙트·합주 리버브에 안 묻힘)
+  // 태어나는 소리 — 합주가 크게 울리는 동안에도, 합주가 잦아든 뒤에도 홀로 또렷하게.
+  // ① uiClick 두 번(기본음 + 90ms 뒤 옥타브 위) — 마스터 직결 종소리라 어떤 버스가 죽어도 산다
   // ② typeVoice: 캐릭터 목소리 색 한 톨(억양 포함)
   resumeAudio();
-  uiClick(0.25 + Math.random() * 0.6, 0.5);
-  typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.8, Math.floor(Math.random() * 8));
+  const pc = 0.25 + Math.random() * 0.5;
+  uiClick(pc, 0.7);
+  setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.4), 90);
+  typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 1.1, Math.floor(Math.random() * 8));
 }
 
 function showEnding() {

@@ -1978,7 +1978,7 @@ export function playEndingMusic(msgs, targetSec = 0) {
   const plan = msgs.map((m, i) => {
     const p = msgs.length > 1 ? i / (msgs.length - 1) : 0;
     const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
-    const squeeze = lastRel > 4 ? 4 / lastRel : 1;                // 길게 친 리듬은 4초 안으로
+    const squeeze = (lastRel > 3 ? 3 / lastRel : 1) * 0.85;       // 길게 친 리듬은 3초 안으로 + 전체 15% 가속
     const dur = lastRel * squeeze + 0.8;
     let respSpan = 0;
     if (voiceIds.length > 1 && m.rhythm.length > 1) {
@@ -1991,9 +1991,9 @@ export function playEndingMusic(msgs, targetSec = 0) {
   });
   const fixedSum = plan.reduce((s, x) => s + x.dur + x.respSpan * 0.5, 0);
   const gapSum = plan.reduce((s, x) => s + x.gap, 0) || 1;
-  // 목표 길이가 있으면 쉼을 스케일(0.6~6배) — 발화 리듬 자체는 그대로 둔다.
+  // 목표 길이가 있으면 쉼을 스케일(0.35~6배) — 발화 리듬 자체는 그대로 둔다.
   const g = targetSec > 0
-    ? Math.max(0.6, Math.min(6, (targetSec - 0.4 - fixedSum - 8.5) / gapSum))
+    ? Math.max(0.35, Math.min(6, (targetSec - 0.4 - fixedSum - 8.5) / gapSum))
     : 1;
 
   let tSec = 0.4;
@@ -2012,7 +2012,8 @@ export function playEndingMusic(msgs, targetSec = 0) {
       sing(respId, chord, frag, t0 + tSec + dur * 0.8, squeeze * 0.9, 0.26, 0.24);
     }
     // 긴장일수록 다음 발화가 바짝, 이완이면 길게 쉼(응답 여유 포함).
-    tSec += dur + respSpan * 0.5 + (gap - (i === msgs.length - 1 && msgs.length > 2 ? 1.4 : 0)) * g;
+    // 발화 앞뒤를 ~2초씩 겹친다 — 꼬리가 채 끝나기 전에 다음 목소리가 들어와 대화가 흐른다.
+    tSec += Math.max(0.8, dur - 2.0) + respSpan * 0.35 + (gap - (i === msgs.length - 1 && msgs.length > 2 ? 1.4 : 0)) * g;
   });
 
   // 합창 — 마지막 리듬을 모두가 함께, 각자 다른 화음 톤으로 쌓아 부른다.
@@ -2027,9 +2028,9 @@ export function playEndingMusic(msgs, targetSec = 0) {
     tSec += span * sq + 1.0;
   }
 
-  // 마무리 — 으뜸화음(C) 스웰로 해결.
-  pad([0, 4, 7, 12], t0 + tSec, 4);
-  tSec += 3.2;
+  // 마무리 — 으뜸화음(C) 스웰로 해결(짧게).
+  pad([0, 4, 7, 12], t0 + tSec, 3);
+  tSec += 2.4;
   drones.forEach((d) => d.g.gain.setTargetAtTime(0.0001, t0 + tSec, 1.2));
 
   return {

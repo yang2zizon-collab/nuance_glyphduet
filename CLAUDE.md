@@ -76,12 +76,16 @@ serve.py                로컬 서버
   - audio.js: `giftedVoices` Set + `giftBus()` + `destFor(voiceId)`. 확장 시 같은 패턴으로 딜레이/피치 추가 가능.
   - 아직 **엔딩 악보/합주에는 미반영**(라이브 소리에만). 드래그는 마우스(HTML5 DnD) 기준 — 터치는 미지원.
 - **엔딩(2단계)**:
+  **독주 페이스**: endTargetSec 75(절반) + 리듬 15% 가속(긴 발화 3초 압축) + **발화 앞뒤 ~2초 오버랩**
+  (advance = max(0.8, dur-2)) — 꼬리가 끝나기 전에 다음 목소리가 들어온다(playEndingMusic). 
   1. **순차 듀엣** — `buildScore()` → `playScore()`. 두 사람이 친 순서/리듬 그대로 한 줄 악보로.
   2. (끝나면 onDone) **오케스트라 합주** — `buildOrchestra()`(발화마다 파트, **랜덤 startBeat**) →
      `playEnsemble(..., {loop:true, gain:1.15})`. 파트별 보표를 쌓은 `drawOrchestraScore()`로 총보처럼 보여줌.
      **합주 소리 규칙**: 오디오 입장 오프셋은 2.5초로 감아(반전 직후 무음 방지) 파트들이 스웰처럼
      차오르고, loop:true로 합주 내내 촘촘히 유지(1회전만 하면 짧은 대화에선 몇 초 만에 성겨져
-     "소리가 안 난다"고 들림 — RMS 계측으로 확인). playEnsemble은 예약 수를 미리 세서 MAX_NOTES(700)
+     "소리가 안 난다"고 들림 — RMS 계측으로 확인). 합주 소리는 시각 종료보다 **8초 길게**(duration+8) 걸어 잼 베드(오프셋 %1.5, 게인 0.7)와
+     크로스페이드 — 합주 끝에서 뚝 끊기지 않는다. 관객 음표 소리는 uiClick 2연타(기본+옥타브 위)
+     + typeVoice 1.1로 어떤 버스가 죽어도 홀로 또렷. playEnsemble은 예약 수를 미리 세서 MAX_NOTES(700)
      초과분을 **고르게 솎아냄**(keepEvery) — 예전처럼 상한에 닿는 순간 후반이 통째로 무음이 되지 않는다.
   - 오디오: `scoreBus` 게인 0.95, `startEndingScore()`에서 `resumeAudio()`로 긴 세션 후에도 소리 보장.
   - **3D 그래픽 스코어(score 테마 엔딩)**: `drawScore3D()`가 1·2단계 모두 렌더(loop의 ending 분기에서
