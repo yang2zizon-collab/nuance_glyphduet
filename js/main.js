@@ -2935,9 +2935,8 @@ function endCycle() {
   cycleOn = false;          // 먼저 잠가 재진입 방지(commit→scoreFull→endCycle 루프 차단)
   clearShowTimers();
   marksOn = false;
-  showTimers.push(setTimeout(() => {   // 선물 2분 뒤 자동으로 엔딩 진행(▶ 수동도 가능)
-    if (document.body.classList.contains('gift-time')) giftDoneToEnding();
-  }, SHOW.giftMs));
+  // 선물 단계는 자동으로 넘어가지 않는다 — 퍼포머가 ▶를 눌러야만 다음(아스키)으로.
+  // (예전 2분 자동 진행 타이머가 선물 도중 멋대로 장면을 넘기던 문제 제거)
   commitPendingInput();     // 마치는 순간 치던 입력도 자동 전송
   state.phase = 'gift';
   if (hidden) hidden.blur();
