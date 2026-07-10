@@ -497,21 +497,21 @@ html, body { background: #ffffff; color: var(--ink); }
 #cam-ui { position: fixed; left: 14px; top: 26px; z-index: 60; display: none; flex-direction: column; gap: 8px; align-items: center; }
 .theme-score.score-invert #cam-ui { display: flex; }
 #cam-dial {
-  width: 56px; height: 56px; border-radius: 50%;
+  width: 84px; height: 84px; border-radius: 50%;
   border: 1.5px solid rgba(136, 136, 136, 0.9);
   position: relative; touch-action: none; cursor: grab;
 }
 #cam-dial:active { cursor: grabbing; }
 #cam-dot {
-  position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  position: absolute; left: 50%; top: 50%; width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px;
   border-radius: 50%; background: rgba(136, 136, 136, 0.95); pointer-events: none;
   transition: transform .15s ease;
 }
 #cam-zoom { display: flex; gap: 6px; }
 #cam-zoom button {
-  width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  width: 39px; height: 39px; padding: 0; border-radius: 50%;
   border: 1.5px solid rgba(136, 136, 136, 0.9); background: transparent;
-  color: rgba(136, 136, 136, 0.95); font-size: 15px; line-height: 1; cursor: pointer;
+  color: rgba(136, 136, 136, 0.95); font-size: 21px; line-height: 1; cursor: pointer;
 }
 #cam-zoom button:active { background: rgba(136, 136, 136, 0.25); }
 

@@ -1,7 +1,7 @@
 // "뉘앙스" 글리프 듀엣 / "Nuance" Glyph Duet — 상태 머신 + 입력 + 렌더 루프.
 
 import { drawCharacter, characterCount, characterName, characterColor, characterVoice, setMinimal } from './sprites.js';
-import { fadeMasterOut, restoreMaster, initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, playEnsemble, warmVoices, playScore,
+import { titleLowState, fadeMasterOut, restoreMaster, initAudio, typeBlip, typeKey, typeVoice, uiClick, speakVoiceEvents, playEnsemble, warmVoices, playScore,
          stopAmbience, playMark, applyNuanceEffect, resetNuanceEffect,
          startTitleMusic, stopTitleMusic, startSelectTone, stopSelectTone,
          startPlayBeat, stopPlayBeat, beatKick, resetBeatStep, countTick, slotSpin, slotLand,
@@ -2096,6 +2096,7 @@ function show(name) {
   if (prev !== name) {
     if (prev === 'play') {
       stopAmbience(); stopPlayBeat(); stopGiftAmbience(); clearShowTimers(); marksOn = false;
+      stopPrevLoop();   // 직전 발화 루프도 화면과 함께 정리
       if (name !== 'ending') stopEndingBed();   // 엔딩으로 갈 땐 베드 유지(아스키아트→악보 다리)
     }
     if (prev === 'ending') stopEndingBed();     // 엔딩을 떠나면 베드 정리
@@ -2228,6 +2229,39 @@ onTitleGrain((g) => {
                      drift: (Math.random() - 0.5) * 40, life: 700 + Math.random() * 700 });
   if (titleGrains.length > 300) titleGrains.splice(0, 60);   // 안전 상한
 });
+// 타이틀 저음 시각화 — 드론이 피어날수록(9초~) 화면 아래에서 검은 파문이 숨쉬며 퍼진다.
+// level = 드론 게인 합(오디오 자동화 그대로), root = 저음 루트(낮을수록 파문 간격이 넓다).
+function drawTitleLow(W, H, t) {
+  const st2 = titleLowState && titleLowState();
+  if (!st2 || st2.level < 0.02) return;
+  const lv = st2.level;
+  const cx3 = W / 2, cy3 = H * 0.94;
+  const spread = 1.15 + (40 - st2.root) * 0.02;   // 루트가 낮을수록 넓게 번진다
+  sctx.save();
+  sctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const ph2 = ((t * 0.11 + k / 4) % 1);          // 천천히 밖으로 번지는 위상
+    const r = (H * 0.06) + ph2 * H * 0.34 * spread;
+    const a = lv * (1 - ph2) * 0.34;
+    if (a < 0.01) continue;
+    sctx.strokeStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+    sctx.lineWidth = 1.5 + lv * 2.5 * (1 - ph2);
+    sctx.beginPath();
+    sctx.ellipse(cx3, cy3, r * 1.6, r * 0.42, 0, Math.PI, 2 * Math.PI);   // 수면 위 반원 파문
+    sctx.stroke();
+  }
+  // 맨 아래 — 저음의 몸통(숨쉬는 수면선)
+  sctx.strokeStyle = `rgba(0,0,0,${(0.18 + lv * 0.4).toFixed(3)})`;
+  sctx.lineWidth = 1.5 + lv * 3;
+  sctx.beginPath();
+  for (let x = 0; x <= W; x += 8) {
+    const y = cy3 + Math.sin(x * 0.012 + t * 1.7) * (1.5 + lv * 7);
+    x === 0 ? sctx.moveTo(x, y) : sctx.lineTo(x, y);
+  }
+  sctx.stroke();
+  sctx.restore();
+}
+
 function drawTitleGrains(W, H) {
   const nowMs = performance.now();
   for (let i = titleGrains.length - 1; i >= 0; i--) {
@@ -2324,6 +2358,7 @@ function loop(now) {
   } else {
     // title
     if (MINIMAL || SCORE) drawMinimalBg(W, H); else drawBackground(t, W, H);
+    drawTitleLow(W, H, t);   // 저음 드론 — 아래에서 숨쉬는 파문(9초부터 피어난다)
     drawTitleGrains(W, H);   // 그래뉼러 알갱이 — 소리와 함께 화면에 흩뿌려진다
     // 스코어 테마: 타이틀 캐릭터 줄 없이 텅 빈 흰 화면
     if (!SCORE) {
@@ -3025,6 +3060,7 @@ function endCycle() {
   cycleOn = false;          // 먼저 잠가 재진입 방지(commit→scoreFull→endCycle 루프 차단)
   clearShowTimers();
   marksOn = false;
+  stopPrevLoop();           // 직전 발화 루프는 라운드와 함께 멎는다
   // 선물 단계는 자동으로 넘어가지 않는다 — 퍼포머가 ▶를 눌러야만 다음(아스키)으로.
   // (예전 2분 자동 진행 타이머가 선물 도중 멋대로 장면을 넘기던 문제 제거)
   commitPendingInput();     // 마치는 순간 치던 입력도 자동 전송
@@ -3549,6 +3585,16 @@ function renderInput() {
   $('#input-line').classList.add('alien');   // 입력도 늘 미지의 언어
 }
 
+// ── 직전 발화 라이브 합주 — 방금 보낸 발화가 낮게 반복되며 다음 사람의 타이핑과 겹친다 ──
+// (8초 창 굴림 예약이라 길게 걸어도 가볍다. 새 발화가 오면 교체, 라운드가 끝나면 정지.)
+let prevLoop = null;
+function startPrevLoop(voiceId, events) {
+  if (prevLoop) { prevLoop(); prevLoop = null; }
+  if (!events || !events.length) return;
+  prevLoop = playEnsemble([{ voiceId, events }], { speed: 1, duration: 600, loop: true, gain: 0.4 });
+}
+function stopPrevLoop() { if (prevLoop) { prevLoop(); prevLoop = null; } }
+
 function sendMessage() {
   const text = hidden.value.trim();
   if (!text) return;
@@ -3569,6 +3615,7 @@ function sendMessage() {
   addBubble(p, text);                          // 스코어에 화자 기호로 쌓는다
   // 메시지 읽어주기(speakVoiceEvents)는 다음 파트에서 쓰기로 하고 잠시 꺼둠 — 리듬은 엔딩 합주용으로 계속 보관.
   if (rhythm.length) state.rhythms.push({ player: p, voiceId, events: rhythm, garble });  // 엔딩 합주용 보관(실제 리듬+화자+가블)
+  if (rhythm.length) startPrevLoop(voiceId, rhythm);   // 방금 발화가 다음 타이핑 아래에서 계속 노래한다
   typeEvents = [];                             // 다음 메시지를 위해 리셋
 
   const now = performance.now();
@@ -4707,11 +4754,11 @@ function addAudienceNote(cidx, glyph) {
   const nowMs = performance.now();
   if (nowMs - lastAudSoundAt > 60) {
     lastAudSoundAt = nowMs;
-    // 개인 소리는 1/20 — 관객이 많아지면 합산으로 커지므로 한 명 몫은 아주 작게(베드·합주는 그대로)
+    // 개인 소리는 1/400 — 다수 합산 전제로 한 명 몫은 티끌처럼(베드·합주는 그대로)
     const pc = 0.25 + Math.random() * 0.5;
-    uiClick(pc, 0.035);
-    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.02), 90);
-    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.055, Math.floor(Math.random() * 8));
+    uiClick(pc, 0.0018);
+    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.001), 90);
+    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.0028, Math.floor(Math.random() * 8));
   }
 }
 

@@ -1496,7 +1496,7 @@ export function startTitleMusic() {
     }
   }, 60);
 
-  titleSeq = { out, timer: grainTimer, bedTimer, nodes: bedNodes, st, bedLp, rouletteGrain };
+  titleSeq = { out, timer: grainTimer, bedTimer, nodes: bedNodes, st, bedLp, rouletteGrain, drones, getRoot: () => bedRoot };
 }
 
 // 룰렛(캐릭터 선택) 진입 — 소리가 확 변한다: 알갱이 음역이 한 옥타브 위로 점프,
@@ -1616,6 +1616,14 @@ export function stopCutsceneBgm() {
   c.out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.4);
   const end = ctx.currentTime + 1.5;
   c.nodes.forEach((n) => { try { n.stop(end); } catch (e) {} });
+}
+
+// 타이틀 저음(드론)의 현재 상태 — 시각화용. level은 드론 게인 합(자동화 반영), root는 방랑 중인 저음 루트.
+export function titleLowState() {
+  if (!titleSeq || !titleSeq.drones) return null;
+  let sum = 0;
+  titleSeq.drones.forEach((d) => { sum += d.g.gain.value; });
+  return { level: Math.max(0, Math.min(1, sum * 4.5)), root: titleSeq.getRoot ? titleSeq.getRoot() : 36 };
 }
 
 export function stopTitleMusic() {
