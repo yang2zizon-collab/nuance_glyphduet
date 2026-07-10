@@ -2970,8 +2970,10 @@ function giftDoneToEnding() {
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
   // 선물 UI를 내리면 타이핑 화면의 그래픽 스코어(네모 테두리째)만 스르륵 돌아온다(0.8s 페이드).
-  // 입력칸·캐릭터 열은 필요 없으니 숨긴 채(score-only) — 배경 부유물도 내린다.
+  // 입력칸·캐릭터 열은 필요 없으니 숨긴 채(score-only) — 배경 부유물·알림 토스트도 내린다.
   const fl = $('#gift-float-layer'); if (fl) fl.innerHTML = '';
+  const gt = $('#gift-toasts');
+  if (gt) [...gt.children].forEach((el) => { el.classList.add('bye'); setTimeout(() => el.remove(), 500); });
   document.body.classList.remove('gift-time');
   document.body.classList.add('score-only');
   // 3초 동안 다시 보여준 뒤 — 그 글자들이 날아올라 부호 그림으로 변한다.
@@ -4378,10 +4380,11 @@ function startEndingScore() {
   scoreTotalMs = Math.max(1000, endingMusic.totalSec * 1000);   // 그리기 진행도 음악 길이에 맞춤
   scoreStartWall = performance.now() + 200;
   captureScoreStill(false);   // 독주(흰 배경) 동안 폰엔 완성 악보를 '보기 전용'으로만 — 터치 참여는 합주부터
-  // 순차 듀엣이 끝나면 곧바로 오케스트라(합주) 단계로.
+  // 순차 듀엣이 끝나면 오케스트라(합주)로 — 합창 클라이맥스의 잔향이 아직 울릴 때
+  // 1.8초 겹쳐 들어간다(끝나고 들어가면 "와다다 → 3초 침묵 → 합주" 골짜기가 생겼음).
   endingBeatTimer = setTimeout(() => {
     if (endingPhase === 1 && state.screen === 'ending') startOrchestraPhase();
-  }, scoreTotalMs + 400);
+  }, Math.max(1200, scoreTotalMs - 1800));
   stopScore = () => { if (endingMusic) { endingMusic.stop(); endingMusic = null; } };
   // 실제 그리기는 메인 loop()의 ending 분기에서 매 프레임 수행한다.
 }
@@ -4407,7 +4410,7 @@ function startOrchestraPhase() {
   // 성겨져 "합주 때 소리가 안 난다"고 들리던 원인).
   const tracks = orchestraScore.parts.map((p) => ({
     voiceId: p.voiceId,
-    offset: Math.min(p.startBeat * spb, 2.5),
+    offset: Math.min(p.startBeat * spb, 1.2),   // 1.2초 안에 전원 입장 — 독주 잔향과 이음새 없이
     events: (p.events || []).filter((e) => e.ch && e.ch !== ' ' && e.ch !== '\n'),
   })).filter((t) => t.events.length);
   orchestraTracks = tracks;   // 잼 음악 베드가 같은 파트들을 재활용한다
