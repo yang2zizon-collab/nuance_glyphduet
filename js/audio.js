@@ -2225,10 +2225,10 @@ export function playEndingMusic(msgs) {
 
   // 마디당 시간 예산 — 독주 전체가 ~90초가 되도록 메시지 수로 배분한다.
   // 프레이즈 내부는 SPEED 그대로 촘촘하고, 입장 간격만 예산만큼 벌어진다(사이는 비트가 채움).
-  const TARGET_SEC = 90;
+  const TARGET_SEC = 60;
   // 실제 입장 간격 수 = 전체 마디 - 그룹 수(각 그룹 첫 마디는 간격 없이 시작) — 그룹 보정
   const staggers = Math.max(1, msgs.length - Math.max(1, groups.length));
-  const perMsg = Math.max(2.2, Math.min(20, (TARGET_SEC - 10) / staggers));
+  const perMsg = Math.max(2.0, Math.min(14, (TARGET_SEC - 9) / staggers));
   let T = 0.4;
   groups.forEach((gr) => {
     const def = ENDING_METERS[gr.name];

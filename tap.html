@@ -129,7 +129,7 @@
     </style>
     <p id="still-cap" style="margin:0; text-align:center; font-size:14px; color:#222;">오늘의 그래픽 스코어 — <b>화면을 터치하면 음표가 하나 태어납니다</b></p>
     <p id="still-count" style="margin:0; text-align:center; font-size:12px; color:#999;"></p>
-    <div id="ripple-layer" style="position:absolute; inset:0; pointer-events:none; overflow:hidden;"></div>
+    <div id="ripple-layer" style="position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:180;"></div>
   </div>
   <style>
     @keyframes rip { from { transform: scale(0.25); opacity: 0.95; } to { transform: scale(2.6); opacity: 0; } }
@@ -842,7 +842,13 @@
         // 새 빌드 감지 — 대기 화면일 때만 스스로 새로고침(참여 중엔 방해 안 함)
         if (c.build) {
           if (!window.__buildSeen) window.__buildSeen = c.build;
-          else if (c.build !== window.__buildSeen && document.getElementById('wait-ui').style.display !== 'none') { location.reload(); return; }
+          else if (c.build !== window.__buildSeen) {
+            // 새 빌드 감지 — 대기 화면이거나 보기 전용 스틸(독주 감상)일 때는 안전하게 새로고침.
+            // 합주로 무장된 폰(stillLive)·아웃트로 중엔 흐름을 끊지 않으려 그대로 둔다.
+            const waiting = document.getElementById('wait-ui').style.display !== 'none';
+            const soloView = stillOn && !stillLive && !artOn && !outroPh;
+            if (waiting || soloView) { location.reload(); return; }
+          }
           const bt = document.getElementById('build-tag');
           if (bt) bt.textContent = 'v' + new Date(window.__buildSeen * 1000).toTimeString().slice(0, 8);
         }

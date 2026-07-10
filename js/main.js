@@ -3703,7 +3703,7 @@ function startJam() {
     try { fetch('/jamgroup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ g }) }).catch(() => {}); } catch (e) { /* 무시 */ }
   };
   jamGroupTimers.forEach(clearTimeout); jamGroupTimers = [];
-  const GS = 30000;
+  const GS = 60000;   // 그룹당 1분
   setGroup('A');
   jamGroupTimers.push(setTimeout(() => setGroup('B'), GS));
   jamGroupTimers.push(setTimeout(() => setGroup('C'), GS * 2));
@@ -4772,11 +4772,11 @@ function addAudienceNote(cidx, glyph) {
   const nowMs = performance.now();
   if (nowMs - lastAudSoundAt > 60) {
     lastAudSoundAt = nowMs;
-    // 개인 소리는 1/400 — 다수 합산 전제로 한 명 몫은 티끌처럼(베드·합주는 그대로)
+    // 개인 소리 ~1/30 — 작지만 혼자서도 들린다(1/400은 아예 안 들렸음). 다수면 합산으로 차오름.
     const pc = 0.25 + Math.random() * 0.5;
-    uiClick(pc, 0.0018);
-    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.001), 90);
-    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.4 + Math.random() * 0.4, Math.floor(Math.random() * 8), 0.0025);
+    uiClick(pc, 0.02);
+    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.012), 90);
+    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.4 + Math.random() * 0.4, Math.floor(Math.random() * 8), 0.03);
   }
 }
 
