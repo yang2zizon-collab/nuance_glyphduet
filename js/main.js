@@ -2101,7 +2101,7 @@ function show(name) {
   if (name === 'play') startPlay();
   if (SCORE && name === 'title') {   // 처음으로 — 단계 상태 정리
     asciiArt = null;
-    document.body.classList.remove('ascii-time', 'gift-time', 'ending-hud-off');
+    document.body.classList.remove('ascii-time', 'gift-time', 'score-only', 'ending-hud-off');
     postPhase('idle');
   }
   if (SCORE && name === 'select') resetSlot();   // 소개 슬롯 초기화
@@ -2978,10 +2978,11 @@ function giftDoneToEnding() {
   clearShowTimers();
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
-  // 선물 UI를 내리면 타이핑 화면의 그래픽 스코어(네모 테두리째)가 스르륵 돌아온다(0.8s 페이드).
-  // 배경에 떠다니던 선물들은 내리고, 착용한 아이템은 그대로(받은 채로 다음 장면으로).
+  // 선물 UI를 내리면 타이핑 화면의 그래픽 스코어(네모 테두리째)만 스르륵 돌아온다(0.8s 페이드).
+  // 입력칸·캐릭터 열은 필요 없으니 숨긴 채(score-only) — 배경 부유물도 내린다.
   const fl = $('#gift-float-layer'); if (fl) fl.innerHTML = '';
   document.body.classList.remove('gift-time');
+  document.body.classList.add('score-only');
   // 3초 동안 다시 보여준 뒤 — 그 글자들이 날아올라 부호 그림으로 변한다.
   // 선물 워시는 아스키아트 동안 계속 흐른다 — 엔딩 화면 진입(show('ending')의 정리)이
   // 끊어주므로, 무음 구간 없이 엔딩 음악으로 이어진다.
@@ -3203,7 +3204,7 @@ function drawAsciiArt(t) {
 }
 
 function endAsciiToEnding() {
-  document.body.classList.remove('ascii-time');
+  document.body.classList.remove('ascii-time', 'score-only');
   asciiArt = null;
   state.phase = 'talk';
   postPhase('ending');
@@ -3321,7 +3322,7 @@ function devJump(stage) {
   stopEndingScore();
   clearShowTimers();   // 대기 중이던 전환 타이머(선물→아스키 3초 등)도 정리
   state.ended = false;
-  document.body.classList.remove('gift-time', 'ascii-time');   // 이전 단계 잔여물 정리
+  document.body.classList.remove('gift-time', 'ascii-time', 'score-only');   // 이전 단계 잔여물 정리
   $('#gift-bar')?.classList.add('hidden');
   if (state.picks[0] == null || state.picks[1] == null) randomMatch();
   if (stage === 'type') {

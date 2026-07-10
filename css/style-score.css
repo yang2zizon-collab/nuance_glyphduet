@@ -470,3 +470,8 @@ html, body { background: #ffffff; color: var(--ink); }
   from { transform: translateY(16px) rotate(-4deg); }
   to   { transform: translateY(-20px) rotate(5deg); }
 }
+
+/* 선물 → 아스키 사이(score-only) — 그래픽 스코어만 남긴다. 입력칸은 선물 때의
+   opacity 0을 그대로 이어받아 깜빡임 없고, 캐릭터 열은 즉시 숨긴다. */
+.theme-score.score-only #input-bar { opacity: 0; pointer-events: none; }
+.theme-score.score-only .pick-col { visibility: hidden; }

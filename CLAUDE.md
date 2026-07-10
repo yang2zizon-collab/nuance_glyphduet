@@ -123,7 +123,7 @@ serve.py                로컬 서버
     수동 복구: cloudflared kill → 재실행 → cf.log에서 URL 추출 → public_url.txt 갱신.
 - **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
   말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
-- **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→ 선물 UI가 내려가며 **그래픽 스코어(네모 프레임째)가 0.8s 페이드로 재등장 → 3초 보여준 뒤** `startAsciiArt()`(showTimers 타이머 — devJump가 정리). 최다 득표 부호(winningNuance)의
+- **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→ 선물 UI가 내려가며 **그래픽 스코어만(네모 프레임째, body.score-only — 입력칸·캐릭터 열 숨김) 0.8s 페이드로 재등장 → 3초 보여준 뒤** `startAsciiArt()`(showTimers 타이머 — devJump가 정리). 최다 득표 부호(winningNuance)의
   그림 마스크(`asciiMaskDraw` — 부호를 그대로 그리지 않는 **추상 구도**: ~=간섭하는 물결 다발 ·
   !=한 점에서 터지는 방사선 · .=점과 번지는 파문(동심원) · …=흩어지며 잦아드는 점들 ·
   ?=안으로 말려드는 소용돌이 · ;=허공에서 끊기는 획들+점. 고정시드 `rnd(i)`로 메인·폰 동일)를 샘플링해,
