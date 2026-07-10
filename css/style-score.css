@@ -249,19 +249,28 @@ html, body { background: #ffffff; color: var(--ink); }
   display: flex; gap: 2px; pointer-events: none;
 }
 .theme-score .pick-thumb .gift-badges canvas {
-  width: 16px; height: 16px; image-rendering: pixelated;
+  width: 16px; height: 16px; image-rendering: auto;
   background: #fff; border: 1px solid #000; padding: 1px; display: block;
 }
-/* 선물 받는 순간 뜨는 카드 (A → B · 품목) */
-.gift-popup {
-  position: fixed; z-index: 50; transform: translateY(-50%) scale(0.9);
-  display: flex; align-items: center; gap: 8px;
-  background: #fff; border: 2px solid #000; padding: 6px 10px;
-  box-shadow: 3px 3px 0 #000; pointer-events: none;
-  opacity: 0; transition: opacity .2s ease, transform .2s ease;
+/* 선물 토스트 — 하단 중앙 스택(캐릭터를 가리지 않는다).
+   새 카드가 아래에 나타나면 이전 카드들이 위로 밀리며 점점 흐려진다. */
+#gift-toasts {
+  position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%);
+  z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
 }
-.gift-popup.show { opacity: 1; transform: translateY(-50%) scale(1); }
-.gift-popup canvas { width: 32px; height: 32px; image-rendering: pixelated; }
+.gift-popup {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 2px solid #000; padding: 7px 12px;
+  box-shadow: 3px 3px 0 #000;
+  opacity: 0; transform: translateY(10px) scale(0.96);
+  transition: opacity .25s ease, transform .3s ease;
+}
+.gift-popup.show { opacity: 1; transform: none; }
+.gift-popup[data-age="1"] { opacity: 0.55; }
+.gift-popup[data-age="2"] { opacity: 0.28; }
+.gift-popup.bye { opacity: 0; transform: translateY(-16px); }
+.gift-popup canvas { width: 40px; height: 40px; image-rendering: auto; }
 .gift-popup-label { font-size: 13px; color: #000; white-space: nowrap; }
 
 /* 이펙트 랙 UI — 흰 배경 검정 잉크 */
@@ -457,7 +466,7 @@ html, body { background: #ffffff; color: var(--ink); }
 /* 선물 배경 떠다님 — 은은하게(선물 단계 동안만, giftDoneToEnding이 비운다) */
 #gift-float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
 #gift-float-layer .gift-float {
-  position: absolute; opacity: 0.2; image-rendering: pixelated;
+  position: absolute; opacity: 0.2; image-rendering: auto;
   animation: giftFloat 12s ease-in-out infinite alternate;
 }
 @keyframes giftFloat {

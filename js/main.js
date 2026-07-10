@@ -2656,7 +2656,7 @@ function updateGiftBadge(recip) {
   const list = received.get(recip) || [];
   list.forEach((it) => {
     const cv = document.createElement('canvas');
-    cv.width = 32; cv.height = 32;
+    cv.width = 96; cv.height = 96;   // 고해상 렌더(표시 16~22px) — 계단 없이 또렷
     cv.title = it.name;
     drawItem(cv, it.kind);
     row.appendChild(cv);
@@ -2671,26 +2671,45 @@ function objParticle(word) {
   return ((c - 0xAC00) % 28) !== 0 ? '을' : '를';
 }
 
-// 선물을 받는 순간 "○○ 님이 ○○ 님에게 △△ 선물했습니다" 카드를 받는 캐릭터 옆에 잠깐 띄운다.
+// 선물을 받는 순간 "○○ 님이 ○○ 님에게 △△ 선물했습니다" 카드 — 하단 중앙 토스트 스택.
+// 캐릭터를 가리지 않고, 새 카드가 오면 이전 카드들이 위로 밀리며(FLIP 슬라이드)
+// 나이(data-age)에 따라 점점 흐려지다 사라진다.
 function showGiftPopup(recip, giver, item) {
-  const b = pickThumbs[0][recip]; if (!b) return;
-  // 같은 캐릭터의 이전 팝업은 치워 겹치지 않게.
-  document.querySelectorAll(`.gift-popup[data-recip="${recip}"]`).forEach((el) => el.remove());
-  const r = b.getBoundingClientRect();
+  let box = $('#gift-toasts');
+  if (!box) { box = document.createElement('div'); box.id = 'gift-toasts'; document.body.appendChild(box); }
+  const olds = [...box.children];
+  const beforeTops = olds.map((el) => el.getBoundingClientRect().top);
+  olds.forEach((el) => {
+    const age = (+el.dataset.age || 0) + 1;
+    el.dataset.age = age;
+    if (age >= 3) { el.classList.add('bye'); setTimeout(() => el.remove(), 500); }
+  });
   const pop = document.createElement('div');
   pop.className = 'gift-popup';
-  pop.dataset.recip = recip;
-  const cv = document.createElement('canvas'); cv.width = 48; cv.height = 48; drawItem(cv, item.kind);
+  const cv = document.createElement('canvas'); cv.width = 144; cv.height = 144;   // 고해상 렌더(표시 40px)
+  drawItem(cv, item.kind);
   pop.appendChild(cv);
   const label = document.createElement('div');
   label.className = 'gift-popup-label';
   label.textContent = `${characterName(giver)} 님이 ${characterName(recip)} 님에게 ${item.name}${objParticle(item.name)} 선물했습니다`;
   pop.appendChild(label);
-  document.body.appendChild(pop);
-  pop.style.left = `${r.right + 12}px`;
-  pop.style.top = `${r.top + r.height / 2}px`;
-  requestAnimationFrame(() => pop.classList.add('show'));
-  setTimeout(() => { pop.classList.remove('show'); setTimeout(() => pop.remove(), 400); }, 1600);
+  box.appendChild(pop);
+  requestAnimationFrame(() => {
+    // FLIP — 이전 카드들이 순간이동 대신 위로 미끄러진다
+    olds.forEach((el, i) => {
+      if (!el.isConnected) return;
+      const dy = beforeTops[i] - el.getBoundingClientRect().top;
+      if (dy) {
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${dy}px)`;
+        el.offsetHeight;   // 리플로우 — 시작 위치 확정
+        el.style.transition = '';
+        el.style.transform = '';
+      }
+    });
+    pop.classList.add('show');
+  });
+  setTimeout(() => { pop.classList.add('bye'); setTimeout(() => pop.remove(), 500); }, 3600);
 }
 
 function resetGifts() {
@@ -2706,7 +2725,7 @@ function resetGifts() {
 function floatGift(item) {
   const layer = $('#gift-float-layer'); if (!layer) return;
   for (let i = 0; i < 3; i++) {
-    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+    const cv = document.createElement('canvas'); cv.width = 192; cv.height = 192;   // 고해상 렌더
     drawItem(cv, item.kind);
     cv.className = 'gift-float';
     cv.style.left = `${6 + Math.random() * 86}%`;
