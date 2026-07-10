@@ -434,3 +434,9 @@ html, body { background: #ffffff; color: var(--ink); }
 }
 .theme-score #dev-bar .devb:hover { opacity: 0.85; }
 .theme-score.score-invert #dev-bar .devb { border-color: rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.35); }
+
+/* 선물 단계 — 선물 기능(캐릭터 열·선물바)만 남기고 타이핑·스코어는 스르륵 숨긴다.
+   opacity 전환이라 레이아웃은 그대로, 선물이 끝나면 아스키아트가 페이드인으로 이어받는다. */
+.theme-score #score-panel, .theme-score #input-bar { transition: opacity 0.8s ease; }
+.theme-score.gift-time #score-panel,
+.theme-score.gift-time #input-bar { opacity: 0; pointer-events: none; }

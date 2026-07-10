@@ -3131,6 +3131,9 @@ function drawAsciiArt(t) {
   sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, W, H);
   const el = performance.now() - asciiArt.start;
   const settle = Math.max(0, Math.min(1, (el - ASCII_FLY - 400) / 900));   // 완성 후 숨쉬기 페이드인
+  // 스르륵 등장 — 선물 단계에서 숨겨졌던 글자들이 첫 0.9초 동안 서서히 나타나며 날아간다
+  sctx.save();
+  sctx.globalAlpha = Math.min(1, el / 900);
   for (const tg of asciiArt.targets) {
     const p = Math.max(0, Math.min(1, (el - tg.delay) / ASCII_FLY));
     const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;   // easeInOutCubic — 슈우우
@@ -3143,6 +3146,7 @@ function drawAsciiArt(t) {
     const sp = glyphSprite(tg.ch, tg.px, tg.alpha);
     sctx.drawImage(sp, x - sp.width / 2, y - sp.height / 2);
   }
+  sctx.restore();
   if (!asciiArt.done && el > ASCII_FLY + 700 + ASCII_HOLD) {
     asciiArt.done = true;
     endAsciiToEnding();
