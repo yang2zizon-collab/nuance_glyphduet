@@ -2927,15 +2927,17 @@ function endCycle() {
   uiClick(0.5);
 }
 
-// 선물 단계 종료 → 아스키아트(글자들이 날아가 부호 그림) → 엔딩 연주.
+// 선물 단계 종료 → 그래픽 스코어가 3초쯤 다시 등장 → 아스키아트(글자들이 날아가 부호 그림) → 엔딩 연주.
 function giftDoneToEnding() {
   clearShowTimers();
   $('#gift-bar')?.classList.add('hidden');
   $('#mark-qr')?.classList.add('hidden');
+  // 선물 UI를 내리면 타이핑 화면의 그래픽 스코어(네모 테두리째)가 스르륵 돌아온다(0.8s 페이드).
   document.body.classList.remove('gift-time');
+  // 3초 동안 다시 보여준 뒤 — 그 글자들이 날아올라 부호 그림으로 변한다.
   // 선물 워시는 아스키아트 동안 계속 흐른다 — 엔딩 화면 진입(show('ending')의 정리)이
   // 끊어주므로, 무음 구간 없이 엔딩 음악으로 이어진다.
-  startAsciiArt();
+  showTimers.push(setTimeout(() => startAsciiArt(), 3000));
 }
 
 // ===== 아스키아트 전환 =====
@@ -3131,9 +3133,8 @@ function drawAsciiArt(t) {
   sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, W, H);
   const el = performance.now() - asciiArt.start;
   const settle = Math.max(0, Math.min(1, (el - ASCII_FLY - 400) / 900));   // 완성 후 숨쉬기 페이드인
-  // 스르륵 등장 — 선물 단계에서 숨겨졌던 글자들이 첫 0.9초 동안 서서히 나타나며 날아간다
+  // 스코어판(DOM)이 3초 보인 뒤 그대로 이어받는다 — 글자는 곧장 제자리에서 날아오른다
   sctx.save();
-  sctx.globalAlpha = Math.min(1, el / 900);
   for (const tg of asciiArt.targets) {
     const p = Math.max(0, Math.min(1, (el - tg.delay) / ASCII_FLY));
     const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;   // easeInOutCubic — 슈우우
@@ -3270,6 +3271,7 @@ function devSeedMessages() {
 function devJump(stage) {
   ensureAudio();
   stopEndingScore();
+  clearShowTimers();   // 대기 중이던 전환 타이머(선물→아스키 3초 등)도 정리
   state.ended = false;
   document.body.classList.remove('gift-time', 'ascii-time');   // 이전 단계 잔여물 정리
   $('#gift-bar')?.classList.add('hidden');

@@ -440,3 +440,16 @@ html, body { background: #ffffff; color: var(--ink); }
 .theme-score #score-panel, .theme-score #input-bar { transition: opacity 0.8s ease; }
 .theme-score.gift-time #score-panel,
 .theme-score.gift-time #input-bar { opacity: 0; pointer-events: none; }
+
+/* 선물 단계 — 캐릭터·선물 버튼이 화면 중앙으로 나와 큼직해진다(스코어·타이핑은 숨김 상태) */
+.theme-score.gift-time .pick-col.p1 {
+  left: 50%; right: auto; top: 50%; bottom: auto;
+  height: auto; width: auto;
+  transform: translate(-50%, -50%);
+  flex-direction: row;
+  gap: clamp(28px, 5vw, 72px);
+  z-index: 30;
+}
+.theme-score.gift-time .pick-row { flex-direction: column; gap: 14px; width: auto; }
+.theme-score.gift-time .pick-row .pick-thumb { width: clamp(96px, 11vw, 150px); }
+.theme-score.gift-time .char-gift { width: clamp(52px, 6vw, 80px); }

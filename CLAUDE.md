@@ -58,7 +58,7 @@ serve.py                로컬 서버
   토마토 A·B컷은 **둘 다 흑백 도트(하프톤)**. 배경을 흑백 ctx에 그리면 끝에서 dither→도트아트가 된다.
   B컷 폴백은 `buildTomBColor(W,H,S)`(컬러 상자 합성, 크기별 캐시)를 ctx에 blit → dither가 명도만 남겨 흑백 도트로.
 - **선물(드래그&드롭 이펙트)**: 캐릭터별 `.char-gift`를 다른 캐릭터 썸네일에 드롭 → 받는 캐릭터에 리버브.
-  **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용).
+  **라운드 동안엔 숨김**(CSS 기본 display:none), `endCycle()`이 `body.gift-time`을 켜야 보인다(선물 단계 전용). gift-time엔 스코어판·입력칸이 0.8s 페이드로 숨고 **캐릭터 열이 화면 정중앙 가로 배치로 커진다**(썸네일 ~150px, 선물 상자 아래).
   선물 단계 진입 시 부호 패드·하트 레이어 제거. 받은 선물은 썸네일 아래 `.gift-badges`에 **전부** 아이콘으로
   나열(title에 품목 텍스트 나열).
 - **QR 화면(#screen-qr)**: **캐릭터 소개(select)가 끝난 뒤** 나온다 — 흐름: 타이틀 ▶(한 번, 시작
@@ -123,7 +123,7 @@ serve.py                로컬 서버
     수동 복구: cloudflared kill → 재실행 → cf.log에서 URL 추출 → public_url.txt 갱신.
 - **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
   말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
-- **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→`startAsciiArt()`. 최다 득표 부호(winningNuance)의
+- **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→ 선물 UI가 내려가며 **그래픽 스코어(네모 프레임째)가 0.8s 페이드로 재등장 → 3초 보여준 뒤** `startAsciiArt()`(showTimers 타이머 — devJump가 정리). 최다 득표 부호(winningNuance)의
   그림 마스크(`asciiMaskDraw` — 부호를 그대로 그리지 않는 **추상 구도**: ~=간섭하는 물결 다발 ·
   !=한 점에서 터지는 방사선 · .=점과 번지는 파문(동심원) · …=흩어지며 잦아드는 점들 ·
   ?=안으로 말려드는 소용돌이 · ;=허공에서 끊기는 획들+점. 고정시드 `rnd(i)`로 메인·폰 동일)를 샘플링해,
