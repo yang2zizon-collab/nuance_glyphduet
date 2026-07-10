@@ -66,13 +66,14 @@
   <!-- 선물 단계 화면 — 메인이 선물 단계로 넘어가면 자동으로 이 화면으로 바뀐다 -->
   <div id="gift-ui" style="display:none; flex:1 1 auto; flex-direction:column; gap:10px; padding:8px 0 16px;">
     <!-- 진행 흐름: [주는이] → [받는이] 슬롯이 채워진다 -->
-    <div id="gift-flow" style="display:flex; align-items:center; justify-content:center; gap:10px;">
+    <!-- (구) 흐름 칩 — 2패널 UI로 대체되어 숨김 -->
+    <div id="gift-flow" style="display:none; align-items:center; justify-content:center; gap:10px;">
       <div id="flow-giver" class="flow-slot"></div>
       <span style="font-size:26px; line-height:1;">→</span>
       <div id="flow-recip" class="flow-slot"></div>
     </div>
     <p id="gift-step" style="margin:0; text-align:center; font-size:16px; color:#111; font-weight:600;">① 선물을 주는 캐릭터를 고르세요</p>
-    <div id="gift-chars" style="flex:1 1 auto; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:10px;"></div>
+    <div id="gift-chars" style="flex:1 1 auto; display:flex; flex-direction:column; gap:10px; overflow-y:auto; padding-bottom:8px;"></div>
     <button id="gift-back" style="display:none; font-size:14px; padding:10px; border:2px solid #999; background:#fff; color:#555;">← 다시 고르기</button>
   </div>
   <style>
@@ -82,6 +83,28 @@
     }
     .flow-slot.filled { border-style: solid; color: #000; font-weight: 600; }
     .flow-dot { width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; }
+    /* ── 선물 2패널 UI — 위: 보내는 이 칩, 아래: 받는 이 카드(품목 표시) ── */
+    .gift-lbl { margin: 2px 0 0; font-size: 12px; color: #888; letter-spacing: 0.04em; }
+    .giver-row { display: flex; gap: 8px; }
+    .giver-chip {
+      flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 8px 2px 6px; font-size: 12px; color: #555;
+      background: #fff; border: 2px solid #ccc; border-radius: 2px; cursor: pointer;
+    }
+    .giver-chip.on {
+      border-color: var(--cc, #000); box-shadow: 4px 4px 0 var(--cc, #000);
+      color: #000; font-weight: 700;
+    }
+    .recip-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; background: #fff;
+      border: 3px solid var(--cc, #000); box-shadow: 5px 5px 0 var(--cc, #000); border-radius: 2px;
+      cursor: pointer; text-align: left;
+      transition: transform .05s ease, box-shadow .05s ease;
+    }
+    .recip-card.hit, .recip-card:active { transform: translate(5px, 5px); box-shadow: none; }
+    .recip-name { font-size: 17px; font-weight: 700; color: #000; flex: 0 0 auto; }
+    .recip-gift { margin-left: auto; font-size: 15px; color: #333; background: #f4f4f4; border: 1px solid #ddd; padding: 4px 8px; border-radius: 2px; }
   </style>
   <!-- 아스키아트 — 공연에서 완성된 부호 그림이 폰 규격에 맞게 뜬다 -->
   <div id="art-ui" style="display:none; flex:1 1 auto; align-items:center; justify-content:center; padding:8px 0 14px;">
@@ -214,45 +237,10 @@
       return sp;
     }
 
-    function slotChip(el, idx, placeholder) {
-      if (idx == null) { el.className = 'flow-slot'; el.innerHTML = placeholder; return; }
-      const [name, color] = CHARS[idx];
-      el.className = 'flow-slot filled';
-      el.style.borderColor = color;
-      el.innerHTML = '';
-      el.appendChild(charFace(idx, 26));
-      el.appendChild(document.createTextNode(name));
-    }
-
-    function charBtn(i, disabled, giftInfo) {
-      const [name, color] = CHARS[i];
-      const b = document.createElement('button');
-      b.className = 'key';
-      b.style.borderColor = color;
-      b.style.boxShadow = '5px 5px 0 ' + color;
-      b.disabled = !!disabled;
-      if (disabled) b.style.opacity = '0.25';
-      const face = charFace(i, Math.round(window.innerHeight * 0.11));
-      b.appendChild(face);
-      const cap = document.createElement('span');
-      cap.className = 'cap';
-      cap.style.color = color; cap.style.fontWeight = '700';
-      cap.textContent = name;
-      b.appendChild(cap);
-      if (giftInfo) {   // 받는이 고르기 단계 — 이 캐릭터가 받게 될 선물을 미리 보여준다
-        const gi = document.createElement('span');
-        gi.className = 'cap';
-        gi.textContent = giftInfo.icon + ' ' + giftInfo.item;
-        b.appendChild(gi);
-      }
-      return b;
-    }
-
-    // 선물 전송 — 탭·드래그가 공유하는 마무리 흐름.
+    // 선물 전송 — 받는이 카드를 누르면 즉시 간다(보낸 뒤에도 보내는 이 선택 유지).
     async function sendGift(giver, recip) {
       if (giftLock || giver == null || recip == null || giver === recip) return;
       giftLock = true;
-      slotChip(flowGiver, giver, ''); slotChip(flowRecip, recip, '');
       const item = (GIFT_NAMES[giver] || {})[recip] || '선물';
       const icon = (GIFT_ICONS[giver] || {})[recip] || '🎁';
       try {
@@ -263,68 +251,66 @@
         giftStep.textContent = '전달 실패 — 다시 시도해 주세요';
         setStatus(false, '연결 끊김');
       }
-      setTimeout(() => { giftGiver = null; giftLock = false; renderGift(); }, 1500);
+      setTimeout(() => { giftLock = false; renderGift(); }, 900);
     }
 
+    // 한 화면 2패널 — 위: 보내는 이(칩 4개, 탭 전환) / 아래: 받는 이 카드 3장(품목 표시, 탭=전송).
+    // 단계 전환·뒤로가기·드래그 없이 모든 선택지가 항상 보인다.
     function renderGift() {
-      const picking = giftGiver == null;
-      slotChip(flowGiver, giftGiver, '누가');
-      slotChip(flowRecip, null, '누구에게');
-      giftStep.textContent = picking
-        ? '캐릭터를 끌어서 다른 캐릭터에게 놓으세요'
-        : '② ' + CHARS[giftGiver][0] + '의 선물을 받을 캐릭터를 고르세요';
-      giftBack.style.display = picking ? 'none' : 'block';
+      if (giftGiver == null) giftGiver = 0;
+      giftStep.textContent = '보내는 캐릭터를 고르고, 받을 캐릭터를 누르세요';
+      giftBack.style.display = 'none';
       giftChars.innerHTML = '';
+      // ① 보내는 이 줄
+      const lbl = document.createElement('p');
+      lbl.className = 'gift-lbl'; lbl.textContent = '보내는 이';
+      giftChars.appendChild(lbl);
+      const row = document.createElement('div');
+      row.className = 'giver-row';
       for (let i = 0; i < 4; i++) {
-        const info = !picking && i !== giftGiver
-          ? { icon: (GIFT_ICONS[giftGiver] || {})[i] || '🎁', item: (GIFT_NAMES[giftGiver] || {})[i] || '선물' }
-          : null;
-        const b = charBtn(i, !picking && i === giftGiver, info);
-        b.dataset.idx = i;
-        b.style.touchAction = 'none';   // 드래그 중 스크롤로 끊기지 않게
-        b.addEventListener('pointerdown', (e) => {
+        const [name, color] = CHARS[i];
+        const c = document.createElement('button');
+        c.className = 'giver-chip' + (i === giftGiver ? ' on' : '');
+        c.style.setProperty('--cc', color);
+        c.appendChild(charFace(i, 34));
+        const nm = document.createElement('span'); nm.textContent = name;
+        c.appendChild(nm);
+        c.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          if (giftLock || giftGiver === i) return;
+          giftGiver = i; flash(c); renderGift();
+        });
+        row.appendChild(c);
+      }
+      giftChars.appendChild(row);
+      // ② 받는 이 카드 — 이 조합에서 갈 선물을 그대로 보여준다
+      const lbl2 = document.createElement('p');
+      lbl2.className = 'gift-lbl'; lbl2.textContent = '받는 이 — 누르면 바로 전달';
+      giftChars.appendChild(lbl2);
+      for (let i = 0; i < 4; i++) {
+        if (i === giftGiver) continue;
+        const [name, color] = CHARS[i];
+        const card = document.createElement('button');
+        card.className = 'recip-card';
+        card.style.setProperty('--cc', color);
+        card.appendChild(charFace(i, 52));
+        const mid = document.createElement('span');
+        mid.className = 'recip-name'; mid.textContent = name;
+        card.appendChild(mid);
+        const gi = document.createElement('span');
+        gi.className = 'recip-gift';
+        gi.textContent = ((GIFT_ICONS[giftGiver] || {})[i] || '🎁') + ' ' + ((GIFT_NAMES[giftGiver] || {})[i] || '선물');
+        card.appendChild(gi);
+        card.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           if (giftLock) return;
-          const startX = e.clientX, startY = e.clientY;
-          let ghost = null;   // 손가락을 따라다니는 캐릭터 얼굴
-          const onMove = (ev) => {
-            if (!ghost) {
-              if (b.disabled || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 14) return;
-              ghost = document.createElement('div');
-              ghost.style.cssText = 'position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-50%);filter:drop-shadow(3px 3px 0 rgba(0,0,0,.3));';
-              ghost.appendChild(charFace(i, 64));
-              document.body.appendChild(ghost);
-              b.style.opacity = '0.35';
-              giftStep.textContent = CHARS[i][0] + '를 받을 캐릭터 위에 놓으세요';
-            }
-            ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
-          };
-          const onUp = (ev) => {
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-            if (ghost) {   // 드래그 — 놓은 자리의 캐릭터에게 선물
-              ghost.remove(); b.style.opacity = b.disabled ? '0.25' : '';
-              const el = document.elementFromPoint(ev.clientX, ev.clientY);
-              const tb = el && el.closest ? el.closest('#gift-chars .key') : null;
-              const recip = tb ? +tb.dataset.idx : NaN;
-              if (!Number.isNaN(recip) && recip !== i) { flash(tb); sendGift(i, recip); }
-              else renderGift();   // 빈 곳에 놓음 — 안내 문구 복원
-              return;
-            }
-            // 탭 — 기존 2단계 흐름도 그대로 동작
-            if (b.disabled || giftLock) return;
-            flash(b);
-            if (picking) { giftGiver = i; renderGift(); return; }
-            sendGift(giftGiver, i);
-          };
-          window.addEventListener('pointermove', onMove);
-          window.addEventListener('pointerup', onUp);
+          flash(card);
+          sendGift(giftGiver, i);
         });
-        giftChars.appendChild(b);
+        giftChars.appendChild(card);
       }
     }
     window.rerenderGift = () => { if (giftEl.style.display !== 'none') renderGift(); };
-    giftBack.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!giftLock) { giftGiver = null; renderGift(); } });
 
     // ===== 아스키아트 — 공연에서 완성된 부호 그림을 폰 규격으로 그린다 =====
     const artEl = document.getElementById('art-ui');

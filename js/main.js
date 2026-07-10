@@ -2636,8 +2636,7 @@ function giveSpecificGift(recip, giver) {
   setGift(characterVoice(recip), true);   // 효과: 일단 리버브 ON
   highlightGifts();
   updateGiftBadge(recip);
-  wearGift(recip, item);    // 받은 캐릭터가 아이템을 착용한다(모자는 머리에, 안경은 눈가에…)
-  floatGift(item);          // 배경에도 그 아이템이 몇 개 떠다닌다(선물 단계 동안)
+  floatGift(item);          // 배경에 그 아이템이 몇 개 떠다닌다(선물 단계 동안)
   showGiftPopup(recip, giver, item);
   giftChime();   // 리버브 잔뜩 먹인 하이텐션 벨이 울려 퍼진다
   // 받은 즉시 그 목소리로 짧게 울려 리버브를 들려준다.
@@ -2698,39 +2697,12 @@ function resetGifts() {
   giftedChars.clear();
   received.clear();
   clearGifts();
-  document.querySelectorAll('.gift-badge, .gift-badges, .gift-popup, .gift-wear').forEach((el) => el.remove());
+  document.querySelectorAll('.gift-badge, .gift-badges, .gift-popup').forEach((el) => el.remove());
   const fl = $('#gift-float-layer'); if (fl) fl.innerHTML = '';
   if (pickThumbs[0]) highlightGifts();
 }
 
-// ── 선물 착용 + 배경 떠다님 — 받은 즉시 눈에 보이는 변화(배지는 그대로 유지) ──
-// 품목별 앉는 자리: 모자·둥지는 머리 위, 잠수안경은 눈가, 구름·무지개는 머리맡,
-// 나머지는 손에 든 듯 아래 모서리.
-const WEAR_POS = {
-  hat: { left: '50%', top: '-14%', size: 0.52 },
-  nest: { left: '50%', top: '-16%', size: 0.55 },
-  cloud: { left: '76%', top: '-16%', size: 0.5 },
-  rainbow: { left: '24%', top: '-18%', size: 0.55 },
-  goggles: { left: '50%', top: '16%', size: 0.5 },
-  drop: { left: '82%', top: '6%', size: 0.4 },
-  ring: { left: '84%', top: '62%', size: 0.4 },
-  cheese: { left: '16%', top: '66%', size: 0.46 },
-  seaweed: { left: '12%', top: '58%', size: 0.5 },
-  basil: { left: '86%', top: '70%', size: 0.44 },
-  dragonfruit: { left: '15%', top: '70%', size: 0.46 },
-  frame: { left: '82%', top: '72%', size: 0.46 },
-};
-function wearGift(recip, item) {
-  const b = pickThumbs[0][recip]; if (!b) return;
-  if (b.querySelectorAll('.gift-wear').length >= 3) return;   // 셋까지만 겹쳐 착용
-  const pos = WEAR_POS[item.kind] || { left: '80%', top: '65%', size: 0.42 };
-  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-  drawItem(cv, item.kind);
-  cv.className = 'gift-wear';
-  cv.style.left = pos.left; cv.style.top = pos.top;
-  cv.style.width = `${Math.round(pos.size * 100)}%`;
-  b.appendChild(cv);
-}
+// ── 선물 배경 떠다님 — 받은 즉시 눈에 보이는 변화(배지는 그대로, 캐릭터 위 착용은 없음) ──
 function floatGift(item) {
   const layer = $('#gift-float-layer'); if (!layer) return;
   for (let i = 0; i < 3; i++) {

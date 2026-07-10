@@ -454,12 +454,6 @@ html, body { background: #ffffff; color: var(--ink); }
 .theme-score.gift-time .pick-row .pick-thumb { width: clamp(96px, 11vw, 150px); }
 .theme-score.gift-time .char-gift { width: clamp(52px, 6vw, 80px); }
 
-/* 선물 착용 — 받은 아이템이 썸네일 위 제자리에 얹힌다(모자=머리, 안경=눈가…) */
-.theme-score .gift-wear {
-  position: absolute; transform: translateX(-50%);
-  image-rendering: pixelated; pointer-events: none; z-index: 3;
-  filter: drop-shadow(1px 1px 0 #fff);
-}
 /* 선물 배경 떠다님 — 은은하게(선물 단계 동안만, giftDoneToEnding이 비운다) */
 #gift-float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
 #gift-float-layer .gift-float {
