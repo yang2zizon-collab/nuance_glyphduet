@@ -119,13 +119,14 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             # 자기 음표가 자기 색으로 보이게 한다(폰에도 응답으로 알려줌).
             data = self._body_json()
             uid = str(data.get('uid') or '')[:40]
+            glyph = str(data.get('glyph') or '')[:2]   # 관객이 고른 모양(없으면 메인에서 랜덤)
             cidx = None
             if uid:
                 if uid not in aud_colors['m']:
                     aud_colors['m'][uid] = aud_colors['n']
                     aud_colors['n'] += 1
                 cidx = aud_colors['m'][uid]
-            broadcast(json.dumps({'type': 'addnote', 'cidx': cidx}))
+            broadcast(json.dumps({'type': 'addnote', 'cidx': cidx, 'glyph': glyph}))
             return self._json(200, {'ok': True, 'cidx': cidx})
         if path == '/jam':
             current_jam['v'] = True

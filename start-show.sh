@@ -11,6 +11,7 @@
 # (주소가 바뀌므로 이미 접속한 폰은 QR을 다시 스캔해야 한다 — 메인 화면도 새로고침.)
 set -e
 cd "$(dirname "$0")"
+export PATH="$HOME/bin:/opt/homebrew/bin:$PATH"   # cloudflared가 ~/bin에 있어도 찾도록
 PORT="${1:-8777}"
 rm -f public_url.txt cf.log cf.pid
 

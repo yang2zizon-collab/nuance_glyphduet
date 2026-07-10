@@ -331,7 +331,12 @@ html, body { background: #ffffff; color: var(--ink); }
   width: 16px; height: 16px; border-radius: 50%;
   border: 2px solid #000; background: #fff;
   transition: background .08s linear;
+  align-self: center;
 }
+/* 박자 강약 — 강박은 큰 점, 중박은 중간, 약박은 작은 점 */
+.beat-dot.strong { width: 24px; height: 24px; }
+.beat-dot.mid    { width: 16px; height: 16px; }
+.beat-dot.weak   { width: 9px;  height: 9px; border-width: 1.5px; }
 .beat-dot.on { background: #000; }
 .beat-dot.now { animation: beat-pop .3s ease-out; }
 @keyframes beat-pop {
