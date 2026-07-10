@@ -4976,6 +4976,9 @@ loadIntroPhoto('tomatoB', ['assets/intro/tomato-b.jpg', 'assets/intro/tomato-b.p
 buildPickColumns();   // 플레이 중 좌/우 캐릭터 선택 열 생성
 if (SCORE) setupGift();   // 선물 아이콘 + 드래그&드롭(리버브) 준비
 if (SCORE) setupAudience();   // 관객 폰 실시간 부호 탭(SSE) 연결 준비
+// 메인 화면을 새로 켠 순간 = 새 공연 — 서버에 남은 지난 공연 잔재(phase=ending·스틸·잼·그룹·
+// 아웃트로)를 청소한다. 안 하면 막 QR을 스캔한 폰이 대기 화면 대신 지난 스코어를 받아버린다.
+if (SCORE) postPhase('idle');
 buildDex();           // 스코어 테마: 도감 그리드 생성
 updateSelectUI();
 requestAnimationFrame(loop);
