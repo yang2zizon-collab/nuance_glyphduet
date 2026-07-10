@@ -1,6 +1,9 @@
-.DS_Store
 *.log
-node_modules/
-public_url.txt
-cf.log
+.DS_Store
 .claude/settings.local.json
+cf.log
+cf.pid
+node_modules/
+nohup.out
+public_url.txt
+tunnel-watch.log
