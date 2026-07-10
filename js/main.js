@@ -3797,8 +3797,9 @@ function drawScore3D(ctx, W, H, t, progress) {
   //          2단계: 위치 고정, 중심(원점)을 기준으로 천천히 공전(=구가 회전하는 느낌).
   let cam, target;
   if (sphere && jamOn) {
-    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 유영하는 카메라(아주 느긋하게)
-    const tt = t * 0.3;
+    // 관객 합주(잼) — SF 우주이동처럼 점구름을 스치고 관통하며 유영하는 카메라.
+    // 큰 스크린에서 어지럽지 않게 아주아주 느긋하게(0.3 → 0.17).
+    const tt = t * 0.17;
     const camR = 15 + Math.sin(tt * 0.7) * 8 + Math.sin(tt * 0.23) * 4;   // 7~27 — 가까이 스쳤다 멀어진다
     cam = { x: Math.sin(tt) * camR, y: Math.sin(tt * 0.53) * 7 + 1.5, z: Math.cos(tt * 0.81) * camR };
     target = { x: Math.sin(tt * 0.37) * 3, y: Math.sin(tt * 0.29) * 2, z: Math.cos(tt * 0.41) * 3 };
@@ -3866,8 +3867,8 @@ function drawScore3D(ctx, W, H, t, progress) {
   });
 
   // 음표 글리프 — 가까울수록 크고 진하게. 막 친 음은 살짝 팝.
-  // 2단계는 점구름이라 더 작게 — 기호가 많아지면 뭉텅이로 보여서 2/3로 줄임.
-  const sizeBase = sphere ? 0.2 : 0.5, sizeMax = sphere ? 27 : 64;
+  // 2단계는 점구름이라 더 작게 — 기호가 많아지면 뭉텅이로 보여서 원래의 1/3로 줄임(2/3 → 다시 반).
+  const sizeBase = sphere ? 0.1 : 0.5, sizeMax = sphere ? 14 : 64;
   const nowMs = performance.now();
   const audColored = [];   // 색 배정된 관객 음표 — 색 반전 뒤에 파스텔로 그린다(difference에 안 뒤집히게)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3877,7 +3878,7 @@ function drawScore3D(ctx, W, H, t, progress) {
     const audAge = d.born ? (nowMs - d.born) / 1000 : 99;
     const audK = d.aud && audAge < 1.4 ? 1 - audAge / 1.4 : 0;
     const a = Math.min(1, depthAlpha(pr.vz) * (d.accent ? 1 : 0.92) + (fresh ? 0.25 : 0) + audK * 0.6);
-    let fpx = Math.max(sphere ? 6 : 8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? 0.16 : 0) + (fresh ? 0.22 : 0)) / pr.vz));
+    let fpx = Math.max(sphere ? 4 : 8, Math.min(sizeMax, focal * (sizeBase + (d.accent ? (sphere ? 0.08 : 0.16) : 0) + (fresh ? (sphere ? 0.11 : 0.22) : 0)) / pr.vz));
     if (audK > 0) fpx *= 1 + audK * 1.2;
     if (d.aud && d.cidx != null) { audColored.push({ d, pr, fpx, a, audK }); return; }
     ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
@@ -4621,7 +4622,13 @@ document.body.addEventListener('click', (e) => {
 });
 
 // 상태 프로브(읽기 전용) — 헤드리스 검증에서 잼/진행도 확인용
-window.__probe = () => ({ jam: jamOn, phase: endingPhase, prog: scoreProgress(), total: scoreTotalMs, screen: state.screen });
+window.__probe = () => ({
+  jam: jamOn, phase: endingPhase, prog: scoreProgress(), total: scoreTotalMs, screen: state.screen,
+  // 관객 부하 점검용 — 참여자 수·음표 수·1위
+  audUsers: Object.keys(audScores).length,
+  audNotes: Object.values(audScores).reduce((s, v) => s + v, 0),
+  audTop: Object.entries(audScores).sort((a, b) => b[1] - a[1])[0] || null,
+});
 
 // ===== 시작 =====
 resize();
