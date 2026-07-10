@@ -2833,6 +2833,7 @@ function resetGifts() {
 // ── 선물 배경 떠다님 — 받은 즉시 눈에 보이는 변화(배지는 그대로, 캐릭터 위 착용은 없음) ──
 function floatGift(item) {
   const layer = $('#gift-float-layer'); if (!layer) return;
+  if (!document.body.classList.contains('gift-time')) return;   // 선물 단계에서만 — 스코어 위에 남지 않게
   for (let i = 0; i < 3; i++) {
     const cv = document.createElement('canvas'); cv.width = 192; cv.height = 192;   // 고해상 렌더
     drawItem(cv, item.kind);
@@ -4758,7 +4759,7 @@ function addAudienceNote(cidx, glyph) {
     const pc = 0.25 + Math.random() * 0.5;
     uiClick(pc, 0.0018);
     setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.001), 90);
-    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.0028, Math.floor(Math.random() * 8));
+    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.4 + Math.random() * 0.4, Math.floor(Math.random() * 8), 0.0025);
   }
 }
 
@@ -4858,13 +4859,13 @@ window.addEventListener('keydown', (e) => {
   // 어떤 키든(자음 단독·한글 조합 중 포함) 타건음을 낸다.
   if (!mod && !IGNORE_KEYS.includes(e.key)) {
     const ch = (e.key && e.key.length === 1) ? e.key : null;
-    typeVoice(e.key, base(state.turn), characterVoice(state.picks[state.turn]), 1.3);   // 타자 = 캐릭터 목소리 — 비트보다 앞에
+    typeVoice(e.key, base(state.turn), characterVoice(state.picks[state.turn]), 2.1);   // 타자 = 캐릭터 목소리 — 또렷하게 크게
     // 기억의 잔향 — 앞서 보낸 발화의 글자 하나가 작은 음량으로 뒤따라 메아리친다.
     if (state.messages.length && Math.random() < 0.4) {
       const pm = state.messages[(Math.random() * state.messages.length) | 0];
       const pc = pm.text[(Math.random() * pm.text.length) | 0];
       setTimeout(() => {
-        if (state.screen === 'play') typeVoice(pc, base(state.turn), pm.voiceId, 0.35);   // 이전 발화 메아리 — 현재 화자보단 작게, 그래도 들리게
+        if (state.screen === 'play') typeVoice(pc, base(state.turn), pm.voiceId, 0.45);   // 이전 발화 메아리 — 현재 화자보단 작게, 그래도 들리게
       }, 110 + Math.random() * 240);
     }
     typeEvents.push({ t: performance.now(), ch }); // 친 시각+글자 그대로 기록
