@@ -4590,10 +4590,11 @@ function addAudienceNote(cidx) {
   const nowMs = performance.now();
   if (nowMs - lastAudSoundAt > 60) {
     lastAudSoundAt = nowMs;
+    // 개인 소리는 1/20 — 관객이 많아지면 합산으로 커지므로 한 명 몫은 아주 작게(베드·합주는 그대로)
     const pc = 0.25 + Math.random() * 0.5;
-    uiClick(pc, 0.7);
-    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.4), 90);
-    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 1.1, Math.floor(Math.random() * 8));
+    uiClick(pc, 0.035);
+    setTimeout(() => uiClick(Math.min(1, pc + 0.5), 0.02), 90);
+    typeVoice('aeioumko'[Math.floor(Math.random() * 8)], 0.055, Math.floor(Math.random() * 8));
   }
 }
 
