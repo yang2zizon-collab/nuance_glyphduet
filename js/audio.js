@@ -2169,16 +2169,16 @@ export function playEndingMusic(msgs) {
   if (!ctx) return { totalSec: 1, stop() {} };
   if (ctx.state === 'suspended') ctx.resume();
   ensureReverb();
-  const out = ctx.createGain(); out.gain.value = 0.95; out.connect(master);
+  const out = ctx.createGain(); out.gain.value = 1.15; out.connect(master);   // 독주 전체 — 또렷하되 안 터지게
   const verb = ctx.createGain(); verb.gain.value = 0.12;   // 리버브는 은은하게만
   out.connect(verb); verb.connect(reverb);
   // 비트 버스 — 살짝 찌그러뜨려 격정적으로.
   const shaper = ctx.createWaveShaper(); shaper.curve = distCurve(35); shaper.oversample = '4x';
-  const drum = ctx.createGain(); drum.gain.value = 0.32; drum.connect(shaper); shaper.connect(out);   // 비트는 뒤로 — 타자가 주인공
+  const drum = ctx.createGain(); drum.gain.value = 0.5; drum.connect(shaper); shaper.connect(out);   // 비트 — 프레이즈 사이를 채우는 그루브
 
   const t0 = ctx.currentTime + 0.25;
   const bpm = 140, beatSec = 60 / bpm;
-  const SPEED = 0.3;                       // ~3.3배속 — 독주 전체 1/3 단축의 한 축
+  const SPEED = 0.42;                      // ~2.4배속 — 여유 있는 리플레이(전체 길이는 아래 스트레치로 목표 맞춤)
   const thin = (events, cap = 24) => {     // 폴리포니 안전장치(지직거림 방지)
     if (events.length <= cap) return events;
     const stride = events.length / cap, outEv = [];
@@ -2199,7 +2199,7 @@ export function playEndingMusic(msgs) {
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 950; lp.Q.value = 3;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, w);
-    g.gain.exponentialRampToValueAtTime(0.2, w + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.3, w + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, w + beatSec * 0.9);
     o.connect(lp); lp.connect(g); g.connect(drum); o.start(w); o.stop(w + beatSec);
   };
@@ -2223,15 +2223,21 @@ export function playEndingMusic(msgs) {
     gr.list.push(m);
   });
 
+  // 마디당 시간 예산 — 독주 전체가 ~90초가 되도록 메시지 수로 배분한다.
+  // 프레이즈 내부는 SPEED 그대로 촘촘하고, 입장 간격만 예산만큼 벌어진다(사이는 비트가 채움).
+  const TARGET_SEC = 90;
+  // 실제 입장 간격 수 = 전체 마디 - 그룹 수(각 그룹 첫 마디는 간격 없이 시작) — 그룹 보정
+  const staggers = Math.max(1, msgs.length - Math.max(1, groups.length));
+  const perMsg = Math.max(2.2, Math.min(20, (TARGET_SEC - 10) / staggers));
   let T = 0.4;
   groups.forEach((gr) => {
     const def = ENDING_METERS[gr.name];
     const barSec = def.len * beatSec;
     let sectionEnd = T + barSec;
     gr.list.forEach((m, k) => {
-      const start = T + k * barSec / 4;                      // 1/4마디씩 늦게 — 촘촘히 겹겹이(독주 1/3 단축)
+      const start = T + k * perMsg;                          // 마디당 예산만큼 늦게 — 사이는 비트 그루브가 채운다
       const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
-      replayMsg(m, start, 0.9);                              // 지금 발화 — 주인공답게 크게
+      replayMsg(m, start, 1.1);                              // 지금 발화 — 주인공답게 크게
       // 앞사람이 친 것들이 함께 반복된다 — 직전 두 발화가 작은 소리로 같이 돈다.
       const gi = msgs.indexOf(m);
       for (let j = Math.max(0, gi - 2); j < gi; j++) replayMsg(msgs[j], start, 0.3);
@@ -2239,21 +2245,21 @@ export function playEndingMusic(msgs) {
       evq.push({ at: end, run: (w) => playMark(m.nuance || 'period', Math.max(0, w - ctx.currentTime), 0.5) });
       sectionEnd = Math.max(sectionEnd, end);
     });
-    sectionEnd += barSec * 0.1;
+    sectionEnd += barSec * 0.3;
     // 이 구간의 비트 — 박자 패턴(강·중·약) 그대로 격정적으로 깔린다.
     let bi = 0;
     for (let bt = T; bt < sectionEnd; bt += beatSec, bi++) {
       const lv = def.lv(bi % def.len), biNow = bi;
       evq.push({ at: bt, run: (w) => beatAt(w, lv, biNow) });
     }
-    T = sectionEnd + 0.2;
+    T = sectionEnd + 0.35;
   });
 
   // 피날레 — 마지막 발화들(최대 4개)이 반 박씩 어긋나며 다 함께 쏟아진다.
   const finale = msgs.slice(-4);
   let fEnd = T;
   finale.forEach((m, k) => {
-    const start = T + k * beatSec * 0.35;
+    const start = T + k * beatSec * 0.5;
     replayMsg(m, start, 0.75);
     const lastRel = m.rhythm.length ? m.rhythm[m.rhythm.length - 1].rel : 0;
     fEnd = Math.max(fEnd, start + lastRel * SPEED + 0.3);
@@ -2262,7 +2268,7 @@ export function playEndingMusic(msgs) {
     kick808(w, drum, 1.3);
     playMark('bang', Math.max(0, w - ctx.currentTime), 0.6);
   } });
-  T = fEnd + 0.7;
+  T = fEnd + 1.6;
 
   // JIT 스케줄러 — 2.5초 앞의 이벤트만 노드로 만든다(과부하·지직거림 방지).
   evq.sort((a, b) => a.at - b.at);
@@ -2277,7 +2283,7 @@ export function playEndingMusic(msgs) {
   }, 250);
 
   return {
-    totalSec: T + 0.4,
+    totalSec: T + 0.8,
     stop() {
       clearInterval(schedTimer);   // 아직 안 만든 이벤트는 만들지 않는다
       evq.length = 0;
