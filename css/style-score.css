@@ -475,3 +475,10 @@ html, body { background: #ffffff; color: var(--ink); }
    opacity 0을 그대로 이어받아 깜빡임 없고, 캐릭터 열은 즉시 숨긴다. */
 .theme-score.score-only #input-bar { opacity: 0; pointer-events: none; }
 .theme-score.score-only .pick-col { visibility: hidden; }
+
+/* 선물 배지 — 많아져도 옆으로 길게 늘어지지 않게 줄바꿈(썸네일 폭 안에서 행×열로 쌓임) */
+.theme-score .pick-thumb .gift-badges { flex-wrap: wrap; justify-content: center; row-gap: 2px; max-width: 130%; }
+/* 선물 단계(중앙 확대) — 배지는 썸네일 아래 그리드로, 선물 버튼은 그 아래로 여유 있게 */
+.theme-score.gift-time .pick-row { gap: 56px; }
+.theme-score.gift-time .pick-thumb .gift-badges { bottom: auto; top: calc(100% + 8px); width: 100%; }
+.theme-score.gift-time .pick-thumb .gift-badges canvas { width: 22px; height: 22px; }
