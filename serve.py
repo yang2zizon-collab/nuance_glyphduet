@@ -46,6 +46,9 @@ def lan_ip():
 
 
 PUB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public_url.txt')
+# 고정 입구 주소(절대 안 바뀜) — QR은 이 주소를 가리키고, go.html이 GitHub의
+# tunnel_url.json을 읽어 현재 터널로 이어준다. 터널이 바뀌어도 QR 재스캔 불필요.
+ENTRY_URL = 'https://yang2zizon-collab.github.io/nuance_glyphduet/go.html'
 
 
 def build_stamp():
@@ -98,6 +101,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
             base = audience_base()
             return self._json(200, {
                 'lanUrl': base + '/tap.html',
+                'entryUrl': ENTRY_URL,
                 'public': base.startswith('https://'),
                 'phase': current_phase['v'],
                 'ascii': current_ascii['v'],

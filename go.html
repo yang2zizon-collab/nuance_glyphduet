@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>"뉘앙스" 글리프 듀엣 — 입장</title>
+  <!-- 고정 입구 페이지(GitHub Pages) — QR은 언제나 이 주소.
+       현재 공연 터널 주소를 GitHub(tunnel_url.json)에서 읽어 자동으로 이어준다.
+       터널이 재발급돼 주소가 바뀌어도 QR은 그대로 유효하다. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #fff; color: #111; font-family: ui-monospace, Menlo, monospace; }
+    .wrap { height: 100%; display: grid; place-items: center; text-align: center; }
+    .mark { font-size: 46px; line-height: 1; animation: bre 2.4s ease-in-out infinite; }
+    @keyframes bre { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+    p { margin: 8px 0 0; font-size: 15px; }
+    .sub { color: #777; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap"><div>
+    <div class="mark">✳</div>
+    <p id="msg">공연장 찾는 중…</p>
+    <p class="sub" id="sub">connecting to the performance</p>
+  </div></div>
+  <script>
+    var RAW = 'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json';
+    var msg = document.getElementById('msg'), sub = document.getElementById('sub');
+    function tryOnce() {
+      return fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; })
+        .then(function (j) {
+          if (!j || !j.url) return false;
+          var t = String(j.url).replace(/\/+$/, '');
+          if (!/^https?:\/\//.test(t)) return false;
+          // 살아 있는지 확인(4초) — 실패해도 방금(10분 내) 발급된 주소면 그대로 간다
+          var fresh = j.epoch && Math.abs(Date.now() / 1000 - j.epoch) < 600;
+          return Promise.race([
+            fetch(t + '/config', { cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }),
+            new Promise(function (res) { setTimeout(function () { res(false); }, 4000); }),
+          ]).then(function (ok) {
+            if (ok || fresh) { location.replace(t + '/tap.html'); return true; }
+            return false;
+          });
+        });
+    }
+    (function loop(n) {
+      tryOnce().then(function (done) {
+        if (done) return;
+        msg.textContent = '공연 준비 중 — 서버를 기다립니다';
+        sub.textContent = '자동 재확인 중 (' + (n + 1) + ') · keep this page open';
+        setTimeout(function () { loop(n + 1); }, 5000);
+      });
+    })(0);
+  </script>
+</body>
+</html>

@@ -124,6 +124,17 @@ serve.py                로컬 서버
     `./start-show.sh`에 **워치독** 내장: 45초마다 공개주소 `/config`를 확인하고 죽어 있으면
     자동으로 새 터널 발급 + public_url.txt 갱신(주소가 바뀌므로 메인 새로고침·폰 QR 재스캔 필요).
     수동 복구: cloudflared kill → 재실행 → cf.log에서 URL 추출 → public_url.txt 갱신.
+- **고정 입구 주소(재부팅·터널 재발급에도 QR 불변)**: QR은 언제나
+  `https://yang2zizon-collab.github.io/nuance_glyphduet/go.html`(serve.py ENTRY_URL, /config
+  entryUrl — 메인 큰 QR·라운드 미니 QR 모두 이 주소, ?pub=은 예외로 우선). go.html(레포 루트,
+  GitHub Pages가 main 루트 서빙)이 `tunnel_url.json`(레포 루트)을 raw.githubusercontent에서
+  캐시버스트(?t=)로 읽어 현재 터널 `/tap.html`로 연결 — /config 200 확인(4초) 또는 epoch 10분 내면
+  이동. start-show.sh·tunnel-watch.sh의 `push_tunnel_url()`이 터널 (재)발급 때마다 json을
+  경로 한정 커밋(`git commit -m … tunnel_url.json`)+push. **폰 자가 이주**: tap.html 4초 폴링이
+  3회 연속 실패하면 json을 읽어 다른 origin이 살아 있으면(또는 갓 발급) `location.replace`로
+  갈아탐 — 접속해 있던 폰도 재스캔 없이 따라온다(localStorage uid는 origin별이라 색 순번은
+  새로 배정됨). grep은 반드시 `-a`(cf.log 바이너리 판정 시 "Binary file …" 오염 방지) +
+  기록 전 URL 형태 검증.
 - **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
   말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
 - **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→ 선물 UI가 내려가며 **그래픽 스코어만(네모 프레임째, body.score-only — 입력칸·캐릭터 열 숨김) 0.8s 페이드로 재등장 → 3초 보여준 뒤** `startAsciiArt()`(showTimers 타이머 — devJump가 정리). 최다 득표 부호(winningNuance)의

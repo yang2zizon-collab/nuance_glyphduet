@@ -3355,6 +3355,7 @@ function drawDuetHeads(t) {
 // serve.py 의 SSE(/events)로 폰(/tap.html)이 보낸 부호를 받아 castVote(…, 'aud').
 // QR은 8초 라운드 동안 띄운다. 서버가 정적뿐이면(SSE 없음) 퍼포머 전용으로 동작.
 let audienceTapUrl = null;    // 폰이 열 주소 (?pub=공개주소 우선, 없으면 서버 /config 주소)
+let audienceEntryUrl = '';    // 고정 입구(GitHub Pages go.html) — 있으면 QR은 늘 이 주소(터널 바뀌어도 유효)
 let audienceUrlLocked = false; // ?pub= 로 수동 고정된 경우 — 자동 갱신 안 함
 let audienceES = null;
 
@@ -3374,6 +3375,7 @@ function refreshAudienceUrl() {
       }
       tag.textContent = 'v' + new Date(buildSeen * 1000).toTimeString().slice(0, 8);
     }
+    if (c && c.entryUrl != null) audienceEntryUrl = c.entryUrl;
     if (audienceUrlLocked || !c || !c.lanUrl) return;
     const bigEl = $('#big-qr');
     const needFirst = bigEl && !bigEl.firstChild;      // 아직 QR을 못 그린 경우(라이브러리 늦은 로드 포함)
@@ -3415,12 +3417,13 @@ function setupAudience() {
 function renderBigQR() {
   const el = $('#big-qr');
   if (!el || !audienceTapUrl || typeof QRCode === 'undefined') return;
+  const target = (!audienceUrlLocked && audienceEntryUrl) ? audienceEntryUrl : audienceTapUrl;
   el.innerHTML = '';
   new QRCode(el, {
-    text: audienceTapUrl, width: 420, height: 420,
+    text: target, width: 420, height: 420,
     colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M,
   });
-  const u = $('#qr-url'); if (u) u.textContent = audienceTapUrl;
+  const u = $('#qr-url'); if (u) u.textContent = target;
 }
 
 // 라운드 중 관객 참여 QR을 그린다(주소·라이브러리 있을 때만).
@@ -3428,9 +3431,10 @@ function renderMarkQR() {
   const box = $('#mark-qr'); const code = $('#mark-qr-code');
   if (!box || !code) return;
   if (!audienceTapUrl || typeof QRCode === 'undefined') { box.classList.add('hidden'); return; }
+  const target = (!audienceUrlLocked && audienceEntryUrl) ? audienceEntryUrl : audienceTapUrl;
   code.innerHTML = '';
   new QRCode(code, {
-    text: audienceTapUrl, width: 128, height: 128,
+    text: target, width: 128, height: 128,
     colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M,
   });
   box.classList.remove('hidden');

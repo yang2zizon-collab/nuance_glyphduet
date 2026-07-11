@@ -24,6 +24,16 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+
+push_tunnel_url() {   # 현재 공개주소를 GitHub에 올린다 — 고정 QR(go.html)·폰 자동 이주가 이걸 읽는다
+  local u; u=$(cat public_url.txt 2>/dev/null) || return 0
+  case "$u" in https://*.trycloudflare.com) : ;; *) return 0 ;; esac
+  printf '{"url":"%s","epoch":%s}' "$u" "$(date +%s)" > tunnel_url.json
+  git commit -m "터널 주소 갱신(자동)" tunnel_url.json >/dev/null 2>&1 || return 0
+  git pull --rebase --autostash >/dev/null 2>&1 || true
+  git push origin main >/dev/null 2>&1 && echo "  → 고정 QR에 새 주소 반영됨" || echo "  ⚠ 주소 자동 반영 실패(인터넷?) — 다음 재발급 때 재시도"
+}
+
 open_tunnel() {   # 터널 하나 열고 URL을 public_url.txt에 기록(성공 시 0)
   : > cf.log
   cloudflared tunnel --protocol http2 --url "http://localhost:$PORT" > cf.log 2>&1 &
@@ -34,7 +44,7 @@ open_tunnel() {   # 터널 하나 열고 URL을 public_url.txt에 기록(성공 
     [ -n "$u" ] && break
     sleep 1
   done
-  case "$u" in https://*.trycloudflare.com) printf '%s' "$u" > public_url.txt; echo "✓ 공개주소: $u"; return 0;; esac
+  case "$u" in https://*.trycloudflare.com) printf '%s' "$u" > public_url.txt; echo "✓ 공개주소: $u"; push_tunnel_url || true; return 0;; esac
   return 1
 }
 
