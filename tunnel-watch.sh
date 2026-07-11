@@ -15,15 +15,15 @@ open_tunnel() {
   nohup cloudflared tunnel --protocol http2 --url "http://localhost:$PORT" > cf.log 2>&1 &
   local u=""
   for i in $(seq 1 30); do
-    u=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1 || true)
+    u=$(grep -aoE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1 || true)
     [ -n "$u" ] && break
     sleep 1
   done
-  if [ -n "$u" ]; then
+  case "$u" in https://*.trycloudflare.com)
     printf '%s' "$u" > public_url.txt
     echo "$(date '+%H:%M:%S') ✓ 공개주소: $u"
-    return 0
-  fi
+    return 0;;
+  esac
   echo "$(date '+%H:%M:%S') ⚠ 터널 발급 실패"
   return 1
 }
