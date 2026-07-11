@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>"뉘앙스" 글리프 듀엣 — 다시 잇는 중</title>
+  <!-- 서비스 워커가 캐시해 두는 복구 페이지 — 공연 주소(터널)가 죽으면
+       새로고침 시 이 화면이 뜨고, GitHub의 최신 주소를 찾아 자동으로 이어준다. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #fff; color: #111; font-family: ui-monospace, Menlo, monospace; }
+    .wrap { height: 100%; display: grid; place-items: center; text-align: center; }
+    .mark { font-size: 46px; line-height: 1; animation: bre 2.4s ease-in-out infinite; }
+    @keyframes bre { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+    p { margin: 8px 0 0; font-size: 15px; }
+    .sub { color: #777; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap"><div>
+    <div class="mark">✳</div>
+    <p>연결이 잠시 끊겼어요 — 다시 잇는 중</p>
+    <p class="sub" id="sub">reconnecting · 화면을 닫지 마세요</p>
+  </div></div>
+  <script>
+    var RAW = 'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json';
+    var sub = document.getElementById('sub');
+    function alive(base) {   // /config 200이어야만 이동 — 죽은 주소(1033)로는 절대 안 보낸다
+      return Promise.race([
+        fetch(base + '/config', { cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }),
+        new Promise(function (res) { setTimeout(function () { res(false); }, 4000); }),
+      ]);
+    }
+    function attempt() {
+      return fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; })
+        .then(function (j) {
+          var cands = [];
+          if (j && j.url && /^https?:\/\//.test(String(j.url))) cands.push(String(j.url).replace(/\/+$/, ''));
+          if (cands.indexOf(location.origin) < 0) cands.push(location.origin);   // 같은 주소가 되살아난 경우
+          return cands.reduce(function (p, c) {
+            return p.then(function (done) {
+              if (done) return true;
+              return alive(c).then(function (ok) {
+                if (ok) { location.replace(c + '/tap.html'); return true; }
+                return false;
+              });
+            });
+          }, Promise.resolve(false));
+        });
+    }
+    (function loop(n) {
+      attempt().then(function (done) {
+        if (done) return;
+        sub.textContent = 'reconnecting (' + (n + 1) + ') · 화면을 닫지 마세요';
+        setTimeout(function () { loop(n + 1); }, 5000);
+      });
+    })(0);
+  </script>
+</body>
+</html>

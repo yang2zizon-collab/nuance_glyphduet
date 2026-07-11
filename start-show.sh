@@ -59,10 +59,16 @@ if command -v cloudflared >/dev/null 2>&1; then
   # 터널 워치독 — 공개주소가 죽으면 자동 재발급(45초 간격 확인)
   (
     while true; do
-      sleep 45
+      sleep 20
       U=$(cat public_url.txt 2>/dev/null || true)
-      [ -z "$U" ] && continue
-      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$U/config" || true)
+      if [ -z "$U" ]; then   # 발급 실패 상태 — 성공할 때까지 재시도(데이터 접속은 반드시 살린다)
+        echo ""; echo "⚠ 공개주소 없음 — 터널 재발급 시도…"
+        [ -f cf.pid ] && kill "$(cat cf.pid)" 2>/dev/null || true
+        sleep 1
+        open_tunnel || true
+        continue
+      fi
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "$U/config" || true)
       if [ "$code" != "200" ]; then
         echo ""
         echo "⚠ 터널 응답 없음(code=$code) — 새 터널 발급 중…"

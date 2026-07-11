@@ -43,7 +43,7 @@ open_tunnel() {
 while true; do
   U=$(cat public_url.txt 2>/dev/null || true)
   if [ -n "$U" ]; then
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$U/config" || true)
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "$U/config" || true)
     if [ "$code" != "200" ]; then
       echo "$(date '+%H:%M:%S') ⚠ 터널 응답 없음(code=$code) — 재발급"
       open_tunnel || true
@@ -51,5 +51,5 @@ while true; do
   else
     open_tunnel || true
   fi
-  sleep 45
+  sleep 20
 done

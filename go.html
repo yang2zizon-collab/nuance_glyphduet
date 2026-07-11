@@ -31,13 +31,13 @@
           if (!j || !j.url) return false;
           var t = String(j.url).replace(/\/+$/, '');
           if (!/^https?:\/\//.test(t)) return false;
-          // 살아 있는지 확인(4초) — 실패해도 방금(10분 내) 발급된 주소면 그대로 간다
-          var fresh = j.epoch && Math.abs(Date.now() / 1000 - j.epoch) < 600;
+          // /config 200이 확인된 주소로만 이동 — 죽은 주소(1033)로는 절대 안 보낸다.
+          // 터널이 죽어 있으면 이 페이지가 5초마다 재확인하며 기다린다(워치독이 곧 새 주소를 올림).
           return Promise.race([
             fetch(t + '/config', { cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }),
             new Promise(function (res) { setTimeout(function () { res(false); }, 4000); }),
           ]).then(function (ok) {
-            if (ok || fresh) { location.replace(t + '/tap.html'); return true; }
+            if (ok) { location.replace(t + '/tap.html'); return true; }
             return false;
           });
         });
