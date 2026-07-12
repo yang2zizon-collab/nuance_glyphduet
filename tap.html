@@ -842,6 +842,7 @@
     let cfgFails = 0, migrating = false;
     // 주소 소스 2중화 — jsDelivr(push 직후 퍼지 → 수 초 내 신선) 우선, raw(최대 ~5분 캐시) 백업
     const TUNNEL_SRCS = [
+      'https://yang2zizon-collab.github.io/nuance_glyphduet/tunnel_url.json',   // Pages 자체 서빙 — 푸시 후 ~20-60초, 캐시 레이스 없음(1순위)
       'https://cdn.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json',
       'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json',
     ];

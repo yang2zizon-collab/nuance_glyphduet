@@ -128,8 +128,10 @@ serve.py                로컬 서버
   `https://yang2zizon-collab.github.io/nuance_glyphduet/go.html`(serve.py ENTRY_URL, /config
   entryUrl — 메인 큰 QR·라운드 미니 QR 모두 이 주소, ?pub=은 예외로 우선). go.html(레포 루트,
   GitHub Pages가 main 루트 서빙)이 `tunnel_url.json`(레포 루트)을 **2중 소스**로 읽어 현재 터널
-  `/tap.html`로 연결: ① jsDelivr(`cdn.jsdelivr.net/gh/...@main/...`) — push 직후 퍼지로 수 초 내
-  신선(1순위) ② raw.githubusercontent — **?t= 캐시버스트를 무시하고 ~5분 묵음**(실측), 백업.
+  `/tap.html`로 연결(3소스, 후보 전부 /config 검증): ① **Pages 자체 서빙**
+  (`github.io/.../tunnel_url.json` — 푸시 후 ~20-60초, 쿼리버스트 유효, 1순위) ② jsDelivr —
+  퍼지해도 **원본 전파 전이면 옛 내용을 재캐시**(실측: 60초+ 박제 → 백그라운드 퍼지 ~6분 반복으로
+  수렴) ③ raw.githubusercontent — ?t= 무시하고 ~5분 묵음(실측), 최후 백업.
   start-show.sh·tunnel-watch.sh의 `push_tunnel_url()`이 터널 (재)발급 때마다 json을
   경로 한정 커밋(`git commit -m … tunnel_url.json`)+push+**jsDelivr 퍼지·검증 반복**
   (`purge.jsdelivr.net/...` — **레이스 주의**: GitHub 원본 전파 전에 퍼지하면 옛 내용이 다시
