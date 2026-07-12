@@ -77,6 +77,10 @@
       };
       tryOnce().then(next, function () { next(false); });
     })(0);
+    // 백그라운드에 오래 있다 되살아난 탭(bfcache) — 옛 코드·멈춘 루프일 수 있으니 즉시 새로 받는다
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) location.replace(location.pathname + '?r=' + Date.now());
+    });
   </script>
 </body>
 </html>

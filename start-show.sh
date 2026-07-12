@@ -66,11 +66,14 @@ open_tunnel() {   # 터널 하나 열고 URL을 public_url.txt에 기록(성공 
   echo $! > cf.pid
   local u=""
   for i in $(seq 1 30); do
-    u=$(grep -aoE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1 || true)
+    u=$(grep -aoE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | grep -v '^https://api\.' | head -1 || true)
     [ -n "$u" ] && break
     sleep 1
   done
-  case "$u" in https://*.trycloudflare.com) printf '%s' "$u" > public_url.txt; echo "✓ 공개주소: $u"; push_tunnel_url || true; return 0;; esac
+  case "$u" in
+    https://api.trycloudflare.com) : ;;   # 클플 내부 API 주소 — 터널 주소 아님
+    https://*.trycloudflare.com) printf '%s' "$u" > public_url.txt; echo "✓ 공개주소: $u"; push_tunnel_url || true; return 0;;
+  esac
   return 1
 }
 

@@ -74,6 +74,8 @@
       };
       attempt().then(next, function () { next(false); });
     })(0);
+    // 백그라운드에서 되살아난 탭은 즉시 리셋(멈춘 루프 방지)
+    window.addEventListener('pageshow', function (e) { if (e.persisted) location.reload(); });
   </script>
 </body>
 </html>

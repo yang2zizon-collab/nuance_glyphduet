@@ -40,15 +40,17 @@ open_tunnel() {
   nohup cloudflared tunnel --protocol http2 --url "http://localhost:$PORT" > cf.log 2>&1 &
   local u=""
   for i in $(seq 1 30); do
-    u=$(grep -aoE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | head -1 || true)
+    u=$(grep -aoE 'https://[a-z0-9-]+\.trycloudflare\.com' cf.log | grep -v '^https://api\.' | head -1 || true)
     [ -n "$u" ] && break
     sleep 1
   done
-  case "$u" in https://*.trycloudflare.com)
-    printf '%s' "$u" > public_url.txt
-    echo "$(date '+%H:%M:%S') ✓ 공개주소: $u"
-    push_tunnel_url || true
-    return 0;;
+  case "$u" in
+    https://api.trycloudflare.com) : ;;   # 클플 내부 API 주소 — 터널 주소 아님
+    https://*.trycloudflare.com)
+      printf '%s' "$u" > public_url.txt
+      echo "$(date '+%H:%M:%S') ✓ 공개주소: $u"
+      push_tunnel_url || true
+      return 0;;
   esac
   echo "$(date '+%H:%M:%S') ⚠ 터널 발급 실패"
   return 1
