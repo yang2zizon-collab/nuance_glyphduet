@@ -840,19 +840,33 @@
     if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('/sw.js'); } catch (e) {} }
     // ── 서버 이주 — 터널 재발급으로 지금 origin이 죽으면 GitHub의 최신 주소로 갈아탄다 ──
     let cfgFails = 0, migrating = false;
-    const TUNNEL_JSON = 'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json';
+    // 주소 소스 2중화 — jsDelivr(push 직후 퍼지 → 수 초 내 신선) 우선, raw(최대 ~5분 캐시) 백업
+    const TUNNEL_SRCS = [
+      'https://cdn.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json',
+      'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json',
+    ];
     function tryMigrate() {
       if (migrating) return;
-      fetch(TUNNEL_JSON + '?t=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((j) => {
-        if (!j || !j.url) return;
-        const t2 = String(j.url).replace(/\/+$/, '');
-        if (!/^https?:\/\//.test(t2) || t2 === location.origin) return;
+      Promise.all(TUNNEL_SRCS.map((src) => fetch(src + '?t=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).catch(() => null))).then((js) => {
+        const cands = [];
+        js.forEach((j) => {
+          if (j && j.url && /^https?:\/\//.test(String(j.url))) {
+            const u = String(j.url).replace(/\/+$/, '');
+            if (u !== location.origin && cands.indexOf(u) < 0) cands.push(u);
+          }
+        });
         // /config 200이 확인된 주소로만 이동 — 죽은 주소(1033 에러 페이지)로 가면
         // 우리 코드가 아예 안 돌아 자동 복구가 끊긴다.
-        Promise.race([
-          fetch(t2 + '/config', { cache: 'no-store' }).then((r) => r.ok).catch(() => false),
-          new Promise((res) => setTimeout(() => res(false), 4000)),
-        ]).then((ok) => { if (ok && !migrating) { migrating = true; location.replace(t2 + '/tap.html'); } });
+        cands.reduce((p, c) => p.then((done) => {
+          if (done || migrating) return true;
+          return Promise.race([
+            fetch(c + '/config', { cache: 'no-store' }).then((r) => r.ok).catch(() => false),
+            new Promise((res) => setTimeout(() => res(false), 4000)),
+          ]).then((ok) => {
+            if (ok && !migrating) { migrating = true; location.replace(c + '/tap.html'); return true; }
+            return false;
+          });
+        }), Promise.resolve(false));
       }).catch(() => {});
     }
     function syncNow() {

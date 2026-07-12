@@ -15,7 +15,12 @@ push_tunnel_url() {   # 현재 공개주소를 GitHub에 올린다 — 고정 QR
   printf '{"url":"%s","epoch":%s}' "$u" "$(date +%s)" > tunnel_url.json
   git commit -m "터널 주소 갱신(자동)" tunnel_url.json >/dev/null 2>&1 || return 0
   git pull --rebase --autostash >/dev/null 2>&1 || true
-  git push origin main >/dev/null 2>&1 && echo "  → 고정 QR에 새 주소 반영됨" || echo "  ⚠ 주소 자동 반영 실패(인터넷?) — 다음 재발급 때 재시도"
+  if git push origin main >/dev/null 2>&1; then
+    curl -s -o /dev/null --max-time 8 "https://purge.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json" || true
+    echo "  → 고정 QR에 새 주소 반영됨(jsDelivr 퍼지 포함)"
+  else
+    echo "  ⚠ 주소 자동 반영 실패(인터넷?) — 다음 재발급 때 재시도"
+  fi
 }
 
 open_tunnel() {

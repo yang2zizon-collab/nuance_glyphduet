@@ -22,7 +22,10 @@
     <p class="sub" id="sub">reconnecting · 화면을 닫지 마세요</p>
   </div></div>
   <script>
-    var RAW = 'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json';
+    var SRCS = [
+      'https://cdn.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json',
+      'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json',
+    ];
     var sub = document.getElementById('sub');
     function alive(base) {   // /config 200이어야만 이동 — 죽은 주소(1033)로는 절대 안 보낸다
       return Promise.race([
@@ -31,10 +34,16 @@
       ]);
     }
     function attempt() {
-      return fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; })
-        .then(function (j) {
+      return Promise.all(SRCS.map(function (src) {
+        return fetch(src + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; });
+      })).then(function (js) {
           var cands = [];
-          if (j && j.url && /^https?:\/\//.test(String(j.url))) cands.push(String(j.url).replace(/\/+$/, ''));
+          js.forEach(function (j) {
+            if (j && j.url && /^https?:\/\//.test(String(j.url))) {
+              var u = String(j.url).replace(/\/+$/, '');
+              if (cands.indexOf(u) < 0) cands.push(u);
+            }
+          });
           if (cands.indexOf(location.origin) < 0) cands.push(location.origin);   // 같은 주소가 되살아난 경우
           return cands.reduce(function (p, c) {
             return p.then(function (done) {

@@ -23,24 +23,40 @@
     <p class="sub" id="sub">connecting to the performance</p>
   </div></div>
   <script>
-    var RAW = 'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json';
+    // 주소 소스 2중화 — jsDelivr(push 직후 퍼지 → 수 초 내 신선) 우선, raw(최대 ~5분 캐시) 백업
+    var SRCS = [
+      'https://cdn.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json',
+      'https://raw.githubusercontent.com/yang2zizon-collab/nuance_glyphduet/main/tunnel_url.json',
+    ];
     var msg = document.getElementById('msg'), sub = document.getElementById('sub');
+    function readJson(src) {
+      return fetch(src + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; });
+    }
+    function alive(base) {   // /config 200이 확인된 주소로만 이동 — 죽은 주소(1033)로는 절대 안 보낸다
+      return Promise.race([
+        fetch(base + '/config', { cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }),
+        new Promise(function (res) { setTimeout(function () { res(false); }, 4000); }),
+      ]);
+    }
     function tryOnce() {
-      return fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; })
-        .then(function (j) {
-          if (!j || !j.url) return false;
-          var t = String(j.url).replace(/\/+$/, '');
-          if (!/^https?:\/\//.test(t)) return false;
-          // /config 200이 확인된 주소로만 이동 — 죽은 주소(1033)로는 절대 안 보낸다.
-          // 터널이 죽어 있으면 이 페이지가 5초마다 재확인하며 기다린다(워치독이 곧 새 주소를 올림).
-          return Promise.race([
-            fetch(t + '/config', { cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }),
-            new Promise(function (res) { setTimeout(function () { res(false); }, 4000); }),
-          ]).then(function (ok) {
-            if (ok) { location.replace(t + '/tap.html'); return true; }
-            return false;
-          });
+      return Promise.all(SRCS.map(readJson)).then(function (js) {
+        var cands = [];
+        js.forEach(function (j) {
+          if (j && j.url && /^https?:\/\//.test(String(j.url))) {
+            var t = String(j.url).replace(/\/+$/, '');
+            if (cands.indexOf(t) < 0) cands.push(t);
+          }
         });
+        return cands.reduce(function (p, c) {
+          return p.then(function (done) {
+            if (done) return true;
+            return alive(c).then(function (ok) {
+              if (ok) { location.replace(c + '/tap.html'); return true; }
+              return false;
+            });
+          });
+        }, Promise.resolve(false));
+      });
     }
     (function loop(n) {
       tryOnce().then(function (done) {
