@@ -13,6 +13,12 @@ set -e
 cd "$(dirname "$0")"
 export PATH="$HOME/bin:/opt/homebrew/bin:$PATH"   # cloudflared가 ~/bin에 있어도 찾도록
 PORT="${1:-8777}"
+# 단일 인스턴스 보장 — 겹쳐 뜬 이전 공연 프로세스를 먼저 정리.
+# (겹친 옛 인스턴스가 나중에 죽으며 cleanup으로 공용 파일을 지우는 사고가 실제로 있었다)
+for p in $(pgrep -f "start-show.sh" 2>/dev/null || true); do [ "$p" != "$$" ] && kill "$p" 2>/dev/null || true; done
+pkill -f "serve.py $PORT" 2>/dev/null || true
+pkill -f "cloudflared tunnel" 2>/dev/null || true
+sleep 1
 rm -f public_url.txt cf.log cf.pid
 
 python3 serve.py "$PORT" &
@@ -23,7 +29,9 @@ CAF=$!
 cleanup() {
   kill "$SRV" "$WATCH" "$CAF" 2>/dev/null || true
   [ -f cf.pid ] && kill "$(cat cf.pid)" 2>/dev/null || true
-  rm -f public_url.txt cf.pid
+  # public_url.txt는 지우지 않는다 — 겹친 인스턴스가 죽으며 남의 파일을 지우는 사고 방지.
+  # 묵은 주소가 남아도 워치독·페이지가 검증 후 걸러내니 무해하다.
+  rm -f cf.pid
 }
 trap cleanup INT TERM EXIT
 

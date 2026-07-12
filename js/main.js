@@ -4192,20 +4192,21 @@ function drawScore3D(ctx, W, H, t, progress) {
     });
     ctx.restore();
   }
-  // 관객 미니 랭킹(1~5위) — 오른쪽 위에 아주 작게, 각자 자기 색·닉네임으로.
+  // 관객 미니 랭킹(1~10위) — 오른쪽 위에 아주 작게, 각자 자기 색·닉네임으로.
   // 반전 뒤에 그려 파스텔이 그대로 보인다(밝기는 배경에 맞춰 보간).
   if (sphere) {
     const ranks = Object.entries(audScores).map(([k, v]) => [+k, v])
-      .sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 5);
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 10);
     if (ranks.length) {
       ctx.save();
       const L = Math.round(45 + 33 * inv);
       const fs = Math.max(10, Math.round(Math.min(W, H) * 0.013));
       ctx.font = `${fs}px Galmuri11, Datatype, monospace`;
       ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      const y0 = 12 + (fs + 5) * 3;   // 카메라 UI·상단과 겹치지 않게 세 줄쯤 내려서 시작
       ranks.forEach(([ci, cnt], i) => {
         ctx.fillStyle = audPastel(ci, 0.92, L);
-        ctx.fillText(`${i + 1} ${audNick(ci)} · ${cnt}`, W - 14, 12 + i * (fs + 5));
+        ctx.fillText(`${i + 1} ${audNick(ci)} · ${cnt}`, W - 14, y0 + i * (fs + 5));
       });
       ctx.restore();
     }
