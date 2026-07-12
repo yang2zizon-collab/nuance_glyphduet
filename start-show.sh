@@ -17,8 +17,11 @@ rm -f public_url.txt cf.log cf.pid
 
 python3 serve.py "$PORT" &
 SRV=$!
+# 공연 중 맥이 잠들면 터널·서버가 끊긴다 — 서버가 사는 동안 잠들기 방지(디스플레이 포함)
+caffeinate -dimsu -w "$SRV" >/dev/null 2>&1 &
+CAF=$!
 cleanup() {
-  kill "$SRV" "$WATCH" 2>/dev/null || true
+  kill "$SRV" "$WATCH" "$CAF" 2>/dev/null || true
   [ -f cf.pid ] && kill "$(cat cf.pid)" 2>/dev/null || true
   rm -f public_url.txt cf.pid
 }

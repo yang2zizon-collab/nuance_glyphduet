@@ -56,12 +56,22 @@
           }, Promise.resolve(false));
         });
     }
+    // 루프 불사(예외도 재시도) + 6회(≈30초)마다 셀프 새로고침 — 죽은 주소에선
+    // 서비스 워커가 이 페이지를 캐시로 다시 살려주므로 무한 리셋이 안전하다.
+    var N0 = +(sessionStorage.getItem('rcN') || 0);
     (function loop(n) {
-      attempt().then(function (done) {
-        if (done) return;
-        sub.textContent = 'reconnecting (' + (n + 1) + ') · 화면을 닫지 마세요';
+      var next = function (done) {
+        if (done) { sessionStorage.removeItem('rcN'); return; }
+        var total = N0 + n + 1;
+        sub.textContent = 'reconnecting (' + total + ') · 화면을 닫지 마세요';
+        if ((n + 1) % 6 === 0) {
+          sessionStorage.setItem('rcN', String(total));
+          location.reload();
+          return;
+        }
         setTimeout(function () { loop(n + 1); }, 5000);
-      });
+      };
+      attempt().then(next, function () { next(false); });
     })(0);
   </script>
 </body>

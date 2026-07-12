@@ -58,13 +58,23 @@
         }, Promise.resolve(false));
       });
     }
+    // 루프는 절대 죽지 않는다(예외도 다음 시도 예약) + 5회(≈25초) 실패마다 페이지 자체를
+    // 새로고침 — "수동 새로고침하면 됐다"를 자동화(스크립트·CDN 상태가 어떻든 리셋).
+    var N0 = +(sessionStorage.getItem('goN') || 0);
     (function loop(n) {
-      tryOnce().then(function (done) {
-        if (done) return;
+      var next = function (done) {
+        if (done) { sessionStorage.removeItem('goN'); return; }
+        var total = N0 + n + 1;
         msg.textContent = '공연 준비 중 — 서버를 기다립니다';
-        sub.textContent = '자동 재확인 중 (' + (n + 1) + ') · keep this page open';
+        sub.textContent = '자동 재확인 중 (' + total + ') · keep this page open';
+        if ((n + 1) % 5 === 0) {
+          sessionStorage.setItem('goN', String(total));
+          location.replace(location.pathname + '?r=' + Date.now());   // 셀프 새로고침(캐시 우회)
+          return;
+        }
         setTimeout(function () { loop(n + 1); }, 5000);
-      });
+      };
+      tryOnce().then(next, function () { next(false); });
     })(0);
   </script>
 </body>

@@ -141,7 +141,12 @@ serve.py                로컬 서버
   복구 불능) ② **서비스 워커**(sw.js, tap.html이 등록) — navigate 요청이 실패(네트워크)하거나
   5xx(1033=530)면 캐시된 recover.html 제공 → 거기서 json 읽어 산 주소로 자동 이주(죽은 주소에서
   **새로고침해도** 살아남) ③ 워치독 감지 20초(+curl 6초) + start-show.sh는 발급 실패(주소 없음)
-  상태도 성공할 때까지 재시도.
+  상태도 성공할 때까지 재시도. **불사 대기 루프**: go.html은 5회(≈25초)·recover.html은
+  6회(≈30초) 실패마다 **셀프 새로고침**(수동 새로고침의 자동화 — 루프 예외·CDN 지역 캐시가
+  어떻든 리셋; sessionStorage로 시도 횟수 승계, recover는 SW 캐시가 되살림). recover.html을
+  고치면 **sw.js CACHE 버전을 반드시 올릴 것**(설치 때 캐시가 박제됨 — v2부터 구캐시 자동 삭제).
+  start-show.sh는 `caffeinate -dimsu`로 공연 중 맥 잠들기 방지(잠들면 터널·서버가 끊긴다 —
+  "왜 자꾸 끊기나"의 유력 원인).
 - **듀엣 연출(play 화면)**: `drawDuetHeads()` — 지금 치는 캐릭터가 입력칸 왼쪽(차례0)/오른쪽(차례1)에
   말할 때만 등장(흑백 실루엣), 타건 직후 450ms 입 움직임(`lastKeyAt`). phase==='round'에서만.
 - **아스키아트 전환**: 선물 ▶(`giftDoneToEnding`)→ 선물 UI가 내려가며 **그래픽 스코어만(네모 프레임째, body.score-only — 입력칸·캐릭터 열 숨김) 0.8s 페이드로 재등장 → 3초 보여준 뒤** `startAsciiArt()`(showTimers 타이머 — devJump가 정리). 최다 득표 부호(winningNuance)의
