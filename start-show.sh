@@ -35,8 +35,17 @@ push_tunnel_url() {   # 현재 공개주소를 GitHub에 올린다 — 고정 QR
   git commit -m "터널 주소 갱신(자동)" tunnel_url.json >/dev/null 2>&1 || return 0
   git pull --rebase --autostash >/dev/null 2>&1 || true
   if git push origin main >/dev/null 2>&1; then
-    curl -s -o /dev/null --max-time 8 "https://purge.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json" || true
-    echo "  → 고정 QR에 새 주소 반영됨(jsDelivr 퍼지 포함)"
+    # 퍼지 레이스 주의 — GitHub 원본 전파 전에 퍼지하면 jsDelivr가 옛 내용을 다시
+    # 신선한 척 캐시한다(실제 발생). 내용이 새 주소와 일치할 때까지 퍼지+검증 반복.
+    local k got
+    for k in 1 2 3 4 5 6 7 8; do
+      curl -s -o /dev/null --max-time 8 "https://purge.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json" || true
+      sleep 4
+      got=$(curl -s --max-time 8 "https://cdn.jsdelivr.net/gh/yang2zizon-collab/nuance_glyphduet@main/tunnel_url.json" 2>/dev/null | grep -Fo "$u" || true)
+      [ -n "$got" ] && break
+      sleep 3
+    done
+    if [ -n "$got" ]; then echo "  → 고정 QR에 새 주소 반영 확인(jsDelivr 일치)"; else echo "  ⚠ jsDelivr 아직 옛 주소(raw 백업으로는 ≤5분 내 반영)"; fi
   else
     echo "  ⚠ 주소 자동 반영 실패(인터넷?) — 다음 재발급 때 재시도"
   fi

@@ -131,8 +131,9 @@ serve.py                로컬 서버
   `/tap.html`로 연결: ① jsDelivr(`cdn.jsdelivr.net/gh/...@main/...`) — push 직후 퍼지로 수 초 내
   신선(1순위) ② raw.githubusercontent — **?t= 캐시버스트를 무시하고 ~5분 묵음**(실측), 백업.
   start-show.sh·tunnel-watch.sh의 `push_tunnel_url()`이 터널 (재)발급 때마다 json을
-  경로 한정 커밋(`git commit -m … tunnel_url.json`)+push+**jsDelivr 퍼지**
-  (`purge.jsdelivr.net/gh/...@main/tunnel_url.json`). **폰 자가 이주**: tap.html 4초 폴링이
+  경로 한정 커밋(`git commit -m … tunnel_url.json`)+push+**jsDelivr 퍼지·검증 반복**
+  (`purge.jsdelivr.net/...` — **레이스 주의**: GitHub 원본 전파 전에 퍼지하면 옛 내용이 다시
+  신선한 척 캐시됨(실제 발생) → 내용 일치까지 퍼지 반복, 최대 ~60초). **폰 자가 이주**: tap.html 4초 폴링이
   3회 연속 실패하면 json을 읽어 다른 origin이 살아 있으면(또는 갓 발급) `location.replace`로
   갈아탐 — 접속해 있던 폰도 재스캔 없이 따라온다(localStorage uid는 origin별이라 색 순번은
   새로 배정됨). grep은 반드시 `-a`(cf.log 바이너리 판정 시 "Binary file …" 오염 방지) +
